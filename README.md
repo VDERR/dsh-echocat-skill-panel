@@ -40,11 +40,22 @@ https://github.com/owner/repo/tree/main/skills/my-skill
 
 ## 安装
 
+**GitHub 源码**（推荐，拿到的是完整包）：
+
 ```powershell
 git clone https://github.com/VDERR/echocat-skill-panel-3.0.git
 cd echocat-skill-panel-3.0
 & ".\安装-3.0.ps1"      # 备份清单 → 镜像 → 清旧包名 → 建联接 → 改 manifest → pnpm install
 ```
+
+**npm**（已发布到 npm，包名相同）：
+
+```powershell
+dsh plugin --profile web add echocat-skill-panel-3.0     # 走 dsh 的插件安装
+npm install echocat-skill-panel-3.0                      # 或直接装进 profile 目录
+```
+
+> 两个 `peerDependencies`（`@deepseek-ai/dsh-llm`、`@deepseek-ai/schemastery`）标了 `optional`：由 DSH 运行时提供，npm 不会自己去下载一份来顶替宿主的那份。
 
 > **装完必须重启 DSH Desktop Beta。** host 半侧在 boot 时快照进内存，而客户端 bundle 每次开页面会重新拉取 —— 所以只改客户端刷新页面就够，**改了 host 必须重启**。
 
