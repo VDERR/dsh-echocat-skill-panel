@@ -345,9 +345,17 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-strip-caret--open{transform:rotate(90deg)}
 /* No frame of its own: the shell owns the frame when open, so there is never a box
    inside a box. Inside the strip's card the report also drops its own frame, its
-   corners and its shadow. */
-.sr-strip-panel{max-height:46vh;overflow:auto;border:0;border-radius:0;background:transparent;overscroll-behavior:contain}
-.sr-strip-panel .sr-root{border:0;border-radius:0;box-shadow:none}
+   corners and its shadow.
+ *
+ * ONE scroller, and it is the report inside; this wrapper only bounds the height.
+ * Both being scrollers is what broke the sticky footer: with a nested pair, a
+ * sticky bottom-0 element pins to the OUTER scrollport while being constrained to
+ * its own containing block, so the footer could sit in the middle of the content
+ * with the catalogue still visible below it. A flex column wrapper plus a flex-1 /
+ * min-height-0 child gives the report a definite height, so its own overflow-y
+ * auto is the only scrollport and the footer hugs its bottom edge. */
+.sr-strip-panel{display:flex;flex-direction:column;max-height:46vh;overflow:hidden;border:0;border-radius:0;background:transparent}
+.sr-strip-panel .sr-root{flex:1;min-height:0;height:auto;overflow-y:auto;overscroll-behavior:contain;border:0;border-radius:0;box-shadow:none}
 
 /* ---- status rail (toasts) ---- */
 .sr-rail{display:flex;flex-direction:column;gap:calc(var(--sr-sp)*1.5);padding:0}

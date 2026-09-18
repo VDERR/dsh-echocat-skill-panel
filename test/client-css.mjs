@@ -263,6 +263,13 @@ ok('opening the strip removes the gap', /\.sr-strip-shell--open\{[^}]*gap:0/u.te
 ok('the component marks the open state', componentSource.includes('sr-strip-shell--open'), 'the shell class never switches to the open modifier')
 ok('the strip panel adds no frame of its own', /\.sr-strip-panel\{[^}]*border:0;/u.test(CSS))
 ok('the report inside the card drops its frame too', /\.sr-strip-panel \.sr-root\{[^}]*border:0/u.test(CSS))
+// Nested scrollers break a sticky bottom: the element pins to the OUTER scrollport
+// while being constrained to its own containing block, so the footer ended up
+// mid-content with the catalogue still visible beneath it.
+ok('the strip panel is NOT a scroller', /\.sr-strip-panel\{[^}]*overflow:hidden/u.test(CSS) && !/\.sr-strip-panel\{[^}]*overflow:auto/u.test(CSS))
+ok('the strip panel is a flex column, so its child can take a definite height', /\.sr-strip-panel\{[^}]*display:flex/u.test(CSS) && /\.sr-strip-panel\{[^}]*flex-direction:column/u.test(CSS))
+ok('the report inside is the one and only scroller', /\.sr-strip-panel \.sr-root\{[^}]*flex:1/u.test(CSS) && /\.sr-strip-panel \.sr-root\{[^}]*min-height:0/u.test(CSS) && /\.sr-strip-panel \.sr-root\{[^}]*overflow-y:auto/u.test(CSS))
+ok('the footer really is sticky to the bottom', /\.sr-foot\{[^}]*position:sticky/u.test(CSS) && /\.sr-foot\{[^}]*bottom:0/u.test(CSS))
 // ONE frame, on the shell, enclosing the bar row and the report: the bar is only as
 // wide as the row's first cell, so a frame per half left the box open-ended.
 ok('the open shell owns the frame', /\.sr-strip-shell--open\{[^}]*border:1px solid var\(--sr-line\)/u.test(CSS))
