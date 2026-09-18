@@ -270,6 +270,10 @@ ok('the strip panel is NOT a scroller', /\.sr-strip-panel\{[^}]*overflow:hidden/
 ok('the strip panel is a flex column, so its child can take a definite height', /\.sr-strip-panel\{[^}]*display:flex/u.test(CSS) && /\.sr-strip-panel\{[^}]*flex-direction:column/u.test(CSS))
 ok('the report inside is the one and only scroller', /\.sr-strip-panel \.sr-root\{[^}]*flex:1/u.test(CSS) && /\.sr-strip-panel \.sr-root\{[^}]*min-height:0/u.test(CSS) && /\.sr-strip-panel \.sr-root\{[^}]*overflow-y:auto/u.test(CSS))
 ok('the footer really is sticky to the bottom', /\.sr-foot\{[^}]*position:sticky/u.test(CSS) && /\.sr-foot\{[^}]*bottom:0/u.test(CSS))
+// min-height:0 on this child compresses it to one screen, which strands the footer
+// mid-list: flex:1 puts the footer's flow position at the container's bottom while
+// the overflowing content keeps painting below the footer's box.
+ok('the scrolling body is never compressed below its content', /\.sr-body\{flex:1\}/u.test(CSS) && !/\.sr-body\{[^}]*min-height:0/u.test(CSS))
 // ONE frame, on the shell, enclosing the bar row and the report: the bar is only as
 // wide as the row's first cell, so a frame per half left the box open-ended.
 ok('the open shell owns the frame', /\.sr-strip-shell--open\{[^}]*border:1px solid var\(--sr-line\)/u.test(CSS))

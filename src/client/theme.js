@@ -173,7 +173,22 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-fade--t{top:var(--sr-head-h);margin-bottom:-10px;background:linear-gradient(var(--sr-card),transparent)}
 .sr-fade--b{bottom:0;margin-top:-10px;background:linear-gradient(transparent,var(--sr-card))}
 .sr-fade--on{opacity:1}
-.sr-body{flex:1;min-height:0}
+/* NO min-height:0 here.
+ *
+ * This child sits in a SCROLLING flex column. With min-height:0 it gets compressed
+ * to the container's height, so its content overflows the box while the BOX stays
+ * one screen tall — and flex:1 then pushes the footer to the bottom of that box,
+ * which is the container's bottom rather than the end of the content. Sticky
+ * bottom-0 has nothing left to do, and the overflowing catalogue keeps painting
+ * BELOW the footer, so the footer looks stranded in the middle of the list. (This
+ * is why removing the nested scroller did not fix it.)
+ *
+ * The initial value, min-height:auto, means "never smaller than my content": the
+ * body grows with the content, .sr-root becomes the thing that scrolls, and the
+ * footer's natural position is after everything, so sticky pins it to the bottom
+ * edge. With short content flex:1 still stretches the body, so the footer rests at
+ * the bottom of the panel. */
+.sr-body{flex:1}
 .sr-foot{position:sticky;bottom:0;z-index:4;display:flex;flex-wrap:wrap;align-items:center;gap:calc(var(--sr-sp)*1.5) calc(var(--sr-sp)*2.5);padding:calc(var(--sr-sp)*2) calc(var(--sr-sp)*3.5);border-top:1px solid var(--sr-line);background:var(--sr-card);font-size:10px;color:var(--sr-fg3)}
 .sr-foot-item{display:inline-flex;align-items:center;gap:calc(var(--sr-sp));min-width:0;font-variant-numeric:tabular-nums}
 .sr-foot-mono{font-family:var(--sr-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:26ch}
