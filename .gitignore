@@ -1,0 +1,27 @@
+# Dependencies are never vendored. This package has no runtime dependencies at all
+# (the DSH plugin tree has no per-plugin isolation, so every dependency is a
+# liability); the two entries under `peerDependencies` are provided by the host and
+# are peers for exactly that reason.
+node_modules/
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# NOTE: `lib/client.js` is deliberately NOT ignored.
+#
+# It is a generated artifact, but it is also the only way someone can install this
+# plugin without a build step — the target machine has no toolchain, and the whole
+# point of shipping `lib/` is that "copy the folder, run one script, restart" works.
+# So it is committed on purpose.
+#
+# If you change anything under `src/client/`, run `node tools/build-client.mjs` and
+# commit the rebuilt bundle in the SAME commit. `verify-install.mjs` fails when the
+# bundle does not match the package, so a forgotten rebuild is caught rather than
+# shipped.

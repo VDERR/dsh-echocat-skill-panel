@@ -1,0 +1,21 @@
+# Line-ending policy.
+#
+# This matters more than usual here because the repository contains one GENERATED
+# file whose bytes are checked: `verify-install.mjs` asserts properties of
+# `lib/client.js`, and the build refuses to emit anything that is not pure ASCII
+# with LF endings. If git normalised its line endings, a clone made with a different
+# `core.autocrlf` setting would produce a different file from the same commit.
+* text=auto eol=lf
+
+# The generated bundle is treated as binary so git never rewrites a byte of it.
+# Rebuild it with `node tools/build-client.mjs` instead of editing it by hand.
+lib/client.js -text
+
+# PowerShell is Windows-native; CRLF in the working tree, LF in the object store.
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+
+# Markdown and JSON carry Chinese text; LF keeps diffs readable and avoids the
+# whole-file churn that a line-ending flip causes.
+*.md text eol=lf
+*.json text eol=lf

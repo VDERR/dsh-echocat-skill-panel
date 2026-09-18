@@ -1,0 +1,55 @@
+{
+  "name": "echocat-skill-panel-3.0",
+  "version": "3.0.0",
+  "description": "Per-turn skill audit for DeepSeek Harness, plus an in-app skill manager: a native notification and a resident panel showing which skills each turn invoked, and an install sheet that adds, replaces and removes skills without leaving the app.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./install": "./src/install.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "lib",
+    "test",
+    "tools",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "安装说明.md"
+  ],
+  "scripts": {
+    "build": "node tools/build-client.mjs",
+    "test": "node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "dsh-bundle",
+    "cordis",
+    "skill",
+    "skill-install",
+    "audit",
+    "notification",
+    "panel"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}
