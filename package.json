@@ -37,12 +37,28 @@
     "panel"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VDERR/echocat-skill-panel-3.0.git"
+  },
+  "homepage": "https://github.com/VDERR/echocat-skill-panel-3.0",
+  "bugs": {
+    "url": "https://github.com/VDERR/echocat-skill-panel-3.0/issues"
+  },
   "engines": {
     "node": ">=20"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": "*",
     "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
   },
   "dsh": {
     "bundle": {
