@@ -38,6 +38,7 @@ const {
   performUninstall,
   performUpdate,
   performClaim,
+  performSetEnabled,
 } = api
 
 const h = React.createElement
@@ -249,6 +250,7 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
   const checked = update?.phase === 'done' && update?.result !== undefined && update.result !== null
   const behind = checked && update.result.hasUpdate === true
   const edited = api.locallyEdited(provenance)
+  const disabled = skill?.disabled === true
 
   const onCopy = React.useCallback(() => {
     copyText(name, () => {
@@ -313,28 +315,102 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
     }).then(() => setBusy(false))
   }, [claimDraft, capability, name, onChanged])
 
+  /**
+   * Enable / disable — ONE step, and it destroys nothing.
+   *
+   * The host moves the directory out of (or back into) the root DSH watches, so this is
+   * the control that actually decides whether the model can load the skill. It is not
+   * destructive, so unlike delete and update it needs no second click; the button's own
+   * label and state carry what will happen.
+   */
+  const onToggleEnabled = React.useCallback(() => {
+    setBusy(true)
+    void performSetEnabled(name, disabled, {
+      onDone: () => {
+        if (typeof onChanged === 'function') onChanged()
+      },
+    }).then(() => setBusy(false))
+  }, [disabled, name, onChanged])
+
   // Every action on this row writes, so one predicate gates them all.
   const writable = canInstall(capability)
+  // The claim field is a ROW, not a cell in the button row: it used to be a
+  // `flex-basis:100%` child of an inline-flex box, which resolves the percentage against
+  // the box's shrink-to-fit width rather than the card's — so the field and its focus
+  // ring overflowed the card and painted across the neighbouring tiles.
+  const claimRow = claiming
+    ? h(
+        'div',
+        { className: 'sr-claim-row' },
+        h(
+          'div',
+          { className: 'sr-claim' },
+          h('input', {
+            className: 'sr-input sr-input--mono sr-claim-input',
+            value: claimDraft,
+            placeholder: '粘贴来源地址：仓库主页 / 文件夹链接 / 直链',
+            'aria-label': `为 ${name} 标记来源地址`,
+            spellCheck: 'false',
+            onChange: (event) => setClaimDraft(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                submitClaim()
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                setClaiming(false)
+              }
+            },
+            'data-sr-focusable': 'true',
+            'data-sr-autofocus': 'true',
+          }),
+          h('button', { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--primary', onClick: submitClaim, disabled: busy }, '记录'),
+          h('button', { type: 'button', className: 'sr-btn sr-btn--sm', onClick: () => setClaiming(false), disabled: busy }, '取消'),
+        ),
+        h('div', { className: claimNote === '' ? 'sr-help' : 'sr-help sr-help--bad' }, claimNote === '' ? '只写记录，不动文件；标记后可用「更新」按这个地址替换。' : claimNote),
+      )
+    : null
 
   return h(
     'div',
-    { className: 'sr-row-actions' },
-    typeof onUse === 'function'
-      ? h(
-          'button',
-          { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--primary', onClick: () => onUse(name), title: `把 /${name} 写进输入框` },
-          '引用',
-        )
-      : null,
+    { className: 'sr-card-foot' },
     h(
-      'button',
-      { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--icon', onClick: onCopy, title: copied ? '已复制' : `复制名称 ${name}`, 'aria-label': `复制名称 ${name}` },
-      h(Icon, { name: copied ? 'check' : 'copy', size: 12 }),
-    ),
-    copied ? h('span', { className: 'sr-pill', style: { color: 'var(--sr-ok)' } }, '已复制') : null,
-    typeof onEdit === 'function' && canInstall(capability)
-      ? h(
-          'button',
+      'div',
+      { className: 'sr-row-actions' },
+      // Enable / disable sits FIRST among the row actions: it is the one control that
+      // changes what the model can do, and it is a switch, not a destructive verb.
+      writable
+        ? h(
+            'button',
+            {
+              type: 'button',
+              className: disabled ? 'sr-btn sr-btn--sm sr-btn--toggle' : 'sr-btn sr-btn--sm sr-btn--toggle sr-btn--on',
+              onClick: onToggleEnabled,
+              disabled: busy,
+              role: 'switch',
+              'aria-checked': disabled ? 'false' : 'true',
+              title: disabled ? `启用 ${name}（移回 skills 目录，模型就能用它）` : `停用 ${name}（移出 skills 目录，模型不再加载它；文件保留，随时可恢复）`,
+              'aria-label': disabled ? `启用 ${name}` : `停用 ${name}`,
+            },
+            h('span', { className: 'sr-switch', 'aria-hidden': 'true' }, h('span', { className: 'sr-switch-knob' })),
+          )
+        : null,
+      typeof onUse === 'function' && !disabled
+        ? h(
+            'button',
+            { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--primary', onClick: () => onUse(name), title: `把 /${name} 写进输入框` },
+            '引用',
+          )
+        : null,
+      h(
+        'button',
+        { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--icon', onClick: onCopy, title: copied ? '已复制' : `复制名称 ${name}`, 'aria-label': `复制名称 ${name}` },
+        h(Icon, { name: copied ? 'check' : 'copy', size: 12 }),
+      ),
+      copied ? h('span', { className: 'sr-pill', style: { color: 'var(--sr-ok)' } }, '已复制') : null,
+      typeof onEdit === 'function' && canInstall(capability)
+        ? h(
+            'button',
           {
             type: 'button',
             className: 'sr-btn sr-btn--sm',
@@ -409,42 +485,70 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
     armed === 'delete'
       ? h('span', { className: 'sr-confirm' }, '再点一次即删除；主机侧会先把该目录备份到备份根目录。')
       : null,
-    claiming
-      ? h(
-          'div',
-          { className: 'sr-claim' },
-          h('input', {
-            className: 'sr-input sr-input--mono sr-claim-input',
-            value: claimDraft,
-            placeholder: '粘贴来源地址：仓库主页 / 文件夹链接 / 直链',
-            'aria-label': `为 ${name} 标记来源地址`,
-            spellCheck: 'false',
-            onChange: (event) => setClaimDraft(event.target.value),
-            onKeyDown: (event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                submitClaim()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                setClaiming(false)
-              }
-            },
-            'data-sr-focusable': 'true',
-            'data-sr-autofocus': 'true',
-          }),
-          h('button', { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--primary', onClick: submitClaim, disabled: busy }, '记录'),
-          h('button', { type: 'button', className: 'sr-btn sr-btn--sm', onClick: () => setClaiming(false), disabled: busy }, '取消'),
-          h(
-            'span',
-            { className: claimNote === '' ? 'sr-help' : 'sr-help sr-help--bad' },
-            claimNote === '' ? '只写记录，不动文件；标记后可用「更新」按这个地址替换。' : claimNote,
-          ),
-        )
-      : null,
+    ),
+    claimRow,
   )
 }
 
 /* ------------------------------ the install sheet ------------------------------ */
+
+/** The surface roots, so the portal host carries the design tokens and base type. */
+const PORTAL_HOST_CLASS = 'sr-root sr-portal-host'
+
+/**
+ * The one portal host, created on first use and reused for the life of the page.
+ *
+ * Module-level rather than per-render: this function is called on every render of the
+ * sheet, and appending a fresh node each time would leak one empty `<div>` per keystroke
+ * in the address field. It is never removed, because the sheet is mounted for the whole
+ * life of its surface — the alternative is a ref-plus-effect dance whose only benefit is
+ * deleting an empty element at page teardown.
+ */
+let portalHost = null
+
+/**
+ * Render into `document.body` instead of into our own subtree.
+ *
+ * WHY. The sheet is `position:fixed; inset:0`, which should mean "the viewport" — and it
+ * did not: the strip renders the sheet as a child of `.sr-strip-shell`, which carries a
+ * width cap and `overflow:hidden`, so the "full-viewport" backdrop was being laid out
+ * inside a ~700px column and the dialog came out pinned to the left of the page instead
+ * of centred. Any ancestor with a transform, a filter or `contain` does the same thing,
+ * silently, and one of those is easy to add later by accident.
+ *
+ * Portalling removes the whole class of problem instead of chasing it: `document.body` is
+ * the top of the tree, so the dialog is centred on the page and no future ancestor can
+ * capture it. `react-dom` is a platform seed word — shipped plugins import
+ * `createPortal` from it — so this costs no dependency.
+ *
+ * FALLBACK. Without a usable `document` or `react-dom` — the bundle test's stub, a
+ * server render — the node is returned as-is. The sheet is then exactly what it was
+ * before this change, so the plugin keeps working wherever there is no DOM to portal
+ * into.
+ */
+function portal(node) {
+  if (typeof document === 'undefined' || document.body === undefined || typeof document.createElement !== 'function') return node
+  if (portalHost === null) {
+    try {
+      portalHost = document.createElement('div')
+      portalHost.className = PORTAL_HOST_CLASS
+      document.body.appendChild(portalHost)
+    } catch {
+      // A document we cannot write to is a document we do not portal into.
+      portalHost = null
+      return node
+    }
+  }
+  const ReactDOM = (() => {
+    try {
+      return require('react-dom')
+    } catch {
+      return undefined
+    }
+  })()
+  if (ReactDOM === undefined || typeof ReactDOM.createPortal !== 'function') return node
+  return ReactDOM.createPortal(node, portalHost)
+}
 
 /**
  * Extract a usable slug out of an `INVALID_NAME` hint, so the fix is one click.
@@ -1181,39 +1285,41 @@ function InstallSheet(props) {
     )
   }
 
-  return h(
-    'div',
-    {
-      className: closing ? 'sr-backdrop sr-backdrop--closing' : 'sr-backdrop',
-      onMouseDown: (event) => {
-        if (event.target === event.currentTarget) requestClose()
-      },
-    },
+  return portal(
     h(
       'div',
-      { className: 'sr-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': '安装 skill', ref: sheetRef },
+      {
+        className: closing ? 'sr-backdrop sr-backdrop--closing' : 'sr-backdrop',
+        onMouseDown: (event) => {
+          if (event.target === event.currentTarget) requestClose()
+        },
+      },
       h(
         'div',
-        { className: 'sr-sheet-head' },
-        h(Icon, { name: 'layers', size: 15 }),
+        { className: 'sr-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': '安装 skill', ref: sheetRef },
         h(
           'div',
-          { className: 'sr-sheet-title' },
-          h('div', null, '安装 skill'),
-          h('div', { className: 'sr-sheet-sub' }, usable ? `写入目录 ${capability?.root ?? '未知'}` : disabledReason(capability)),
+          { className: 'sr-sheet-head' },
+          h(Icon, { name: 'layers', size: 15 }),
+          h(
+            'div',
+            { className: 'sr-sheet-title' },
+            h('div', null, '安装 skill'),
+            h('div', { className: 'sr-sheet-sub' }, usable ? `写入目录 ${capability?.root ?? '未知'}` : disabledReason(capability)),
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'sr-btn sr-btn--icon', onClick: requestClose, 'aria-label': '关闭安装面板', title: '关闭（Esc）', 'data-sr-focusable': 'true' },
+            h(Icon, { name: 'close', size: 13 }),
+          ),
         ),
+        ...body,
         h(
-          'button',
-          { type: 'button', className: 'sr-btn sr-btn--icon', onClick: requestClose, 'aria-label': '关闭安装面板', title: '关闭（Esc）', 'data-sr-focusable': 'true' },
-          h(Icon, { name: 'close', size: 13 }),
+          'div',
+          { className: 'sr-sheet-foot' },
+          h('span', { className: 'sr-sheet-foot-note' }, usable ? '安装前主机侧会做路径与大小校验；同名覆盖会先备份。' : disabledReason(capability)),
+          h('button', { type: 'button', className: 'sr-btn', onClick: requestClose, 'data-sr-focusable': 'true' }, '关闭'),
         ),
-      ),
-      ...body,
-      h(
-        'div',
-        { className: 'sr-sheet-foot' },
-        h('span', { className: 'sr-sheet-foot-note' }, usable ? '安装前主机侧会做路径与大小校验；同名覆盖会先备份。' : disabledReason(capability)),
-        h('button', { type: 'button', className: 'sr-btn', onClick: requestClose, 'data-sr-focusable': 'true' }, '关闭'),
       ),
     ),
   )

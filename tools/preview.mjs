@@ -37,6 +37,7 @@ function loadClientModule(state, id) {
   // eslint-disable-next-line no-new-func
   new Function('module', 'exports', 'require', source)(module, module.exports, (spec) => {
     if (spec === 'react') return state.React
+    if (spec === 'react-dom') return globalThis.__PREVIEW_REACT_DOM__
     if (spec.startsWith('./')) return loadClientModule(state, spec.slice(2))
     throw new Error(`${id} must not require ${spec}`)
   })
@@ -87,14 +88,22 @@ function makeReact() {
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'source', 'area', 'base', 'col', 'embed', 'track', 'wbr'])
 const HTML_ATTR = { className: 'class', htmlFor: 'for', tabIndex: 'tabindex', spellCheck: 'spellcheck', autoComplete: 'autocomplete', colSpan: 'colspan', rowSpan: 'rowspan' }
 
-/** `ariaLabel` -> `aria-label`, `dataFoo` -> `data-foo`, `onClick` -> dropped. */
+/** `ariaLabel` -> `aria-label`, `dataFooBar` -> `data-foo-bar`, `onClick` -> dropped. */
 function attrName(name) {
   if (name.startsWith('on')) return undefined
   if (HTML_ATTR[name] !== undefined) return HTML_ATTR[name]
   if (name === 'value') return undefined // React sets the property; a static page needs `defaultValue`
   if (name === 'defaultValue') return 'value'
-  if (name.startsWith('aria') && name[4] === name[4]?.toUpperCase()) return `aria-${name.slice(4).toLowerCase()}`
-  if (name.startsWith('data') && name[4] === name[4]?.toUpperCase()) return `data-${name.slice(4).replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)}`
+  // Already a literal DOM attribute (`aria-checked`, `data-sr-focusable`): pass it through
+  // UNTOUCHED. The camelCase rules below add a hyphen before every capital, which turned
+  // `aria-checked` into `aria--checked` — a double hyphen is not an attribute, so the
+  // switch silently lost its accessible state in the fixture while the component source
+  // was perfectly correct.
+  if (/^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/u.test(name)) return name
+  // A camelCase tail is lowercased and hyphenated once, without a leading hyphen.
+  const tail = (rest) => rest.replace(/[A-Z]/gu, (c, i) => (i === 0 ? c.toLowerCase() : `-${c.toLowerCase()}`))
+  if (name.startsWith('aria') && name[4] === name[4]?.toUpperCase()) return `aria-${tail(name.slice(4))}`
+  if (name.startsWith('data') && name[4] === name[4]?.toUpperCase()) return `data-${tail(name.slice(4))}`
   if (/^[a-z][a-z0-9-]*$/u.test(name)) return name
   return name.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
 }
@@ -164,6 +173,15 @@ const SKILLS = [
   { name: 'gpt-image', description: 'Generate or edit images with GPT Image 2', descriptionZh: '用 GPT Image 2 生成或编辑图片，支持海报、排版、中文文字与 UI 稿。', displayNameZh: '图像生成', tag: '图像', modelInvocable: true, provenance: { known: false, source: '', changedSinceInstall: false }, dir: 'C:\\Users\\Administrator\\.dsh-beta\\skills\\gpt-image', modifiedAt: Date.now() - 7200000 },
   { name: 'manual-only-skill', description: 'reachable only through the /name gesture', descriptionZh: '', displayNameZh: '', tag: '', modelInvocable: false, provenance: { known: true, source: 'text', url: '', repo: '', ref: '', subpath: '', commit: '', claimed: false, changedSinceInstall: false }, dir: 'C:\\Users\\Administrator\\.dsh-beta\\skills\\manual-only-skill', modifiedAt: Date.now() - 259200000 },
   { name: 'music-video-subtitle-generator', description: 'beat-synced lyric typography for music videos', descriptionZh: '按节拍与唱词切分长片，设计随拍律动的空间排版。', displayNameZh: '音乐视频字幕', tag: '音乐', modelInvocable: true, provenance: { known: true, source: 'git', url: REPO, repo: REPO, ref: 'main', subpath: 'skills/mv', commit: 'b'.repeat(40), claimed: true, changedSinceInstall: false }, dir: 'C:\\Users\\Administrator\\.dsh-beta\\skills\\music-video', modifiedAt: Date.now() - 172800000 },
+  // No provenance record at all: the card that offers 「标记来源」, whose revealed field
+  // is the layout this fixture exists to check.
+  { name: 'hand-installed-skill', description: 'dropped into the folder by hand, so it has no source record', descriptionZh: '', displayNameZh: '', tag: '', modelInvocable: true, provenance: { known: false, source: '', changedSinceInstall: false }, dir: 'C:\\Users\\Administrator\\.dsh-beta\\skills\\hand-installed-skill', modifiedAt: Date.now() - 43200000 },
+]
+
+/** The parked half of the catalogue — reported separately by the host. */
+const DISABLED_SKILLS = [
+  { name: 'papercraft-stop-motion-explainer', bytes: 41234, modifiedAt: Date.now() - 604800000, dir: 'C:\\Users\\Administrator\\.dsh-beta\\skill-report\\disabled\\papercraft', provenance: { known: true, source: 'git', url: REPO, repo: REPO, ref: 'main', subpath: 'skills/papercraft', commit: 'c'.repeat(40), claimed: false, changedSinceInstall: false } },
+  { name: 'brand-promo-video-generator', bytes: 98211, modifiedAt: Date.now() - 1209600000, dir: 'C:\\Users\\Administrator\\.dsh-beta\\skill-report\\disabled\\brand', provenance: { known: false, source: '', changedSinceInstall: false } },
 ]
 
 const CALLS = [
@@ -198,6 +216,7 @@ const SNAPSHOT = {
     { at: Date.now() - 7200000, sessionId: 's3', sessionTitle: '整理一下字幕节拍', calls: [], reason: 'error' },
   ],
   skills: SKILLS,
+  disabledSkills: DISABLED_SKILLS,
   capability: {
     api: 1,
     root: 'C:\\Users\\Administrator\\.dsh-beta\\skills',
@@ -298,7 +317,9 @@ function buildPage(state, exports) {
   sections.push(h('div', { className: 'col', key: 'strip' }, [
     h('h2', { key: 'h' }, 'composer strip / 输入框上方横栏（展开）'),
     h('div', { className: 'frame', key: 'open', style: { padding: '16px', background: 'var(--dsw-alias-bg-base)' } }, [
-      h(strip, { key: 's', state: { phase: 'ready', data: SNAPSHOT, error: null, fetchedAt: Date.now() }, onRefresh: () => {}, onUse: () => {}, now: Date.now() }),
+      // Expanded, because the counter chips live on the bar line only when it is open —
+      // the collapsed bar is a single line and must stay one.
+      h(strip, { key: 's', state: { phase: 'ready', data: SNAPSHOT, error: null, fetchedAt: Date.now() }, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: true }),
     ]),
     h('div', { className: 'composer', key: 'c' }, '描述你想要构建的内容，/ 调用指令，@ 文件或对话'),
     h('h2', { key: 'h2', style: { marginTop: '28px' } }, 'install sheet / 安装面板'),
@@ -365,6 +386,47 @@ globalThis.document = {
   body: { style: {} },
   execCommand: () => true,
 }
+/**
+ * A minimal DOM for ReactDOM.createPortal.
+ *
+ * `createElement('div')` must return a real NODE, because the sheet is portalled into
+ * `document.body` — that is the fix for a dialog that was being laid out inside the
+ * composer strip's column instead of the page. The stub above is enough for the
+ * stylesheet tag (which only needs `dataset` and `textContent`), but a portal host needs
+ * `className` and an `appendChild` that records it.
+ */
+function makeNode(tag) {
+  return {
+    tagName: String(tag).toUpperCase(),
+    className: '',
+    style: {},
+    dataset: {},
+    children: [],
+    appendChild(child) {
+      this.children.push(child)
+      return child
+    },
+    removeChild(child) {
+      this.children = this.children.filter((entry) => entry !== child)
+      return child
+    },
+    setAttribute(name, value) {
+      this[name] = value
+    },
+    removeAttribute() {},
+    addEventListener() {},
+    removeEventListener() {},
+  }
+}
+globalThis.document.createElement = makeNode
+globalThis.document.body = makeNode('body')
+globalThis.document.head = makeNode('head')
+// `require('react-dom')` inside the bundle is answered from here, the way the platform
+// seed table answers it in the app: `createPortal` renders inline, which is enough for a
+// static serialisation (the DOM nesting is not what the screenshot inspects).
+globalThis.__PREVIEW_REACT_DOM__ = {
+  createPortal: (node) => node,
+}
 
 const html = buildPage(state, exports)
 const scratch = mkdtempSync(join(tmpdir(), 'echocat-preview-'))
@@ -383,6 +445,10 @@ window.addEventListener('load', () => {
   const probes = ${JSON.stringify([
     '.sr-root', '.sr-head', '.sr-title', '.sr-hero', '.sr-hero-meta', '.sr-hero-line',
     '.sr-stats', '.sr-stat', '.sr-stat-v', '.sr-stat-l',
+    '.sr-strip-stats', '.sr-statcard--inline', '.sr-statcard--inline .sr-stat-v',
+    '.sr-group-head', '.sr-group-title', '.sr-skill--off', '.sr-skill--off .sr-tag--off',
+    '.sr-btn--toggle', '.sr-switch', '.sr-switch-knob',
+    '.sr-card-foot', '.sr-card-foot .sr-row-actions',
     '.sr-sec-h', '.sr-sec-b', '.sr-pill',
     '.sr-skill', '.sr-avatar', '.sr-skill-name', '.sr-skill-slug', '.sr-blurb', '.sr-src',
     '.sr-btn', '.sr-btn--primary', '.sr-btn--sm', '.sr-tag', '.sr-tag--used',
@@ -405,6 +471,21 @@ window.addEventListener('load', () => {
       shadow: cs.boxShadow.slice(0, 60),
       pad: cs.padding,
       box: Math.round(r.width) + 'x' + Math.round(r.height),
+      // The two that explain a collapsed control: a shrink-to-fit flex item is sized by
+      // its line box, so a missing line-height looks exactly like a missing height.
+      display: cs.display,
+      line: cs.lineHeight,
+      // Overflow is how the claim field's bug showed up: a child wider than its parent.
+      overflow: cs.overflow,
+      parent: (() => {
+        const parent = el.parentElement
+        if (parent === null) return null
+        const ps = getComputedStyle(parent)
+        const pr = parent.getBoundingClientRect()
+        // Concatenation, not a template literal: this whole probe is a string inside a
+        // template literal in the tool, and a nested backtick would end it early.
+        return ps.display + '/' + ps.flexDirection + '/' + ps.alignItems + ' ' + Math.round(pr.width) + 'x' + Math.round(pr.height)
+      })(),
     }
   }
   const out = {}
@@ -440,8 +521,9 @@ if (measureMode) {
       console.log(`  ${selector.padEnd(24)} — not rendered`)
       continue
     }
-    console.log(`  ${selector.padEnd(24)} box ${String(value.box).padEnd(11)} font ${value.font.padEnd(20)} pad ${value.pad}`)
-    console.log(`  ${''.padEnd(24)} bg ${value.bg.padEnd(30)} radius ${value.radius}`)
+    console.log(`  ${selector.padEnd(30)} box ${String(value.box).padEnd(11)} font ${value.font}`)
+    console.log(`  ${''.padEnd(30)} line ${String(value.line).padEnd(8)} display ${String(value.display).padEnd(14)} bg ${value.bg}`)
+    console.log(`  ${''.padEnd(30)} pad ${value.pad.padEnd(24)} radius ${value.radius.padEnd(10)} parent ${value.parent}`)
   }
   rmSync(scratch, { recursive: true, force: true })
   process.exit(0)

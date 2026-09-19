@@ -386,6 +386,47 @@ console.log('\n[8b] a non-git source cannot be updated over the route')
   ok('...with BAD_REQUEST and a way out', pastedBody.error?.code === 'BAD_REQUEST' && pastedBody.error.hint !== '', JSON.stringify(pastedBody.error))
 }
 
+console.log('\n[8c] enable / disable over the route, and the parked half of the catalogue')
+{
+  const feed = await mountPlugin({}, { withSkills: true })
+  const feedRoute = feed.byPath.get(plugin.DEFAULT_INSTALL_PATH)
+  const feedState = () => feed.byPath.get(plugin.DEFAULT_HTTP_PATH).fetch(new Request('http://dsh.internal/api/skill-report/state'))
+
+  const installed = await jsonPost(feedRoute, { action: 'install', mode: 'text', text: md('toggle-route', '可停用'), name: 'toggle-route' })
+  ok('the skill to toggle installed', (await installed.json()).ok === true)
+
+  const off = await jsonPost(feedRoute, { action: 'disable', name: 'toggle-route' })
+  const offBody = await off.json()
+  ok('a disable answers 200', off.status === 200, `${off.status} ${JSON.stringify(offBody.error)}`)
+  ok('...reporting the new state', offBody.skill?.disabled === true, JSON.stringify(offBody.skill))
+  ok('...and returning the refreshed catalogue', Array.isArray(offBody.skills))
+
+  const afterOff = await (await feedState()).json()
+  ok('the state feed carries a disabledSkills list', Array.isArray(afterOff.disabledSkills), JSON.stringify(Object.keys(afterOff)))
+  ok('...naming the parked skill', afterOff.disabledSkills.some((entry) => entry.name === 'toggle-route'), JSON.stringify(afterOff.disabledSkills))
+  ok('...with its provenance read through the same seam', afterOff.disabledSkills[0]?.provenance !== undefined)
+  ok('...and the LIVE catalogue no longer claims it', !afterOff.skills.some((skill) => skill.name === 'toggle-route'), JSON.stringify(afterOff.skills.map((s) => s.name)))
+
+  const offAgain = await jsonPost(feedRoute, { action: 'disable', name: 'toggle-route' })
+  ok('a second disable is still 200 (idempotent)', offAgain.status === 200, String(offAgain.status))
+
+  const on = await jsonPost(feedRoute, { action: 'enable', name: 'toggle-route' })
+  const onBody = await on.json()
+  ok('an enable answers 200', on.status === 200, `${on.status} ${JSON.stringify(onBody.error)}`)
+  ok('...reporting the new state', onBody.skill?.disabled === false, JSON.stringify(onBody.skill))
+  const afterOn = await (await feedState()).json()
+  ok('...and the parked list is empty again', afterOn.disabledSkills.length === 0, JSON.stringify(afterOn.disabledSkills))
+
+  const missing = await jsonPost(feedRoute, { action: 'enable', name: 'never-installed' })
+  ok('enabling an unknown skill answers 404', missing.status === 404, String(missing.status))
+  const traversal = await jsonPost(feedRoute, { action: 'disable', name: '../escape' })
+  const traversalBody = await traversal.json()
+  ok('a traversal name answers 400', traversal.status === 400, String(traversal.status))
+  ok('...with INVALID_NAME', traversalBody.error?.code === 'INVALID_NAME', JSON.stringify(traversalBody.error))
+
+  rmSync(feed.sandbox, { recursive: true, force: true })
+}
+
 console.log('\n[9] the write surface can be removed, and the read surface says so')
 const readOnly = await mountPlugin({ allowInstall: false })
 ok('no install route is registered', readOnly.byPath.get(plugin.DEFAULT_INSTALL_PATH) === undefined, JSON.stringify([...readOnly.byPath.keys()]))

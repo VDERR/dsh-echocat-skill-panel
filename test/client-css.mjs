@@ -199,7 +199,13 @@ const DYNAMIC_PREFIXES = ['sr-body-']
  * and its `animation:sr-toast-in …` made this report phantom unstyled classes.
  */
 const CLASS_RE = /(?<![-\w.])(?<!\.)sr-[a-z0-9-]+(?![-\w]*\()/gu
-const styled = new Set([...CSS.matchAll(/\.(sr-[a-z0-9-]+)/gu)].map((m) => m[1]))
+/**
+ * Every class the stylesheet styles, read from the RENDERED sheet — not the raw template
+ * literal. The generated polish and design blocks are interpolated (`${POLISH_CSS}`), so
+ * they exist only after evaluation; matching the source text reported every class they
+ * introduce as unstyled even though the browser receives all of them.
+ */
+const styled = new Set([...RENDERED.matchAll(/\.(sr-[a-z0-9-]+)/gu)].map((m) => m[1]))
 // The surface roots are styled through `${SURFACES}`, so they never appear as a
 // literal `.sr-…` selector in the source text.
 for (const surface of surfaces) styled.add(surface.slice(1))

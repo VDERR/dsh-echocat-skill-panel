@@ -506,7 +506,10 @@ function dirMtime(folder) {
 /** The provenance block for a skill we know nothing about — the honest default. */
 const unknownProvenance = () => ({ known: false, source: '', changedSinceInstall: false })
 
-async function listSkills({ skills, agents, sessionId, logger, translate, provenance = unknownProvenance }) {
+/** Enabled state for a host with no installer — assume enabled, which is the truth. */
+const unknownEnabled = () => true
+
+async function listSkills({ skills, agents, sessionId, logger, translate, provenance = unknownProvenance, enabled = unknownEnabled }) {
   loadTranslations()
   try {
     if (skills === undefined || typeof skills.snapshot !== 'function') {
@@ -567,6 +570,11 @@ async function listSkills({ skills, agents, sessionId, logger, translate, proven
           // installed. Read here, in the same pass that already resolved the
           // directory — so the record can never disagree with the row it labels.
           provenance: provenance(skillName),
+          // A disabled skill is parked OUTSIDE the watched root, so discovery cannot see
+          // it and it never reaches this list — which is exactly why this field exists:
+          // the panel appends the disabled half of the catalogue itself, and needs to
+          // know when a LIVE skill has been disabled since the last snapshot.
+          enabled: enabled(skillName) !== false,
         }
       })
       .filter((skill) => skill.name !== '')
@@ -840,6 +848,10 @@ function mount(ctx, config) {
             fetch: async (request) => {
               let payload
               try {
+                // Two directory listings per poll, not two per skill: the enabled map and
+                // the disabled catalogue are computed ONCE here and closed over below.
+                const enabledNow = allowInstall === true ? installer().enabledMap() : null
+                const parked = allowInstall === true ? installer().onDisk().filter((entry) => entry.disabled === true) : []
                 payload = JSON.stringify({
                   plugin: name,
                   version: VERSION,
@@ -854,6 +866,7 @@ function mount(ctx, config) {
                     logger: ctx.logger,
                     provenance: (skillName) =>
                       allowInstall === true ? installer().provenance(skillName) : { known: false, source: '', changedSinceInstall: false },
+                    enabled: (skillName) => enabledNow === null || enabledNow[skillName] !== false,
                     translate: {
                       enabled: translateMissing,
                       // `ctx.get` is a second chance: the injected handles can be
@@ -868,6 +881,18 @@ function mount(ctx, config) {
                       maxTokens: 2000,
                     },
                   }),
+                  // The parked skills, so the panel can list and re-enable them. They are
+                  // deliberately NOT part of `skills`: that array is what the live
+                  // registry reports, and a disabled skill is absent from it by
+                  // construction — mixing the two would make the panel claim DSH has a
+                  // skill it cannot actually load.
+                  disabledSkills: parked.map((entry) => ({
+                    name: entry.name,
+                    bytes: entry.bytes,
+                    modifiedAt: entry.modifiedAt,
+                    dir: entry.dir,
+                    provenance: allowInstall === true ? installer().provenance(entry.name) : { known: false, source: '', changedSinceInstall: false },
+                  })),
                   capability:
                     allowInstall === true
                       ? { ...installer().capability(), git: installer().gitKnown() }

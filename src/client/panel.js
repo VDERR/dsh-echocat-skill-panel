@@ -481,8 +481,24 @@ function useCountUp(target) {
   return shown
 }
 
-function Stat({ label, value }) {
+/**
+ * One counter.
+ *
+ * `inline` renders the same label/value pair as a compact chip instead of a card, for the
+ * composer strip where four cards would take more height than the report they summarise.
+ * `compact` steps the chip down again so four of them fit on the strip's own bar line.
+ * The DOM order is the same in all three forms.
+ */
+function Stat({ label, value, inline = false, compact = false }) {
   const shown = useCountUp(value)
+  if (inline === true) {
+    return h(
+      'span',
+      { className: compact === true ? 'sr-statcard sr-statcard--inline sr-statcard--bar' : 'sr-statcard sr-statcard--inline' },
+      h('span', { className: 'sr-stat-l' }, label),
+      h('span', { className: 'sr-stat-v' }, String(shown)),
+    )
+  }
   return h('div', { className: 'sr-stat' }, h('span', { className: 'sr-stat-v' }, String(shown)), h('span', { className: 'sr-stat-l' }, label))
 }
 
@@ -625,9 +641,13 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
     )
   }
 
+  // A disabled card keeps its WHOLE layout: it is the same object in a different state.
+  // Shrinking it to a grey line would make the group unreadable and un-editable, and
+  // editing a parked skill (its name, its source, deleting it) is exactly what a user
+  // needs the group for.
   return h(
     'div',
-    { className: 'sr-skill' },
+    { className: skill?.disabled === true ? 'sr-skill sr-skill--off' : 'sr-skill' },
     h(Avatar, { name: title }),
     h(
       'div',
@@ -636,6 +656,7 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
         'div',
         { className: 'sr-skill-top' },
         h('span', { className: 'sr-skill-name', title: zh === '' ? skill.name : `${zh}（/${skill.name}）` }, title),
+        skill?.disabled === true ? h('span', { className: 'sr-tag sr-tag--off' }, '已停用') : null,
         typeof skill.tag === 'string' && skill.tag !== '' ? h('span', { className: 'sr-tag' }, skill.tag) : null,
         skill.modelInvocable === false ? h('span', { className: 'sr-tag' }, '仅 /') : null,
         // Item 44: the host already sends per-skill totals; showing them here is
@@ -732,7 +753,7 @@ const SORTS = [
   { key: 'count', label: '调用次数' },
 ]
 
-function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged, phase, filterRef, updates, checking, onCheckUpdate }) {
+function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onInstall, onChanged, phase, filterRef, updates, checking, onCheckUpdate }) {
   const [query, setQuery] = React.useState('')
   const [onlySlash, setOnlySlash] = React.useState(false)
   const [onlyUsed, setOnlyUsed] = React.useState(false)
@@ -742,13 +763,36 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
   const tags = tagsOf(skills)
   const direction = sortDir === '' ? DEFAULT_DIR[sortKey] ?? 'asc' : sortDir
   const shown = sortSkills(filterSkills(skills, { query, onlySlash, onlyUsed, counts, tag }), sortKey, direction, counts)
+  /**
+   * The DISABLED half of the catalogue.
+   *
+   * These come from `disabledSkills`, not from `skills`: a disabled skill is parked
+   * outside the root DSH watches, so the live registry cannot report it. Only the extra
+   * presentation fields have to be filled in here (there is no description to translate
+   * and no discovery record to read), and the filters reuse the same predicates so one
+   * search box drives both groups.
+   */
+  const parked = (Array.isArray(disabledSkills) ? disabledSkills : [])
+    .map((entry) => ({
+      name: String(entry?.name ?? ''),
+      description: '',
+      descriptionZh: '',
+      displayNameZh: typeof entry?.displayNameZh === 'string' ? entry.displayNameZh : '',
+      tag: '',
+      modelInvocable: true,
+      disabled: true,
+      provenance: entry?.provenance ?? { known: false, source: '', changedSinceInstall: false },
+      modifiedAt: typeof entry?.modifiedAt === 'number' ? entry.modifiedAt : 0,
+    }))
+    .filter((entry) => entry.name !== '')
+  const disabled = sortSkills(filterSkills(parked, { query, onlySlash, onlyUsed, counts, tag }), sortKey, direction, counts)
   const installable = api.canInstall(capability)
   // The chip only exists once something has been used: a filter that can never
   // match anything is furniture, not a tool.
   const usedCount = usedSkillCount(skills, counts)
 
   const tools =
-    skills.length === 0
+    skills.length === 0 && parked.length === 0
       ? null
       : h(
           'div',
@@ -861,7 +905,9 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
     {
       id: 'skills',
       title: '已安装 skill',
-      count: skills.length,
+      // Both groups: the section header is the catalogue's total, and a parked skill is
+      // still installed — omitting it here made the count disagree with the cards below.
+      count: skills.length + parked.length,
       defaultOpen: false,
       actions: [
         api.installDisabled(capability) || capability?.api !== 1
@@ -884,13 +930,16 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
               {
                 key: 'check',
                 type: 'button',
-                className: 'sr-btn sr-btn--sm sr-btn--icon',
+                className: checking === true ? 'sr-btn sr-btn--sm sr-btn--accent' : 'sr-btn sr-btn--sm',
                 disabled: checking === true,
                 title: checking === true ? '正在检查更新…' : '检查所有 skill 的来源有没有更新',
                 'aria-label': '检查 skill 更新',
                 onClick: () => void onCheckUpdate?.(),
               },
-              h(Icon, { name: 'refresh', size: 12 }),
+              // A DOWNLOAD glyph, not a refresh one: this button fetches new versions, and
+              // it sat next to the genuine rescan ⟳ until the two were indistinguishable.
+              h(Icon, { name: 'download', size: 12 }),
+              checking === true ? '检查中' : '检查更新',
             )
           : null,
         installable
@@ -899,7 +948,7 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
               {
                 key: 'install',
                 type: 'button',
-                className: 'sr-btn sr-btn--sm',
+                className: 'sr-btn sr-btn--sm sr-btn--primary',
                 title: '安装新的 skill（快捷键 n）',
                 onClick: () => onInstall?.(),
               },
@@ -909,19 +958,55 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
           : null,
       ],
     },
-    skills.length === 0
+    skills.length === 0 && parked.length === 0
       ? phase === 'ready'
         ? h(Empty, null, '主机侧没有上报 skill')
         : h(Empty, null, '等待主机侧上报')
       : [
           h('div', { key: 'tools' }, tools),
-          shown.length === 0
+          shown.length === 0 && disabled.length === 0
             ? h(Empty, { key: 'none' }, '没有匹配的 skill')
-            : h(
-                'div',
-                { key: 'grid', className: 'sr-grid' },
-                shown.map((skill) => h(SkillRow, { key: skill.name, skill, counts, onUse, capability, onChanged, update: updates?.[skill.name] })),
-              ),
+            : [
+                // Two GROUPS rather than one list with a faded row: a disabled skill is in
+                // a different state, not a lesser one, and the group header is what tells
+                // the user at a glance what the model can actually load.
+                shown.length > 0
+                  ? h(
+                      'div',
+                      { key: 'enabled', className: 'sr-group' },
+                      h(
+                        'div',
+                        { className: 'sr-group-head' },
+                        h('span', { className: 'sr-group-title' }, '已启用'),
+                        h('span', { className: 'sr-pill' }, String(shown.length)),
+                        h('span', { className: 'sr-group-note' }, '模型与 / 手势都能用'),
+                      ),
+                      h(
+                        'div',
+                        { className: 'sr-grid' },
+                        shown.map((skill) => h(SkillRow, { key: skill.name, skill, counts, onUse, capability, onChanged, update: updates?.[skill.name] })),
+                      ),
+                    )
+                  : null,
+                disabled.length > 0
+                  ? h(
+                      'div',
+                      { key: 'disabled', className: 'sr-group' },
+                      h(
+                        'div',
+                        { className: 'sr-group-head' },
+                        h('span', { className: 'sr-group-title' }, '已停用'),
+                        h('span', { className: 'sr-pill' }, String(disabled.length)),
+                        h('span', { className: 'sr-group-note' }, '已移出 skills 目录，模型不会加载；文件都还在'),
+                      ),
+                      h(
+                        'div',
+                        { className: 'sr-grid' },
+                        disabled.map((skill) => h(SkillRow, { key: skill.name, skill, counts, capability, onChanged, update: updates?.[skill.name] })),
+                      ),
+                    )
+                  : null,
+              ],
           onUse === undefined
             ? h('div', { key: 'hint', className: 'sr-hint' }, '在输入框上方的横栏里点「引用」可直接写入对话。')
             : null,
@@ -1125,13 +1210,14 @@ function useHotkeys({ onFilter, onRefresh, onInstall, onEscape, sheetOpen }) {
  * @param props.onUse - one-click reference handler; omit for a read-only list.
  * @param props.now - clock override, for deterministic renders.
  */
-function SkillReportPanel({ state, snapshot, onRefresh, onUse, now, title = '技能调用报告', scrollKey = 'main' }) {
+function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, title = '技能调用报告', scrollKey = 'main', compact = false }) {
   const phase = state?.phase
   const error = state?.error ?? null
   const s = snapshot ?? (state !== undefined && state !== null ? state.data : null) ?? EMPTY
   const perSkill = Array.isArray(s.perSkill) ? s.perSkill : []
   const recent = Array.isArray(s.recent) ? s.recent : []
   const skills = Array.isArray(s.skills) ? s.skills : []
+  const disabledSkills = Array.isArray(s.disabledSkills) ? s.disabledSkills : []
   const capability = s.capability
   const history = Array.isArray(s.installHistory) ? s.installHistory : []
   const counts = countMap(perSkill)
@@ -1264,14 +1350,23 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, now, title = '技
     ),
   )
 
-  const stats = h(
-    'div',
-    { className: 'sr-stats' },
-    h(Stat, { label: '回合', value: s.turns ?? 0 }),
-    h(Stat, { label: '用到 skill', value: s.turnsWithSkills ?? 0 }),
-    h(Stat, { label: '未用', value: s.turnsWithoutSkills ?? 0 }),
-    h(Stat, { label: '调用次数', value: s.invocations ?? 0 }),
-  )
+  /**
+   * The four counters as cards, for the full panel only.
+   *
+   * The composer strip renders them in its own bar instead (`sr-strip-stats`, built by
+   * `SkillReportStrip`): inside a 46vh expansion four 26px cards pushed the catalogue —
+   * the thing the strip exists to reach — below the fold.
+   */
+  const stats = compact === true
+    ? null
+    : h(
+        'div',
+        { className: 'sr-stats' },
+        h(Stat, { label: '回合', value: s.turns ?? 0 }),
+        h(Stat, { label: '用到 skill', value: s.turnsWithSkills ?? 0 }),
+        h(Stat, { label: '未用', value: s.turnsWithoutSkills ?? 0 }),
+        h(Stat, { label: '调用次数', value: s.invocations ?? 0 }),
+      )
 
   /**
    * Item 42: with nothing to report and nothing installed, the panel used to show
@@ -1313,6 +1408,8 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, now, title = '技
         ? guide
         : [
             hero,
+            // `compact` (the composer strip) drops the cards entirely: the strip renders
+            // the same four numbers in its own always-visible bar.
             stats,
             // No rail here. The composer strip owns the one status rail: it is
             // mounted in every view, so a write that finishes while the report is
@@ -1322,6 +1419,7 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, now, title = '技
             h(SkillsSection, {
               key: 'skills',
               skills,
+              disabledSkills,
               capability,
               counts,
               onUse,
@@ -1375,8 +1473,11 @@ function SkillReportIcon({ size = 16, active = false }) {
  * Local `useState` is safe here — the owning entry unmounts the strip with the
  * conversation view and re-mounts it collapsed.
  */
-function SkillReportStrip({ state, onRefresh, onUse, now }) {
-  const [open, setOpen] = React.useState(false)
+function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false }) {
+  // `initialOpen` is an INITIAL state, not a controlled prop: the strip owns this toggle,
+  // and nothing outside it should be able to pin it open or shut. It exists so
+  // `tools/preview.mjs` can screenshot the expanded form without simulating a click.
+  const [open, setOpen] = React.useState(initialOpen === true)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const s = (state?.data ?? null) ?? EMPTY
   const latest = Array.isArray(s.recent) ? s.recent[0] : undefined
@@ -1419,6 +1520,27 @@ function SkillReportStrip({ state, onRefresh, onUse, now }) {
     h('span', { className: 'sr-strip-dot', style: { background: dot } }),
     h('span', { className: 'sr-strip-label' }, '技能'),
     h('span', { className: 'sr-strip-text' }, failed ? `主机侧不可达：${state?.error ?? '未知错误'}` : summarize(latest)),
+    /**
+     * The four counters, ON the bar line, between the summary and the turn count.
+     *
+     * They are the numbers a user opens this panel for, and they used to be four 26px cards
+     * inside a report that lives behind a click and a 46vh expansion — the least visible
+     * place in the plugin for the most-read figures. A separate row under the bar wasted a
+     * whole line for four numbers; they belong on the line the user is already looking at.
+     *
+     * Only when the strip is EXPANDED: a collapsed bar is a single line, and crowding it
+     * would undo the point of collapsing it.
+     */
+    open && s.turns > 0 && !failed
+      ? h(
+          'span',
+          { className: 'sr-strip-stats' },
+          h(Stat, { label: '回合', value: s.turns ?? 0, inline: true, compact: true }),
+          h(Stat, { label: '用到 skill', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
+          h(Stat, { label: '未用', value: s.turnsWithoutSkills ?? 0, inline: true, compact: true }),
+          h(Stat, { label: '调用次数', value: s.invocations ?? 0, inline: true, compact: true }),
+        )
+      : null,
     h('span', { className: 'sr-strip-n' }, String(s.turns ?? 0)),
     h(Icon, { name: 'caret', size: 11, className: open ? 'sr-strip-caret sr-strip-caret--open' : 'sr-strip-caret' }),
   )
@@ -1457,7 +1579,7 @@ function SkillReportStrip({ state, onRefresh, onUse, now }) {
 
   if (open) {
     shell.push(
-      h('div', { key: 'panel', className: 'sr-strip-panel' }, h(SkillReportPanel, { state, onRefresh, onUse, now, title: '技能调用报告', scrollKey: null })),
+      h('div', { key: 'panel', className: 'sr-strip-panel' }, h(SkillReportPanel, { state, onRefresh, onUse, now, title: '技能调用报告', scrollKey: null, compact: true })),
     )
   }
   shell.push(h(InstallSheet, { key: 'sheet', open: sheetOpen, onClose: closeInstall, capability, history: s.installHistory, onInstalled: onRefresh, onUse }))

@@ -552,6 +552,72 @@ const DESIGN = Object.freeze([
     'the overwrite confirmation is a sentence next to a checkbox'),
   D('panel-title-weight', 'frame', '.sr-title', { textWrap: 'balance' },
     'a long panel title wraps evenly instead of leaving one word on the second line'),
+
+  /* ============================ 17. enable / disable + catalogue groups ============ */
+  D('group-head', 'card', '.sr-group-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', padding: 'calc(var(--sr-u) * 2.5) 0 calc(var(--sr-u) * 1.5)' },
+    'a group header is a row: label, count, and the sentence that explains the state'),
+  D('group-gap', 'card', '.sr-group', { marginTop: 'calc(var(--sr-u) * 2)' },
+    'the two groups are separate lists and need air between them'),
+  D('group-title', 'card', '.sr-group-title', { fontSize: 11, fontWeight: 700, letterSpacing: 'var(--sr-track-loose)', textTransform: 'uppercase', color: 'var(--sr-fg2)' },
+    'the group heading is the one thing that tells the user what the model can load'),
+  D('group-note', 'card', '.sr-group-note', { fontSize: 10.5, color: 'var(--sr-fg3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    'the note explains the state and may truncate on a narrow panel'),
+  D('off-card', 'card', '.sr-skill--off', { background: 'var(--sr-raised)', borderStyle: 'dashed', boxShadow: 'none' },
+    'a parked card is DASHED and flat: the same object in a different state, not a deleted one'),
+  D('off-card-hover', 'card', '.sr-skill--off:hover', { borderStyle: 'dashed', borderColor: 'var(--sr-line2)', boxShadow: 'var(--sr-e1)' },
+    'hover still lifts it — a parked skill is editable, so it must look interactive'),
+  D('off-avatar', 'card', '.sr-skill--off .sr-avatar', { filter: 'grayscale(1)', opacity: 0.75 },
+    'the avatar keeps its letter but loses its colour, so the group reads as inactive at a glance'),
+  D('off-tag', 'card', '.sr-tag--off', { background: 'var(--sr-warn-weak)', color: 'var(--sr-warn)', borderColor: 'transparent', fontWeight: 600 },
+    'the 已停用 tag is the card state and belongs in the title row'),
+
+  /* the switch ---------------------------------------------------------------- */
+  D('toggle-gap', 'btn', '.sr-btn--toggle', { gap: 'calc(var(--sr-u) * 1.5)', paddingInline: 'calc(var(--sr-u) * 2)', fontWeight: 550, height: 22, boxSizing: 'border-box', alignItems: 'center' },
+    'the switch is a fixed 22px control: a shrink-to-fit flex item would otherwise be sized by its line box and render as a 14px sliver'),
+  D('switch-track', 'btn', '.sr-switch', { flex: 'none', width: 22, height: 12, borderRadius: 999, background: 'var(--sr-line2)', position: 'relative', transition: 'background var(--sr-ease) var(--sr-speed)' },
+    'a 22x12 track: small enough for a card row, unambiguous as a switch'),
+  D('switch-knob', 'btn', '.sr-switch-knob', { position: 'absolute', top: 2, left: 2, width: 8, height: 8, borderRadius: 999, background: 'var(--sr-card)', boxShadow: '0 1px 2px rgba(0,0,0,.35)', transition: 'transform var(--sr-ease) var(--sr-speed)' },
+    'the knob is a raised dot; its travel is what makes the state legible without reading the label'),
+  D('switch-on', 'btn', '.sr-btn--on .sr-switch', { background: 'var(--sr-ok)' },
+    'ON is green while the label says 停用 — the colour describes the STATE, not the action'),
+  D('switch-on-knob', 'btn', '.sr-btn--on .sr-switch-knob', { transform: 'translateX(10px)' },
+    'the knob slides the track minus its own width, so ON and OFF are mirror images'),
+  D('switch-hover', 'btn', '.sr-btn--toggle:hover:not(:disabled) .sr-switch', { background: 'var(--sr-accent)' },
+    'hovering a switch previews that it will act, without changing the state colour'),
+  D('switch-off-label', 'btn', '.sr-btn--toggle:not(.sr-btn--on)', { color: 'var(--sr-warn)' },
+    'the 启用 label is amber: this card is out of service, and that is the thing to notice'),
+
+  /* the compact counters, on the strip's own bar line ------------------------- */
+  D('statline', 'stat', '.sr-strip-stats', { display: 'inline-flex', alignItems: 'center', flexWrap: 'nowrap', gap: 'calc(var(--sr-u) * 1.25)', flex: 'none', marginLeft: 'auto' },
+    'the counter row rides ON the bar line, pushed to the right by its auto margin'),
+  D('statline-rule', 'stat', '.sr-strip-stats + .sr-strip-n', { marginLeft: 'calc(var(--sr-u) * 1)' },
+    'the turn count sits just after the counters, so the two read as one group'),
+  D('statcard-inline', 'stat', '.sr-statcard--inline', { display: 'inline-flex', flexDirection: 'row-reverse', alignItems: 'baseline', gap: 'calc(var(--sr-u) * 1.25)', padding: 'calc(var(--sr-u) * .75) calc(var(--sr-u) * 2)', borderRadius: 8, background: 'var(--sr-sunken)', border: '1px solid transparent' },
+    'one counter as a chip: label and value on one line, so four of them fit the bar'),
+  D('statcard-inline-num', 'stat', '.sr-statcard--inline .sr-stat-v', { fontSize: 15, fontWeight: 700, letterSpacing: 'var(--sr-track-tight)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
+    '15px is the largest that still fits four chips across the strip'),
+  D('statcard-inline-label', 'stat', '.sr-statcard--inline .sr-stat-l', { fontSize: 10.5, letterSpacing: '.03em', textTransform: 'uppercase', fontWeight: 550, color: 'var(--sr-fg3)' },
+    'the same micro-caps treatment as the full-size cards, so the two read as one system'),
+  // The bar is one 18px line; a chip with card padding would set the bar's height and
+  // visibly thicken it when the strip expands.
+  D('statcard-bar', 'stat', '.sr-statcard--bar', { padding: 'calc(var(--sr-u) * .25) calc(var(--sr-u) * 1.5)', borderRadius: 6, gap: 'calc(var(--sr-u))' },
+    'the bar variant is smaller again, so four chips fit an 18px line without thickening it'),
+  D('statcard-bar-num', 'stat', '.sr-statcard--bar .sr-stat-v', { fontSize: 12.5, fontWeight: 700 },
+    'the number steps down with the chip and stays the largest thing in it'),
+  D('statcard-bar-label', 'stat', '.sr-statcard--bar .sr-stat-l', { fontSize: 10, letterSpacing: '.02em' },
+    'and the label follows, keeping the pair readable at bar scale'),
+
+  /* the claim row: its own row, at the card width ----------------------------- */
+  D('cardfoot', 'card', '.sr-card-foot', { flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 'calc(var(--sr-u) * 1.5)', minWidth: 0, alignSelf: 'stretch', justifyContent: 'center' },
+    'the card action column: buttons right-aligned, any revealed row BELOW them at full width'),
+  D('claim-row', 'card', '.sr-claim-row', { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 'calc(var(--sr-u) * 1.5)', width: '100%', marginTop: 'calc(var(--sr-u) * .5)', paddingTop: 'calc(var(--sr-u) * 2)', borderTop: '1px solid var(--sr-line)' },
+    'the revealed claim field spans the CARD, which is why it is no longer a child of the button row'),
+  D('claim-inner', 'card', '.sr-claim-row .sr-claim', { padding: 0, background: 'none', borderRadius: 0, borderTop: 0, marginTop: 0 },
+    'one frame, not two: the row owns the rule and the padding'),
+  D('claim-help', 'card', '.sr-claim-row .sr-help', { textAlign: 'left' },
+    'the helper line sits under the field it describes'),
+  D('portal-host', 'a11y', '.sr-portal-host', { position: 'static', display: 'contents' },
+    'the portal host adds no box of its own: the sheet is positioned against the viewport'),
 ])
 
 /**

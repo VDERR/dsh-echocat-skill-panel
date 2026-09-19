@@ -100,9 +100,17 @@ globalThis.clearInterval = (handle) => {
 }
 
 const requested = []
+/**
+ * `react-dom` is part of the shell's platform table — shipped plugins import
+ * `createPortal` from it — so the stub has to answer it. `createPortal` returns its node:
+ * the harness has no reconciler, and the only thing the plugin asks of a portal is that
+ * the sheet still renders.
+ */
+const mockReactDom = { createPortal: (node) => node }
 const shellRequire = (specifier) => {
   requested.push(specifier)
   if (specifier === 'react') return mockReact
+  if (specifier === 'react-dom') return mockReactDom
   return appRequire(specifier)
 }
 let exports
@@ -114,7 +122,7 @@ try {
 }
 ok('factory materializes without throwing', threw === null, String(threw))
 ok('react was resolved from the shell table', requested.includes('react'), requested.join(', '))
-ok('nothing but the platform table was requested', requested.every((r) => r === 'react'), requested.join(', '))
+ok('nothing but the platform table was requested', requested.every((r) => r === 'react' || r === 'react-dom'), requested.join(', '))
 ok('exports.apply is a function', typeof exports?.apply === 'function')
 ok('exports.inject is an array with slots', Array.isArray(exports?.inject) && exports.inject.includes('slots'), JSON.stringify(exports?.inject))
 ok('a second materialization is independent', captured.factory(shellRequire) !== exports)
@@ -363,6 +371,12 @@ globalThis.fetch = async (url, init) => {
         checkedAt: 0,
       }))
       return json({ ok: true, ...(body.name === undefined ? { checks } : { check: checks[0] }), skills: HOST_SKILLS, capability: CAP_FULL })
+    }
+    if (body.action === 'rename') {
+      return json({ ok: true, skill: { name: body.name, displayNameZh: body.displayNameZh }, skills: HOST_SKILLS, capability: CAP_FULL })
+    }
+    if (body.action === 'disable' || body.action === 'enable') {
+      return json({ ok: true, skill: { name: body.name, disabled: body.action === 'disable' }, skills: HOST_SKILLS, capability: CAP_FULL })
     }
     if (body.action === 'claim') {
       return json({ ok: true, skill: { name: body.name }, provenance: { known: true, source: 'git', url: body.input, repo: body.input, claimed: true, changedSinceInstall: false }, skills: HOST_SKILLS, capability: CAP_FULL })
@@ -1690,6 +1704,168 @@ await (async () => {
         ok('[24] the store can be cleared', Object.keys(exports.__source.getUpdates().results).length === 0)
       } finally {
         behindOnce = ''
+        if (realDocument === undefined) delete globalThis.document
+        else globalThis.document = realDocument
+        if (realLocalStorage === undefined) delete globalThis.localStorage
+        else globalThis.localStorage = realLocalStorage
+      }
+    }
+
+    /* -- 47: enable/disable, the catalogue groups, and the claim row -- */
+    console.log('\n[26] a skill can be switched off in place, and the catalogue says which is which')
+    {
+      const enabledSkill = { name: 'live-skill', description: 'the model can load this', tag: '', modelInvocable: true, provenance: { known: true, source: 'git', url: 'https://github.com/o/r.git', repo: 'https://github.com/o/r.git', ref: 'main', commit: 'a'.repeat(40), claimed: false, changedSinceInstall: false } }
+      // No provenance record: this is the card that offers 「标记来源」, whose revealed
+      // field is the one that used to overflow the card.
+      const noSource = { name: 'hand-skill', description: 'dropped in by hand', tag: '', modelInvocable: true, provenance: { known: false, source: '', changedSinceInstall: false } }
+      const parked = { name: 'parked-skill', description: '', displayNameZh: '', tag: '', modelInvocable: true, disabled: true, provenance: { known: true, source: 'text', url: '', repo: '', ref: '', subpath: '', commit: '', claimed: false, changedSinceInstall: false } }
+      const snapshot = {
+        ...HOST_SNAPSHOT,
+        capability: CAP_FULL,
+        skills: [enabledSkill, noSource],
+        disabledSkills: [{ name: parked.name, bytes: 1024, modifiedAt: Date.now() - 86400000, provenance: parked.provenance }],
+      }
+      const store = new Map()
+      const realDocument = globalThis.document
+      const realLocalStorage = globalThis.localStorage
+      globalThis.document = { addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, body: { style: {} } }
+      globalThis.localStorage = {
+        getItem: (key) => (store.has(key) ? store.get(key) : null),
+        setItem: (key, value) => store.set(key, value),
+      }
+      try {
+        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
+          const rendered = view.text()
+          ok('[26] the catalogue is split into two groups', rendered.includes('\u5df2\u542f\u7528') && rendered.includes('\u5df2\u505c\u7528'), rendered.slice(0, 300))
+          ok('[26] ...each with its own count', view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-group-head').length === 2)
+          ok('[26] ...and a sentence explaining the disabled state', rendered.includes('\u6a21\u578b\u4e0d\u4f1a\u52a0\u8f7d'), rendered.slice(0, 400))
+          ok('[26] the parked skill is labelled on its card', rendered.includes('parked-skill') && rendered.includes('\u5df2\u505c\u7528'))
+
+          // The switch itself: a real role=switch with the state in ARIA, and one click
+          // per state change — it destroys nothing, so it needs no confirmation.
+          const switches = view.findAll((n) => n.type === 'button' && n.props?.role === 'switch')
+          ok('[26] every card carries a switch', switches.length === 3, String(switches.length))
+          ok('[26] ...whose aria-checked matches the state',
+            switches.filter((n) => n.props['aria-checked'] === 'false').length === 1 &&
+            switches.filter((n) => n.props['aria-checked'] === 'true').length === 2,
+            JSON.stringify(switches.map((n) => n.props['aria-checked'])))
+          ok('[26] ...labelled by what it will do, not by the state',
+            switches.some((n) => n.props['aria-label'] === '\u505c\u7528 live-skill') &&
+            switches.some((n) => n.props['aria-label'] === '\u542f\u7528 parked-skill'),
+            JSON.stringify(switches.map((n) => n.props['aria-label'])))
+
+          const before = calls.length
+          const liveSwitch = switches.find((n) => n.props['aria-label'] === '\u505c\u7528 live-skill')
+          view.click(liveSwitch)
+          await tick()
+          const offCall = calls.slice(before).find((call) => call.body?.action === 'disable')
+          ok('[26] switching an enabled skill off posts a disable', offCall !== undefined, JSON.stringify(calls.slice(before).map((c) => c.body)))
+          ok('[26] ...naming the skill and nothing else', offCall !== undefined && Object.keys(offCall.body).sort().join(',') === 'action,name', JSON.stringify(offCall?.body))
+          ok('[26] ...in one click: no confirmation step', calls.slice(before).filter((c) => c.body?.action === 'disable').length === 1)
+
+          const beforeOn = calls.length
+          const parkedSwitch = switches.find((n) => n.props['aria-label'] === '\u542f\u7528 parked-skill')
+          view.click(parkedSwitch)
+          await tick()
+          const onCall = calls.slice(beforeOn).find((call) => call.body?.action === 'enable')
+          ok('[26] switching a parked skill on posts an enable', onCall !== undefined, JSON.stringify(calls.slice(beforeOn).map((c) => c.body)))
+
+          // A parked skill is not offered 引用: the whole point is that it cannot be run.
+          // Asserted through the button's TITLE (a stable prop) rather than its text: the
+          // harness's recursive text helper is unreliable on these deeper nodes, and the
+          // title is what a user reads anyway.
+          const refByTitle = view.findAll((n) => n.type === 'button' && String(n.props?.title ?? '').startsWith('\u628a /'))
+          ok('[26] the two ENABLED cards offer a reference button', refByTitle.length === 2, JSON.stringify(refByTitle.map((n) => n.props.title)))
+          ok('[26] ...and the parked one is not offered it',
+            !refByTitle.some((n) => String(n.props.title).includes('parked-skill')),
+            JSON.stringify(refByTitle.map((n) => n.props.title)))
+
+          // The claim field: its own row, at the card's width, not a cell in the button row.
+          const claimButton = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u6807\u8bb0'))[0]
+          ok('[26] the card with no source offers a claim', claimButton !== undefined)
+          view.click(claimButton)
+          const claimInput = view.findAll((n) => n.type === 'input' && String(n.props?.className ?? '').includes('sr-claim-input'))[0]
+          ok('[26] the claim field appears in its own row', claimInput !== undefined)
+          const row = view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-claim-row')
+          ok('[26] ...and that row is a SIBLING of the button row, not a child',
+            row.length === 1 && !row.some((n) => n.children.some((child) => String(child.props?.className ?? '').includes('sr-row-actions'))),
+            'a 100%-basis child of an inline-flex box overflows the card')
+          ok('[26] ...inside the card footer', view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-card-foot').length === 3)
+        })
+      } finally {
+        if (realDocument === undefined) delete globalThis.document
+        else globalThis.document = realDocument
+        if (realLocalStorage === undefined) delete globalThis.localStorage
+        else globalThis.localStorage = realLocalStorage
+      }
+    }
+
+    /* -- 48: the counters ride on the strip's own bar line -- */
+    console.log('\n[27] the four counters ride on the strip bar, and only when it is expanded')
+    {
+      const stats = { ...HOST_SNAPSHOT, turns: 37, turnsWithSkills: 24, turnsWithoutSkills: 13, invocations: 61, capability: CAP_FULL, skills: HOST_SKILLS, disabledSkills: [] }
+      const realDocument = globalThis.document
+      const realLocalStorage = globalThis.localStorage
+      const store = new Map()
+      globalThis.document = { addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, body: { style: {} } }
+      globalThis.localStorage = {
+        getItem: (key) => (store.has(key) ? store.get(key) : null),
+        setItem: (key, value) => store.set(key, value),
+      }
+      const stripState = { phase: 'ready', data: stats, error: null, fetchedAt: Date.now() }
+      const findCounters = (view) => view.findAll((n) => String(n.props?.className ?? '').includes('sr-statcard--inline'))
+      const findBar = (view) => view.findAll((n) => n.type === 'button' && String(n.props?.className ?? '') === 'sr-strip')[0]
+      try {
+        // EXPANDED: four chips, on the bar line itself, in the report's order.
+        await withMount(exports.__ui.SkillReportStrip, { state: stripState, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: true }, async (view) => {
+          const bar = findBar(view)
+          ok('[27] the strip renders one bar element', bar !== undefined)
+          const counters = findCounters(view)
+          ok('[27] ...with all four counters', counters.length === 4, String(counters.length))
+          ok('[27] ...in the same order as the report cards',
+            counters.every((node, i) => view.text(node).includes(['\u56de\u5408', '\u7528\u5230 skill', '\u672a\u7528', '\u8c03\u7528\u6b21\u6570'][i])),
+            JSON.stringify(counters.map((n) => view.text(n))))
+          ok('[27] ...carrying the live numbers',
+            counters.every((node, i) => view.text(node).includes(['37', '24', '13', '61'][i])),
+            JSON.stringify(counters.map((n) => view.text(n))))
+          // ON the bar line, not on a row of its own: the chips are descendants of the bar
+          // button, which is the whole point of the change.
+          const counterNodes = new Set(counters)
+          const insideBar = bar.children.some((child) => {
+            const walk = (node, depth) => {
+              if (depth > 8 || node === null || node === undefined) return false
+              if (counterNodes.has(node)) return true
+              return (node.children ?? []).some((kid) => walk(kid, depth + 1))
+            }
+            return walk(child, 0)
+          })
+          ok('[27] ...and they are INSIDE the bar element, not on a row below it', insideBar)
+          ok('[27] ...and the bar keeps its single-line summary', view.text(bar).includes('\u6280\u80fd'), view.text(bar).slice(0, 120))
+          ok('[27] ...with nothing rendered between the bar and the report', view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-strip-stats').length === 0)
+        })
+
+        // COLLAPSED: no chips at all. A one-line bar has to stay one line.
+        await withMount(exports.__ui.SkillReportStrip, { state: stripState, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: false }, async (view) => {
+          ok('[27] a collapsed bar carries no counters', findCounters(view).length === 0, String(findCounters(view).length))
+          ok('[27] ...but still shows the turn count', view.text(findBar(view)).includes('37'), view.text(findBar(view)).slice(0, 120))
+        })
+
+        // The report drops the cards when it is rendered inside the strip, so the same
+        // four numbers are never on screen twice; the check-updates control lives there.
+        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        await withMount(exports.__ui.SkillReportPanel, { snapshot: stats, onRefresh: () => {}, onUse: () => {}, onInstall: () => {}, compact: true, now: Date.now() }, async (view) => {
+          ok('[27] the compact report does not repeat them as cards',
+            view.findAll((n) => String(n.props?.className ?? '') === 'sr-stats').length === 0)
+          const checkBtn = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '') === '\u68c0\u67e5 skill \u66f4\u65b0')
+          ok('[27] the check-updates control is labelled, not a bare icon', checkBtn.length === 1, String(checkBtn.length))
+        })
+        // ...and the FULL panel still shows the four cards.
+        await withMount(exports.__ui.SkillReportPanel, { snapshot: stats, onRefresh: () => {}, onUse: () => {}, onInstall: () => {}, now: Date.now() }, async (view) => {
+          ok('[27] the full panel still shows them as cards',
+            view.findAll((n) => String(n.props?.className ?? '') === 'sr-stats').length === 1)
+        })
+      } finally {
         if (realDocument === undefined) delete globalThis.document
         else globalThis.document = realDocument
         if (realLocalStorage === undefined) delete globalThis.localStorage

@@ -42,7 +42,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isAbsolute, dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inflateRawSync } from 'node:zlib'
 import {
@@ -622,6 +622,19 @@ export function detectSource(input) {
   return { kind: 'unknown', input: raw, url: raw, repo: '', ref: '', subpath: '', note: '按直链下载后再判断' }
 }
 
+/**
+ * Containment check for a destination that is NOT inside the skills root — the disabled
+ * directory. Same rule as {@link assertInside}, same reason: `startsWith` would accept a
+ * sibling whose name merely begins with the prefix.
+ */
+function assertUnder(root, target) {
+  const rel = relative(root, target)
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+    throw new InstallError('UNSAFE_PATH', `拒绝写到目标目录之外：${target}`)
+  }
+  return target
+}
+
 /* ---------------------------------------------------------------- cleanup -- */
 
 /**
@@ -709,6 +722,17 @@ export function createInstaller({
 } = {}) {
   const skillsRoot = resolve(root ?? resolveSkillsRoot({ env }))
   const trashRoot = resolve(backupRoot ?? join(env.DSH_HOME ?? join(homedir(), '.dsh-beta'), 'skill-report', 'backups'))
+  /**
+   * Where a DISABLED skill lives: `$DSH_HOME/skill-report/disabled/<name>`.
+   *
+   * Deliberately OUTSIDE the skills root. DSH's `skill-filesystem` discovers a skill by
+   * watching `<root>/<name>/SKILL.md`, so the only way to make a skill genuinely
+   * unavailable to the model — and not merely hidden from this panel — is to move the
+   * directory out of the watched root. Keeping it beside the backups (rather than
+   * renaming it inside the root) means the enabled set stays exactly what discovery
+   * sees, and re-enabling is a single rename back.
+   */
+  const disabledRoot = join(dirname(trashRoot), 'disabled')
 
   /** Ring buffer of recent install attempts, newest first, for the panel's log. */
   const history = []
@@ -733,6 +757,11 @@ export function createInstaller({
   }
 
   const exists = (name) => existsSync(join(skillsRoot, name))
+  /** Absolute directory a DISABLED skill of this slug occupies. */
+  const disabledDirOf = (slug) => assertUnder(disabledRoot, join(disabledRoot, slug))
+
+  /** Is this slug currently disabled (moved out of the watched root)? */
+  const isDisabled = (slug) => existsSync(disabledDirOf(slug))
 
   /**
    * Absolute directory of one installed skill, or `null` when there is none.
@@ -748,7 +777,40 @@ export function createInstaller({
       return null
     }
     const dir = assertInside(skillsRoot, join(skillsRoot, slug))
-    return existsSync(dir) ? dir : null
+    if (existsSync(dir)) return dir
+    // A DISABLED skill is still an installed skill: its record, its Chinese name and its
+    // provenance all have to keep reading correctly while it is parked.
+    const parked = disabledDirOf(slug)
+    return existsSync(parked) ? parked : null
+  }
+
+  /**
+   * Move a skill directory between the enabled and disabled roots.
+   *
+   * `renameSync` first because both roots normally sit on one volume (a single rename,
+   * no window where the skill exists in neither place). It falls back to copy-then-delete
+   * for a root and a disabled directory on different volumes — the one case where a bare
+   * rename throws `EXDEV`. The copy goes to a staging name first, so an interrupted copy
+   * never leaves a half-skill that discovery could pick up.
+   */
+  function moveSkill(from, to, slug) {
+    mkdirSync(dirname(to), { recursive: true })
+    if (existsSync(to)) throw new InstallError('NAME_TAKEN', `目标位置已经有一个叫 "${slug}" 的目录了。`)
+    try {
+      renameSync(from, to)
+      return
+    } catch (error) {
+      if (error?.code !== 'EXDEV') throw error
+    }
+    const staging = `${to}.echocat-move-${randomBytes(4).toString('hex')}`
+    try {
+      cpSync(from, staging, { recursive: true, force: true })
+      renameSync(staging, to)
+    } catch (error) {
+      removeTree(staging)
+      throw error
+    }
+    removeTree(from, (message) => logger?.warn?.(message))
   }
 
   /** The provenance block the panel renders for one skill (see provenance.js). */
@@ -821,33 +883,59 @@ export function createInstaller({
     }
   }
 
-  /** Enumerate skill directories currently on disk (not the live snapshot). */
-  function onDisk() {
+  /** Measure one skill directory: total bytes and the newest mtime inside it. */
+  function measure(dir) {
+    let bytes = 0
+    let modifiedAt = 0
     try {
-      return readdirSync(skillsRoot, { withFileTypes: true })
+      for (const file of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+        if (!file.isFile()) continue
+        const info = statSync(join(file.parentPath ?? dir, file.name))
+        bytes += info.size
+        modifiedAt = Math.max(modifiedAt, info.mtimeMs)
+      }
+    } catch {
+      // A directory we cannot stat is still a skill directory; the size and
+      // mtime columns simply stay empty.
+    }
+    return { bytes, modifiedAt }
+  }
+
+  /** Skill directories directly under one root, as catalogue rows. */
+  function scanRoot(root, disabled) {
+    try {
+      return readdirSync(root, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
         .map((entry) => {
-          const dir = join(skillsRoot, entry.name)
-          const skill = join(dir, 'SKILL.md')
-          let bytes = 0
-          let modifiedAt = 0
-          try {
-            for (const file of readdirSync(dir, { recursive: true, withFileTypes: true })) {
-              if (!file.isFile()) continue
-              const info = statSync(join(file.parentPath ?? dir, file.name))
-              bytes += info.size
-              modifiedAt = Math.max(modifiedAt, info.mtimeMs)
-            }
-          } catch {
-            // A directory we cannot stat is still a skill directory; the size and
-            // mtime columns simply stay empty.
+          const dir = join(root, entry.name)
+          return {
+            name: entry.name,
+            dir,
+            hasSkillMd: existsSync(join(dir, 'SKILL.md')),
+            disabled,
+            ...measure(dir),
           }
-          return { name: entry.name, dir, hasSkillMd: existsSync(skill), bytes, modifiedAt }
         })
-        .sort((a, b) => a.name.localeCompare(b.name))
     } catch {
       return []
     }
+  }
+
+  /**
+   * Every installed skill, enabled and disabled, on disk — not the live snapshot.
+   *
+   * `disabled: true` means the directory is parked outside the watched root, so DSH
+   * cannot see it and the model cannot load it. The panel shows both so a disabled skill
+   * is still editable, updatable and re-enableable rather than invisible.
+   */
+  function onDisk() {
+    return [...scanRoot(skillsRoot, false), ...scanRoot(disabledRoot, true)]
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  /** Just the enabled ones — what discovery sees, and what the live snapshot reports. */
+  function onDiskEnabled() {
+    return onDisk().filter((entry) => entry.disabled !== true)
   }
 
   /** Capability descriptor the browser half renders the install sheet from. */
@@ -856,6 +944,8 @@ export function createInstaller({
       api: INSTALL_API,
       root: skillsRoot,
       backupRoot: trashRoot,
+      /** Where a disabled skill is parked; shown in the panel's footer. */
+      disabledRoot,
       writable: writable(),
       /** `auto` first: one pasted address is the primary gesture. */
       modes: ['auto', 'text', 'file', 'url', 'git'],
@@ -887,6 +977,16 @@ export function createInstaller({
     const existed = existsSync(target)
     if (existed && overwrite !== true) {
       throw new InstallError('NAME_TAKEN', `已经有一个叫 "${name}" 的 skill 了。`, '勾选「覆盖同名的已有 skill」后重试。')
+    }
+    // A DISABLED skill still occupies the name. Installing over it silently would leave
+    // the user with two copies and no way to tell which one the model would load, so the
+    // refusal says where the other one is and how to get it back.
+    if (!existed && isDisabled(name)) {
+      throw new InstallError(
+        'NAME_TAKEN',
+        `"${name}" 已被一个**已停用**的 skill 占用。`,
+        '先在面板的「已停用」分组里启用它，或先删除它再安装。',
+      )
     }
     let backup = null
     if (existed) {
@@ -941,6 +1041,18 @@ export function createInstaller({
     } catch {
       return 0
     }
+  }
+
+  /**
+   * The enabled/disabled map the browser half uses to mark a card.
+   *
+   * Read with ONE `existsSync` per catalogued name rather than a directory listing, so
+   * the two halves of the catalogue can never disagree about which state a skill is in.
+   */
+  function enabledMap() {
+    const out = {}
+    for (const entry of onDisk()) out[entry.name] = entry.disabled !== true
+    return out
   }
 
   /**
@@ -1507,12 +1619,51 @@ export function createInstaller({
     }
   }
 
+  /* --------------------------------------------------------------- enabled -- */
+
+  /**
+   * Take a skill out of service, or put it back — WITHOUT deleting anything.
+   *
+   * The only way a skill becomes genuinely unavailable to the model is to leave the
+   * directory DSH watches, so "disable" is a MOVE to `<DSH_HOME>/skill-report/disabled/`
+   * and "enable" is the move back. That keeps the plugin's oldest safety rule intact
+   * (nothing is ever destroyed by this engine), makes the operation reversible in one
+   * step, and means a disabled skill keeps its provenance record, its Chinese name and
+   * its place in the catalogue.
+   *
+   * @param options.enabled - true to enable, false to disable.
+   */
+  function setEnabled({ name, enabled }) {
+    const slug = assertSkillName(name)
+    const from = enabled === true ? disabledDirOf(slug) : assertInside(skillsRoot, join(skillsRoot, slug))
+    const to = enabled === true ? assertInside(skillsRoot, join(skillsRoot, slug)) : disabledDirOf(slug)
+    if (!existsSync(from)) {
+      if (existsSync(to)) {
+        // Idempotent by design: the panel polls, and two clicks racing must not fail.
+        return { name: slug, enabled: enabled === true, moved: false }
+      }
+      throw new InstallError('NOT_FOUND', `没有找到叫 "${slug}" 的 skill。`)
+    }
+    if (!existsSync(join(from, 'SKILL.md'))) {
+      throw new InstallError('BAD_REQUEST', `"${slug}" 的目录里没有 SKILL.md，可能不是一个完整的 skill。`)
+    }
+    try {
+      moveSkill(from, to, slug)
+    } catch (error) {
+      if (error instanceof InstallError) throw error
+      throw new InstallError('FS_ERROR', `${enabled === true ? '启用' : '停用'}失败：${error?.message ?? error}`)
+    }
+    return { name: slug, enabled: enabled === true, moved: true }
+  }
+
   /* ------------------------------------------------------------- uninstall -- */
 
   function uninstall({ name, confirm }) {
     const finalName = assertSkillName(name)
-    const target = assertInside(skillsRoot, join(skillsRoot, finalName))
-    if (!existsSync(target)) throw new InstallError('NOT_FOUND', `没有找到叫 "${finalName}" 的 skill。`)
+    // `skillDirOf` resolves a DISABLED skill too, so parking a skill does not make it
+    // undeletable — the panel offers delete on both states.
+    const target = skillDirOf(finalName)
+    if (target === null) throw new InstallError('NOT_FOUND', `没有找到叫 "${finalName}" 的 skill。`)
     if (confirm !== true) {
       throw new InstallError('NEEDS_CONFIRM', `删除 "${finalName}" 需要确认。`, '在面板里再点一次「删除」以确认。')
     }
@@ -1538,8 +1689,10 @@ export function createInstaller({
    */
   function renameDisplayName({ name, displayNameZh }) {
     const finalName = assertSkillName(name)
-    const target = assertInside(skillsRoot, join(skillsRoot, finalName))
-    if (!existsSync(target)) throw new InstallError('NOT_FOUND', `没有找到叫 "${finalName}" 的 skill。`)
+    // `skillDirOf` resolves a DISABLED skill too: a parked skill keeps its Chinese name
+    // editable, which is the whole reason the panel still lists it.
+    const target = skillDirOf(finalName)
+    if (target === null) throw new InstallError('NOT_FOUND', `没有找到叫 "${finalName}" 的 skill。`)
     const value = cleanDisplayNameZh(displayNameZh)
     const file = join(target, 'meta.yaml')
     let before = ''
@@ -1741,6 +1894,17 @@ export function createInstaller({
         return { ok: true, checks: results, skills: onDisk() }
       }
 
+      if (action === 'enable' || action === 'disable') {
+        const result = setEnabled({ name: request.name, enabled: action === 'enable' })
+        record({ action, name: result.name, ok: true, ms: Date.now() - started })
+        logger?.info?.(
+          result.moved
+            ? `skill-report: ${action}d skill "${result.name}"`
+            : `skill-report: "${result.name}" was already ${action}d`,
+        )
+        return { ok: true, skill: { name: result.name, disabled: action === 'disable' }, skills: onDisk() }
+      }
+
       if (action === 'claim') {
         // "This skill came from there" — for the skills a user installed by hand or
         // with 2.x, which have no record. Nothing but the record is written; the
@@ -1838,14 +2002,21 @@ export function createInstaller({
   return {
     capability,
     onDisk,
+    /** Enabled rows only — what discovery sees. */
+    onDiskEnabled,
+    /** `{ [name]: boolean }`, so the panel can mark a parked card. */
+    enabledMap,
     install: run_action,
     uninstall,
+    /** Move a skill out of, or back into, the watched root. */
+    setEnabled,
     /** Provenance + update state of one skill, for the panel's cards. */
     provenance: skillProvenance,
     /** Ask one skill's recorded source whether it moved on (network). */
     check: checkOne,
     root: skillsRoot,
     backupRoot: trashRoot,
+    disabledRoot,
     history: () => [...history],
     /** Non-blocking view of the git probe: `undefined` until it has settled. */
     gitKnown: () => gitKnown,

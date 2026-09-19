@@ -543,5 +543,44 @@ ok('hairlines are derived from the ink colour rather than hardcoded grey',
 const generated = design.designCSS(ROOTS)
 ok('no design rule needed !important', !generated.includes('!important'))
 
+/* ---- the enable/disable switch, the groups, and the claim row ---------------------- */
+
+console.log('\n[8] the switch, the catalogue groups and the claim row are styled')
+// Every class the new controls render with needs a rule, or the switch shows up as naked
+// text — the failure mode `test/client-css.mjs` exists to catch, checked here for the
+// classes this change introduced.
+for (const [cls, why] of [
+  ['sr-group-head', 'the group header row'],
+  ['sr-group-title', 'the group heading'],
+  ['sr-group-note', 'the sentence explaining the state'],
+  ['sr-tag--off', 'the disabled marker on a parked card'],
+  ['sr-skill--off', 'the parked card itself'],
+  ['sr-btn--toggle', 'the switch button'],
+  ['sr-switch', 'the switch track'],
+  ['sr-switch-knob', 'the switch knob'],
+  ['sr-card-foot', 'the card action column'],
+  ['sr-claim-row', 'the claim row'],
+  ['sr-strip-stats', 'the counter row in the strip'],
+  ['sr-statcard--inline', 'one counter chip'],
+  ['sr-portal-host', 'the modal portal host'],
+]) {
+  ok(`.${cls} has a rule (${why})`, new RegExp(`\\.${cls}[{,. :]`, 'u').test(RENDERED), cls)
+}
+ok('the switch knob slides, so ON and OFF differ without reading the label',
+  /\.sr-btn--on \.sr-switch-knob\{[^}]*translateX/u.test(RENDERED),
+  (/\.sr-btn--on \.sr-switch-knob\{[^}]*\}/u.exec(RENDERED) ?? [''])[0].slice(0, 120))
+ok('...and the track changes colour with it', /\.sr-btn--on \.sr-switch\{[^}]*background/u.test(RENDERED))
+ok('the switch is a fixed-height control, not a line-height accident',
+  /\.sr-btn--toggle\{[^}]*height:22px/u.test(RENDERED),
+  (/\.sr-btn--toggle\{[^}]*\}/u.exec(RENDERED) ?? [''])[0].slice(0, 140))
+ok('a parked card is dashed, so it reads as inactive rather than deleted',
+  /\.sr-skill--off\{[^}]*dashed/u.test(RENDERED))
+// The claim field was a `flex-basis:100%` child of an inline-flex row, which resolves the
+// percentage against the row's shrink-to-fit width and overflowed the card it sat in.
+ok('the claim field is no longer a child of the button row',
+  !/\.sr-row-actions \.sr-claim/u.test(RENDERED) && /\.sr-claim-row\{[^}]*width:100%/u.test(RENDERED),
+  (/\.sr-claim-row\{[^}]*\}/u.exec(RENDERED) ?? [''])[0].slice(0, 140))
+ok('the portal host adds no box of its own', /\.sr-portal-host\{[^}]*display:contents/u.test(RENDERED))
+
 console.log(`\nRESULT: ${pass}/${pass + fail} passed`)
 if (fail > 0) process.exitCode = 1

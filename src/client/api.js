@@ -633,11 +633,25 @@ function performRename(name, displayNameZh, labels = {}) {
   )
 }
 
+/**
+ * Take a skill out of service, or put it back.
+ *
+ * One step, deliberately: it destroys nothing and the same control undoes it, so a
+ * confirmation here would be ceremony. The host moves the directory OUT of the root DSH
+ * watches — the only thing that actually stops the model loading it.
+ */
+function performSetEnabled(name, enabled, labels = {}) {
+  const on = enabled === true
+  return performWrite(
+    { action: on ? 'enable' : 'disable', name },
+    { pending: on ? `正在启用 ${name}…` : `正在停用 ${name}…`, okPrefix: on ? '已启用' : '已停用', onDone: labels.onDone },
+  )
+}
+
 module.exports = {
   SKILLS_PATH,
   formatBytes,
-  slugify,
-  hueOf,
+  slugify,  hueOf,
   initial,
   canInstall,
   installDisabled,
@@ -671,5 +685,6 @@ module.exports = {
   performWrite,
   performInstall,
   performUninstall,
+  performSetEnabled,
   performRescan,
 }

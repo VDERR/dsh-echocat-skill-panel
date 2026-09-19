@@ -783,6 +783,68 @@ console.log('\n[24] a real repository: install, notice a newer commit, update')
   }
 }
 
+console.log('\n[25] enable / disable moves a skill out of the watched root, and back')
+{
+  // The point of this feature is that a disabled skill is GENUINELY unavailable: DSH
+  // discovers a skill by watching `<root>/<name>/SKILL.md`, so the directory has to leave
+  // the root. Renaming it in place would look disabled and still be loadable.
+  const disabledDir = join(provSandbox, 'disabled')
+  const before = await prov.install({ action: 'install', mode: 'text', text: md('toggle-me', '可停用'), name: 'toggle-me' })
+  ok('the skill to toggle installed', before.ok === true, JSON.stringify(before.error ?? {}))
+  ok('...and starts life enabled', prov.onDisk().find((e) => e.name === 'toggle-me')?.disabled !== true)
+
+  const off = await prov.install({ action: 'disable', name: 'toggle-me' })
+  ok('disabling succeeds', off.ok === true, JSON.stringify(off.error ?? {}))
+  ok('...and reports the new state', off.skill?.disabled === true, JSON.stringify(off.skill))
+  ok('...by moving the directory OUT of the skills root', !existsSync(join(provRoot, 'toggle-me')))
+  ok('...so discovery can no longer see it', !prov.onDiskEnabled().some((entry) => entry.name === 'toggle-me'))
+  ok('...and the files are all still there', existsSync(join(disabledDir, 'toggle-me', 'SKILL.md')), disabledDir)
+  ok('...with its provenance record intact', prov.provenance('toggle-me').known === true)
+  ok('...and it is still listed, marked disabled', prov.onDisk().find((e) => e.name === 'toggle-me')?.disabled === true)
+  ok('the enabled map reports it as off', prov.enabledMap()['toggle-me'] === false, String(prov.enabledMap()['toggle-me']))
+  ok('disabling is recorded in the history', prov.history().some((entry) => entry.action === 'disable' && entry.ok === true))
+
+  // Idempotent: the panel polls, and two clicks racing must not fail.
+  const offAgain = await prov.install({ action: 'disable', name: 'toggle-me' })
+  ok('disabling an already-disabled skill is a no-op, not an error', offAgain.ok === true && offAgain.skill.disabled === true, JSON.stringify(offAgain.error ?? offAgain.skill))
+
+  // A disabled name is TAKEN: installing over it would leave two copies and no way to
+  // tell which one the model loads.
+  const clash = await prov.install({ action: 'install', mode: 'text', text: md('toggle-me', 'second copy'), name: 'toggle-me' })
+  ok('installing over a disabled skill is refused', clash.ok === false && clash.error.code === 'NAME_TAKEN', JSON.stringify(clash.error))
+  ok('...and the refusal says it is disabled', clash.error.message.includes('停用'), clash.error.message)
+  ok('...and says how to resolve it', typeof clash.error.hint === 'string' && clash.error.hint.includes('启用'), clash.error.hint)
+
+  // A parked skill must stay manageable: rename, source claim and check all still work.
+  const renamedWhileOff = await prov.install({ action: 'rename', name: 'toggle-me', displayNameZh: '停用中改名' })
+  ok('a disabled skill can still be renamed', renamedWhileOff.ok === true, JSON.stringify(renamedWhileOff.error ?? {}))
+  const claimedWhileOff = await prov.install({ action: 'claim', name: 'toggle-me', input: 'https://github.com/a/b' })
+  ok('...and still have its source recorded', claimedWhileOff.ok === true, JSON.stringify(claimedWhileOff.error ?? {}))
+  const checkedWhileOff = await prov.install({ action: 'check', name: 'toggle-me' })
+  ok('...and still be checkable', checkedWhileOff.ok === true, JSON.stringify(checkedWhileOff.error ?? {}))
+
+  const on = await prov.install({ action: 'enable', name: 'toggle-me' })
+  ok('enabling succeeds', on.ok === true, JSON.stringify(on.error ?? {}))
+  ok('...and reports the new state', on.skill?.disabled === false, JSON.stringify(on.skill))
+  ok('...by moving the directory back into the root', existsSync(join(provRoot, 'toggle-me', 'SKILL.md')))
+  ok('...so discovery sees it again', prov.onDiskEnabled().some((entry) => entry.name === 'toggle-me'))
+  ok('...and it is no longer marked disabled', prov.onDisk().find((e) => e.name === 'toggle-me')?.disabled !== true)
+  ok('...keeping the rename it received while parked', readFileSync(join(provRoot, 'toggle-me', 'meta.yaml'), 'utf8').includes('停用中改名'))
+  ok('enabling is recorded in the history', prov.history().some((entry) => entry.action === 'enable' && entry.ok === true))
+
+  const missingToggle = await prov.install({ action: 'enable', name: 'never-installed' })
+  ok('enabling an unknown skill is NOT_FOUND', missingToggle.ok === false && missingToggle.error.code === 'NOT_FOUND', JSON.stringify(missingToggle.error))
+  const traversalToggle = await prov.install({ action: 'disable', name: '../escape' })
+  ok('a traversal name is refused', traversalToggle.ok === false && traversalToggle.error.code === 'INVALID_NAME', JSON.stringify(traversalToggle.error))
+
+  // Deleting a parked skill has to work: parking is reversible, deleting is the exit.
+  await prov.install({ action: 'disable', name: 'toggle-me' })
+  const deletedWhileOff = await prov.install({ action: 'uninstall', name: 'toggle-me', confirm: true })
+  ok('a disabled skill can be deleted', deletedWhileOff.ok === true, JSON.stringify(deletedWhileOff.error ?? {}))
+  ok('...keeping a backup like any other delete', typeof deletedWhileOff.backup === 'string' && existsSync(deletedWhileOff.backup), String(deletedWhileOff.backup))
+  ok('...and leaving nothing behind in either root', !existsSync(join(provRoot, 'toggle-me')) && !existsSync(join(disabledDir, 'toggle-me')))
+}
+
 rmSync(provSandbox, { recursive: true, force: true })
 ok('the provenance sandbox was removed too', !existsSync(provSandbox))
 
