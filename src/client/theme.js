@@ -20,7 +20,7 @@ const PLUGIN_ID = 'echocat-skill-panel-3.0'
 const TAG_ID = 'echocat-skill-panel-3.0/panel.css'
 
 /** Mirrors package.json; the bundle test asserts the two agree. */
-const VERSION = '3.0.0'
+const VERSION = '4.0.0'
 
 /**
  * Every element that can be the ROOT of one of this plugin's surfaces: the centre
@@ -291,6 +291,24 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-row-actions .sr-btn{opacity:.75}
 .sr-row-actions:hover .sr-btn,.sr-row-actions .sr-btn:focus-visible{opacity:1}
 .sr-confirm{flex-basis:100%;font-size:10px;color:var(--sr-danger);padding-top:calc(var(--sr-sp))}
+/* Provenance line: quieter than the blurb above it, because it is reference
+   material rather than content. The dot carries the state and the text stays
+   neutral, so "an update exists" never reads as a warning. */
+.sr-src{display:flex;align-items:center;gap:calc(var(--sr-sp)*1.25);font-size:10px;color:var(--sr-fg3);min-width:0}
+.sr-src-dot{flex:none;width:5px;height:5px;border-radius:var(--sr-r-pill);background:var(--sr-line2)}
+.sr-src-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-src--new{color:var(--sr-accent)}
+.sr-src--new .sr-src-dot{background:var(--sr-accent)}
+.sr-src--new .sr-src-text{font-weight:500}
+.sr-src--warn{color:var(--sr-warn)}
+.sr-src--warn .sr-src-dot{background:var(--sr-warn)}
+/* The update button earns colour only when a check actually found something new. */
+.sr-btn--accent{border-color:var(--sr-accent);background:var(--sr-accent-weak);color:var(--sr-accent)}
+.sr-btn--accent:hover:not(:disabled){border-color:var(--sr-accent);background:var(--sr-accent-weak);color:var(--sr-accent)}
+/* The claim-source field, revealed in place inside the actions row. */
+.sr-claim{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:calc(var(--sr-sp)*1.5);padding-top:calc(var(--sr-sp)*1.5);margin-top:calc(var(--sr-sp)*.5);border-top:1px solid var(--sr-line)}
+.sr-claim-input{flex:1;min-width:140px}
+.sr-claim .sr-help{flex-basis:100%}
 .sr-skill--busy{opacity:.6;pointer-events:none}
 
 /* ---- badges ---- */

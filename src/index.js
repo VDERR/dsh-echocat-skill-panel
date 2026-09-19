@@ -28,6 +28,24 @@
 // modules (`detect.js`, `store.js`) so the browser half can share exactly one
 // implementation instead of shipping a second, drifting copy.
 //
+// Revision 5 (4.0.0) — an installed skill now remembers where it came from, so it
+// can be UPDATED instead of only replaced by hand.
+//
+//   * New `provenance.js`: every skill this plugin installs carries a
+//     `.echocat.json` record in its own directory — the address it came from, the
+//     branch/subdirectory, the exact commit, and a content fingerprint. 3.0 used
+//     the pasted address once and dropped it, which made "the author published a
+//     fix" impossible to act on: the only route was delete-and-reinstall, with no
+//     way to tell whether the new copy was actually newer.
+//   * New `check` / `update` / `claim` actions. `check` compares the recorded
+//     commit against one `git ls-remote` (never a re-download); `update` is an
+//     install from the recorded address, so it keeps every 3.0 safety property
+//     (stage, back up the old copy, then rename); `claim` records a source for the
+//     skills that were installed by hand or by an earlier version.
+//   * The catalogue carries per-skill `provenance`, and the panel marks a skill
+//     whose local files no longer match what was installed — the one case where an
+//     update would silently discard an edit.
+//
 // Revision 4 (3.0.0) — the plugin became a skill *manager*, not only a reporter.
 //
 //   * New `install.js` owns every filesystem write: install from pasted
@@ -76,7 +94,7 @@ import { createInstaller, resolveSkillsRoot, toInstallError } from './install.js
 export const name = 'echocat-skill-panel-3.0'
 
 /** Reported to the browser half so the panel can show what it is talking to. */
-export const VERSION = '3.0.0'
+export const VERSION = '4.0.0'
 
 /**
  * Default path the browser half fetches its snapshot from.
@@ -436,6 +454,9 @@ function skillScope(agents, sessionId) {
  * @param agents - the `agents` service, used only to obtain a scope.
  * @param sessionId - most recent finished turn's session, for the scope lookup.
  * @param logger - host logger, for a one-line diagnostic.
+ * @param provenance - `(skillName) => record`; supplies each row's source record.
+ *   Injected rather than looked up here, so a read-only host never has to build the
+ *   install engine (which probes the filesystem and git) just to paint the panel.
  * @returns `{ name, description, modelInvocable }` records.
  */
 /**
@@ -482,7 +503,10 @@ function dirMtime(folder) {
   }
 }
 
-async function listSkills({ skills, agents, sessionId, logger, translate }) {
+/** The provenance block for a skill we know nothing about — the honest default. */
+const unknownProvenance = () => ({ known: false, source: '', changedSinceInstall: false })
+
+async function listSkills({ skills, agents, sessionId, logger, translate, provenance = unknownProvenance }) {
   loadTranslations()
   try {
     if (skills === undefined || typeof skills.snapshot !== 'function') {
@@ -539,6 +563,10 @@ async function listSkills({ skills, agents, sessionId, logger, translate }) {
           // `modelInvocable: false` means the skill is reachable ONLY through the
           // `/name` gesture — which is exactly what the panel's button performs.
           modelInvocable: skill?.invocation?.modelInvocable !== false,
+          // Where this skill came from, and whether its files still match what was
+          // installed. Read here, in the same pass that already resolved the
+          // directory — so the record can never disagree with the row it labels.
+          provenance: provenance(skillName),
         }
       })
       .filter((skill) => skill.name !== '')
@@ -781,6 +809,9 @@ function mount(ctx, config) {
         backupRoot,
         logger: ctx.logger,
         allowPrivateHosts,
+        // Stamped into every provenance record, so a stale record can be traced
+        // back to the build that wrote it.
+        pluginVersion: VERSION,
       })
       // Fire-and-forget: the probe must not delay the first panel paint, and
       // `gitKnown()` reports `undefined` until it settles.
@@ -821,6 +852,8 @@ function mount(ctx, config) {
                     // one reaches the preset layer that owns local discovery.
                     sessionId: lastSessionId || newestSessionId() || store.snapshot().recent[0]?.sessionId,
                     logger: ctx.logger,
+                    provenance: (skillName) =>
+                      allowInstall === true ? installer().provenance(skillName) : { known: false, source: '', changedSinceInstall: false },
                     translate: {
                       enabled: translateMissing,
                       // `ctx.get` is a second chance: the injected handles can be

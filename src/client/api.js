@@ -487,7 +487,9 @@ async function performWrite(body, labels = {}) {
     const parts = [labels.okPrefix ?? '已完成']
     if (name !== '') parts.push(name)
     if (typeof data.files === 'number') parts.push(`${data.files} 个文件`)
-    if (data.overwritten === true) parts.push('已覆盖')
+    // An update replaces an existing skill by definition, so "已覆盖" is noise there
+    // — the backup path below is the part the user actually needs.
+    if (data.overwritten === true && labels.okPrefix !== '已更新') parts.push('已覆盖')
     updateToast(id, {
       kind: 'ok',
       message: parts.join(' · '),
@@ -521,6 +523,96 @@ function performUninstall(name, labels = {}) {
 /** Force the host to re-read its skills root. */
 function performRescan(labels = {}) {
   return performWrite({ action: 'rescan' }, { pending: '正在重新扫描…', okPrefix: '已扫描', onDone: labels.onDone })
+}
+
+/* ------------------------------ provenance / updates ------------------------------ */
+
+/** Source kinds the host can record, in the order the labels below are keyed. */
+const SOURCE_LABELS = { git: 'Git 仓库', url: '直链', file: '上传文件', text: '粘贴内容' }
+
+/**
+ * How much of a source address fits on a card.
+ *
+ * A card is ~200px wide and a clone URL is 60 characters, so the label is the
+ * SHORT form (a repo slug, a filename, a hostname) and the full address stays in
+ * the `title` attribute, where it is available without being in the way.
+ */
+function sourceLabel(provenance) {
+  if (provenance === null || typeof provenance !== 'object' || provenance.known !== true) return ''
+  const kind = SOURCE_LABELS[provenance.source] ?? '未知来源'
+  const raw = typeof provenance.url === 'string' && provenance.url !== '' ? provenance.url : provenance.repo
+  if (typeof raw !== 'string' || raw === '') return kind
+  if (provenance.source === 'git') {
+    // `https://github.com/owner/repo.git` -> `owner/repo`
+    const slug = raw.replace(/\.git$/u, '').split('/').filter(Boolean).slice(-2).join('/')
+    return slug === '' ? kind : slug
+  }
+  if (provenance.source === 'url') {
+    try {
+      return new URL(raw).hostname
+    } catch {
+      return kind
+    }
+  }
+  // An upload's "address" is its filename, which may itself be long.
+  return raw.length > 28 ? `${raw.slice(0, 27)}…` : raw
+}
+
+/** True when the host recorded a source for this skill (so it can be checked). */
+function hasSource(provenance) {
+  return provenance !== null && typeof provenance === 'object' && provenance.known === true && provenance.source === 'git' && provenance.repo !== ''
+}
+
+/**
+ * True when this skill's source can be COMPARED for updates.
+ *
+ * A claimed source is excluded: the user typed that address, nothing has verified
+ * it points at these files, so offering a one-click replace would be a guess
+ * dressed as a feature. The card offers 「标记来源」 again instead.
+ */
+function updateable(provenance) {
+  return hasSource(provenance) && provenance.claimed !== true
+}
+
+/** True when the local files no longer match what was installed. */
+function locallyEdited(provenance) {
+  return provenance !== null && typeof provenance === 'object' && provenance.changedSinceInstall === true
+}
+
+/** Ask the host whether one skill (or the whole catalogue) has a newer revision. */
+function performCheck(name, labels = {}) {
+  const pending = name === undefined || name === '' ? '正在检查全部更新…' : `正在检查 ${name}…`
+  return performWrite({ action: 'check', ...(name === undefined || name === '' ? {} : { name }) }, { pending, okPrefix: '已检查', onDone: labels.onDone })
+}
+
+/** Record where an installed-by-hand skill came from. Writes nothing but a record. */
+function performClaim(name, input, labels = {}) {
+  return performWrite({ action: 'claim', name, input }, { pending: `正在记录 ${name} 的来源…`, okPrefix: '已标记来源', onDone: labels.onDone })
+}
+
+/**
+ * Replace a skill with the current content of its recorded source.
+ *
+ * `confirm` is only ever true for a CLAIMED source, where the address itself has
+ * never been verified — the host answers `NEEDS_CONFIRM` otherwise, which is the
+ * same two-step shape the delete control uses.
+ */
+function performUpdate(name, labels = {}) {
+  return performWrite(
+    { action: 'update', name, confirm: labels.confirm === true },
+    { pending: `正在更新 ${name}…`, okPrefix: '已更新', onDone: labels.onDone },
+  )
+}
+
+/** Client-side gate for the claim field, mirroring the host's own rejection. */
+function validateClaim(input) {
+  if (installDisabled(input?.capability)) {
+    return { ok: false, code: 'DISABLED', message: disabledReason(input?.capability) }
+  }
+  const address = typeof input?.input === 'string' ? input.input.trim() : ''
+  if (address === '') return { ok: false, code: 'EMPTY', message: '请粘贴这个 skill 的来源地址' }
+  if (/\s/u.test(address)) return { ok: false, code: 'BAD_ADDRESS', message: '地址里不能有空格' }
+  return { ok: true }
 }
 
 /**
@@ -558,6 +650,15 @@ module.exports = {
   post,
   loadSkills,
   performRename,
+  performCheck,
+  performClaim,
+  performUpdate,
+  validateClaim,
+  sourceLabel,
+  hasSource,
+  updateable,
+  locallyEdited,
+  SOURCE_LABELS,
   bodyFor,
   previewBodyFor,
   readFileBase64,

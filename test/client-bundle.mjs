@@ -338,6 +338,8 @@ const json = (payload, status = 200) => ({ ok: status < 400, status, json: async
 let nameTakenOnce = false
 let invalidNameOnce = false
 let needsConfirmOnce = false
+/** Skill name the stubbed `check` should report as behind, or `''` for none. */
+let behindOnce = ''
 
 globalThis.fetch = async (url, init) => {
   const target = String(url)
@@ -345,6 +347,39 @@ globalThis.fetch = async (url, init) => {
     const body = JSON.parse(init.body)
     calls.push({ target, body, headers: init.headers })
     if (body.action === 'rescan') return json({ ok: true, skills: HOST_SKILLS, capability: CAP_FULL })
+    if (body.action === 'check') {
+      // The host answers one verdict per skill; every one here reports "no newer
+      // revision" unless the test asked for an update, so both branches are covered.
+      const names = body.name === undefined ? HOST_SKILLS.map((skill) => skill.name) : [body.name]
+      const checks = names.map((name) => ({
+        name,
+        supported: true,
+        hasUpdate: behindOnce === name,
+        pinned: false,
+        localChanged: false,
+        remoteCommit: 'f'.repeat(40),
+        error: '',
+        note: '',
+        checkedAt: 0,
+      }))
+      return json({ ok: true, ...(body.name === undefined ? { checks } : { check: checks[0] }), skills: HOST_SKILLS, capability: CAP_FULL })
+    }
+    if (body.action === 'claim') {
+      return json({ ok: true, skill: { name: body.name }, provenance: { known: true, source: 'git', url: body.input, repo: body.input, claimed: true, changedSinceInstall: false }, skills: HOST_SKILLS, capability: CAP_FULL })
+    }
+    if (body.action === 'update') {
+      return json({
+        ok: true,
+        skill: { name: body.name, description: '', displayNameZh: '' },
+        files: 2,
+        overwritten: true,
+        backup: `C:\\Users\\Administrator\\.dsh-beta\\skill-backups\\${body.name}`,
+        warnings: [],
+        provenance: { known: true, source: 'git', url: 'https://github.com/owner/repo.git', repo: 'https://github.com/owner/repo.git', commit: 'f'.repeat(40), claimed: false, changedSinceInstall: false },
+        skills: HOST_SKILLS,
+        capability: CAP_FULL,
+      })
+    }
     if (body.action === 'preview') {
       return json({
         ok: true,
@@ -1527,6 +1562,134 @@ await (async () => {
           ok('[23] ...and the editor stays open to be corrected', view.findAll((n) => n.type === 'input' && String(n.props?.className ?? '').includes('sr-rename-input')).length === 1)
         })
       } finally {
+        if (realDocument === undefined) delete globalThis.document
+        else globalThis.document = realDocument
+        if (realLocalStorage === undefined) delete globalThis.localStorage
+        else globalThis.localStorage = realLocalStorage
+      }
+    }
+
+    /* -- 46: provenance on the card, and the update affordance -- */
+    console.log('\n[24] the card says where a skill came from and offers to update it')
+    {
+      const REPO = 'https://github.com/owner/repo.git'
+      const verified = { known: true, source: 'git', url: REPO, repo: REPO, ref: 'main', subpath: 'skills/a', commit: 'abc123', claimed: false, changedSinceInstall: false }
+      const claimed = { known: true, source: 'git', url: REPO, repo: REPO, ref: '', subpath: '', commit: '', claimed: true, changedSinceInstall: false }
+      const pasted = { known: true, source: 'text', url: '', repo: '', ref: '', subpath: '', commit: '', claimed: false, changedSinceInstall: false }
+      const none = { known: false, source: '', changedSinceInstall: false }
+      const snapshot = {
+        ...HOST_SNAPSHOT,
+        capability: CAP_FULL,
+        skills: [
+          { name: 'git-skill', description: 'from a repo', tag: '', modelInvocable: true, provenance: verified },
+          { name: 'claimed-skill', description: 'address typed by hand', tag: '', modelInvocable: true, provenance: claimed },
+          { name: 'pasted-skill', description: 'pasted body', tag: '', modelInvocable: true, provenance: pasted },
+          { name: 'hand-skill', description: 'no record at all', tag: '', modelInvocable: true, provenance: none },
+        ],
+      }
+      const store = new Map()
+      const realDocument = globalThis.document
+      const realLocalStorage = globalThis.localStorage
+      globalThis.document = { addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, body: { style: {} } }
+      globalThis.localStorage = {
+        getItem: (key) => (store.has(key) ? store.get(key) : null),
+        setItem: (key, value) => store.set(key, value),
+      }
+      try {
+        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {} }, async (view) => {
+          const text = view.text()
+          // The label is the SHORT form: a card is ~200px and a clone URL is 60 chars.
+          ok('[24] a git-backed skill names its repository', text.includes('owner/repo'), text.slice(0, 300))
+          ok('[24] a claimed source is labelled as claimed', text.includes('\u6807\u8bb0\u6765\u6e90'), text.slice(0, 300))
+          ok('[24] a pasted skill is labelled by kind', text.includes('\u7c98\u8d34\u5185\u5bb9'), text.slice(0, 300))
+
+          const updateButtons = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').startsWith('\u66f4\u65b0'))
+          ok('[24] only a verified source offers an update', updateButtons.length === 1, JSON.stringify(updateButtons.map((n) => n.props['aria-label'])))
+          ok('[24] ...and it is named after the skill', updateButtons[0]?.props?.['aria-label'] === '\u66f4\u65b0 git-skill', updateButtons[0]?.props?.['aria-label'])
+
+          // Update is a two-step, exactly like delete: the first click only arms.
+          const before = calls.length
+          view.click(updateButtons[0])
+          ok('[24] the first click only arms the update', calls.length === before, JSON.stringify(calls.slice(before).map((c) => c.body)))
+          ok('[24] arming says what will happen', view.text().includes('\u518d\u70b9\u4e00\u6b21\u5373\u66f4\u65b0'), view.text().slice(0, 300))
+          const armed = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').startsWith('\u786e\u8ba4\u66f4\u65b0'))[0]
+          ok('[24] the armed button asks for confirmation', armed !== undefined)
+          view.click(armed)
+          await tick()
+          const updateCall = calls.slice(before).find((call) => call.body?.action === 'update')
+          ok('[24] the second click posts the update', updateCall !== undefined, JSON.stringify(calls.slice(before).map((c) => c.body)))
+          ok('[24] ...carrying the skill name', updateCall?.body?.name === 'git-skill', JSON.stringify(updateCall?.body))
+          ok('[24] ...and not a confirmation a verified source does not need', updateCall?.body?.confirm === false, JSON.stringify(updateCall?.body))
+
+          // A source with no record offers the claim field instead of an update —
+          // two cards are in that state here (pasted, and never recorded at all).
+          const claimButtons = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u6807\u8bb0'))
+          ok('[24] a skill with no record can have its source recorded', claimButtons.length === 2, JSON.stringify(claimButtons.map((n) => n.props['aria-label'])))
+          const claimOne = claimButtons.find((n) => String(n.props?.['aria-label'] ?? '').includes('hand-skill'))
+          ok('[24] ...and the button names the skill it records', claimOne !== undefined, JSON.stringify(claimButtons.map((n) => n.props['aria-label'])))
+          view.click(claimOne)
+          const claimInput = view.findAll((n) => n.type === 'input' && String(n.props?.className ?? '').includes('sr-claim-input'))[0]
+          ok('[24] the claim field is revealed in the card', claimInput !== undefined)
+          ok('[24] ...and says it writes no files', view.text().includes('\u53ea\u5199\u8bb0\u5f55'), view.text().slice(0, 300))
+
+          const beforeClaim = calls.length
+          view.click(view.byText('\u8bb0\u5f55'))
+          await tick()
+          ok('[24] an empty address is refused locally', calls.length === beforeClaim, JSON.stringify(calls.slice(beforeClaim).map((c) => c.body)))
+          ok('[24] ...with the reason on screen', view.text().includes('\u8bf7\u7c98\u8d34'), view.text().slice(0, 300))
+
+          claimInput.props.onChange({ target: { value: REPO } })
+          const beforeFilled = calls.length
+          view.click(view.byText('\u8bb0\u5f55'))
+          await tick()
+          const claimCall = calls.slice(beforeFilled).find((call) => call.body?.action === 'claim')
+          ok('[24] a filled address posts the claim', claimCall !== undefined, JSON.stringify(calls.slice(beforeFilled).map((c) => c.body)))
+          ok('[24] ...carrying exactly action / name / input', claimCall !== undefined && Object.keys(claimCall.body).sort().join(',') === 'action,input,name', JSON.stringify(claimCall?.body))
+
+          const checkButton = view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u68c0\u67e5 skill \u66f4\u65b0')[0]
+          ok('[24] the catalogue offers a check button', checkButton !== undefined)
+          const beforeCheck = calls.length
+          view.click(checkButton)
+          await tick()
+          const checkCall = calls.slice(beforeCheck).find((call) => call.body?.action === 'check')
+          ok('[24] the check button posts a catalogue-wide check', checkCall !== undefined && checkCall.body.name === undefined, JSON.stringify(calls.slice(beforeCheck).map((c) => c.body)))
+        })
+
+        // The check resolves after an await and publishes into the MODULE store
+        // rather than component state — which is what keeps a torn-down surface from
+        // ever being asked to set state. The store is part of the bundle's test seam
+        // for exactly this reason.
+        const updates = exports.__source.getUpdates()
+        ok('[24] the verdicts are published to the module store', Object.keys(updates.results).length > 0, JSON.stringify(updates))
+        ok('[24] ...every verdict settled', Object.values(updates.results).every((entry) => entry.phase === 'done'), JSON.stringify(updates))
+        ok('[24] ...with nothing left in flight', updates.checking === false, JSON.stringify(updates))
+
+        // A verdict that DOES report a newer revision has to reach the card: the
+        // badge and the button both come from that one field. `check` answers per
+        // skill, so the stub needs the skill in its catalogue first.
+        behindOnce = 'git-skill'
+        HOST_SKILLS = [...HOST_SKILLS, { name: 'git-skill', description: 'from a repo', modelInvocable: true }]
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {} }, async (view) => {
+          // The mount auto-checks (there is a recorded source), so the verdict lands
+          // without the button being pressed.
+          await tick()
+          await tick()
+          // The check publishes into a module store, and this hook runtime renders on
+          // demand rather than subscribing to it — so the verdict is read by asking
+          // for one more render, which is exactly what a real store notification does.
+          view.setProps({})
+          const text = view.text()
+          ok('[24] a newer revision is reported on the card', text.includes('\u53ef\u66f4\u65b0'), text.slice(0, 300))
+          const behindButton = view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u66f4\u65b0 git-skill')[0]
+          ok('[24] ...and the button says so in its title', String(behindButton?.props?.title ?? '').includes('\u65b0\u7248\u672c'), String(behindButton?.props?.title))
+          ok('[24] ...while an up-to-date skill keeps the plain label', view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').startsWith('\u66f4\u65b0')).length === 1, JSON.stringify(view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').startsWith('\u66f4\u65b0')).map((n) => n.props['aria-label'])))
+        })
+        behindOnce = ''
+        exports.__source.clearUpdates()
+        ok('[24] the store can be cleared', Object.keys(exports.__source.getUpdates().results).length === 0)
+      } finally {
+        behindOnce = ''
         if (realDocument === undefined) delete globalThis.document
         else globalThis.document = realDocument
         if (realLocalStorage === undefined) delete globalThis.localStorage

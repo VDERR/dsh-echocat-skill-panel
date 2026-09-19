@@ -10,6 +10,8 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { deflateRawSync } from 'node:zlib'
 import {
   LIMITS,
@@ -24,6 +26,17 @@ import {
   sweepStaleClones,
   toInstallError,
 } from '../src/install.js'
+import {
+  PROVENANCE_FILE,
+  describeSource,
+  fingerprintTree,
+  hashText,
+  isPinnedRevision,
+  readProvenance,
+  resolveRemoteRef,
+  serializeRecord,
+  writeProvenance,
+} from '../src/provenance.js'
 
 let pass = 0
 let fail = 0
@@ -287,8 +300,13 @@ const laxResult = await createInstaller({
   fetchImpl: stubFetch(new Response(md('local-skill', '内网技能'), { status: 200 })),
 }).install({ action: 'install', mode: 'url', url: 'http://127.0.0.1:8080/skill.md' })
 ok('allowPrivateHosts lifts the fence', laxResult.ok === true, JSON.stringify(laxResult.error ?? {}))
-const badScheme = await installer.install({ action: 'install', mode: 'url', url: 'file:///etc/passwd' })
-ok('a non-http scheme is refused', badScheme.ok === false && badScheme.error.code === 'BAD_REQUEST')
+// `file://` is deliberately NOT used here any more: a local repository is a
+// supported git source in 4.0. What must stay refused is a scheme the downloader
+// cannot serve — following `ftp://` in a fetch would be an SSRF-adjacent surprise.
+const badScheme = await installer.install({ action: 'install', mode: 'url', url: 'ftp://example.com/skill.md' })
+ok('a non-http scheme is refused', badScheme.ok === false && badScheme.error.code === 'BAD_REQUEST', JSON.stringify(badScheme.error))
+const scriptScheme = await installer.install({ action: 'install', mode: 'url', url: 'javascript:alert(1)' })
+ok('a script scheme is refused too', scriptScheme.ok === false && scriptScheme.error.code === 'BAD_REQUEST')
 
 /* ---------------------------------------------------------- [14] uninstall -- */
 
@@ -377,9 +395,37 @@ ok('a codeload link is an archive', detectSource('https://codeload.github.com/ow
 ok('a raw markdown link is markdown', detectSource('https://raw.githubusercontent.com/o/r/main/s/SKILL.md').kind === 'markdown')
 ok('an unknown link is left to the downloader', detectSource('https://example.com/dl/x').kind === 'unknown')
 ok('an SSH remote is a repo', detectSource('git@github.com:owner/repo.git').kind === 'git')
+// 4.0 accepts a LOCAL repository as a git source — a bare repo in a temp directory is
+// a real repository, and a user may well have one on disk. What stays refused is a
+// scheme `git` cannot clone and the downloader cannot fetch.
+ok('a local repository path is a repo', detectSource(process.cwd()).kind === 'git', detectSource(process.cwd()).note)
+ok(
+  '...and its folder path carries the branch and subdirectory',
+  (() => {
+    const d = detectSource(`${process.cwd()}/tree/main/skills/x`)
+    return d.kind === 'git' && d.ref === 'main' && d.subpath === 'skills/x'
+  })(),
+  JSON.stringify(detectSource(`${process.cwd()}/tree/main/skills/x`)),
+)
+ok(
+  'a file:// repository is a repo',
+  (() => {
+    const d = detectSource(`${pathToFileURL(process.cwd()).href}/tree/main/skills/x`)
+    return d.kind === 'git' && d.ref === 'main' && d.subpath === 'skills/x'
+  })(),
+  JSON.stringify(detectSource(pathToFileURL(process.cwd()).href)),
+)
 ok('a non-http scheme is refused', (() => {
   try {
-    detectSource('file:///etc/passwd')
+    detectSource('ftp://example.com/x')
+    return false
+  } catch (error) {
+    return error.code === 'BAD_REQUEST'
+  }
+})())
+ok('a script scheme is refused', (() => {
+  try {
+    detectSource('javascript:alert(1)')
     return false
   } catch (error) {
     return error.code === 'BAD_REQUEST'
@@ -463,6 +509,282 @@ ok('nothing was written for the refused install', !existsSync(join(root, 'long-z
 const newline = await installer.install({ action: 'install', mode: 'text', text: md('nl-zh', 'x'), displayNameZh: '两\n行' })
 ok('a newline is refused', newline.ok === false && newline.error.code === 'BAD_REQUEST', JSON.stringify(newline.error))
 ok('40 characters is accepted', (await installer.install({ action: 'install', mode: 'text', text: md('forty-zh', 'x'), displayNameZh: '字'.repeat(40) })).ok === true)
+
+console.log('\n[21] provenance — the record every install now carries')
+// [17] tears the first sandbox down, so this door builds its own: it needs a real
+// skills root plus its own installer, and it cleans up after itself at the end.
+const provSandbox = mkdtempSync(join(tmpdir(), 'echocat-prov-'))
+const provRoot = join(provSandbox, 'skills')
+const provBackups = join(provSandbox, 'backups')
+mkdirSync(provRoot, { recursive: true })
+const prov = createInstaller({ root: provRoot, backupRoot: provBackups, logger: quiet, pluginVersion: '4.0.0-test' })
+const provUrlInstaller = createInstaller({
+  root: provRoot,
+  backupRoot: provBackups,
+  logger: quiet,
+  pluginVersion: '4.0.0-test',
+  // A fresh Response per fetch: a `Response` body can only be read once, and this
+  // installer is asked for two things (the body, then where it came from).
+  fetchImpl: async () => new Response(md('prov-from-url', '从链接安装'), { status: 200, headers: { 'content-type': 'text/markdown' } }),
+})
+{
+  const dir = mkdtempSync(join(tmpdir(), 'echocat-prov-unit-'))
+  writeFileSync(join(dir, 'SKILL.md'), md('prov-skill', '带溯源'), 'utf8')
+  writeFileSync(join(dir, 'notes.txt'), 'x', 'utf8')
+
+  ok('hashText is 64-bit hex', /^[0-9a-f]{16}$/u.test(hashText('abc')), hashText('abc'))
+  ok('hashText is deterministic', hashText('abc') === hashText('abc'))
+  ok('hashText separates different text', hashText('abc') !== hashText('abd'))
+
+  const before = fingerprintTree(dir)
+  ok('a fingerprint counts the payload files', before.files === 2, String(before.files))
+  ok('a fingerprint reports bytes', before.bytes > 0, String(before.bytes))
+  ok('a fingerprint is not truncated', before.truncated === false)
+
+  // The record must not invalidate the fingerprint it stores.
+  writeProvenance(dir, { version: 1, fingerprint: before.hash, source: 'file', name: 'prov-skill', installedAt: 1 })
+  ok('the record is written inside the skill directory', existsSync(join(dir, PROVENANCE_FILE)))
+  ok('...and the fingerprint recomputes identically', fingerprintTree(dir).hash === before.hash, fingerprintTree(dir).hash)
+
+  writeFileSync(join(dir, 'notes.txt'), 'changed', 'utf8')
+  ok('editing a file moves the fingerprint', fingerprintTree(dir).hash !== before.hash)
+  writeFileSync(join(dir, 'notes.txt'), 'x', 'utf8')
+  ok('restoring the bytes restores the fingerprint', fingerprintTree(dir).hash === before.hash)
+
+  const added = join(dir, 'assets')
+  mkdirSync(added)
+  writeFileSync(join(added, 'a.txt'), 'a', 'utf8')
+  ok('a new file moves the fingerprint', fingerprintTree(dir).hash !== before.hash)
+  rmSync(added, { recursive: true, force: true })
+
+  ok('a cap is reported, not hidden', fingerprintTree(dir, { maxFiles: 1 }).truncated === true)
+
+  // Reading is total: the panel must still render a skill whose record is garbage.
+  writeFileSync(join(dir, PROVENANCE_FILE), '{ not json', 'utf8')
+  ok('a corrupt record reads as absent', readProvenance(dir) === null)
+  writeFileSync(join(dir, PROVENANCE_FILE), '{"version":1}', 'utf8')
+  ok('a record with no fingerprint reads as absent', readProvenance(dir) === null)
+  rmSync(dir, { recursive: true, force: true })
+
+  const described = describeSource({ source: { kind: 'git', url: 'https://github.com/a/b.git', repo: 'https://github.com/a/b.git', ref: 'main', subpath: 'skills/x' }, commit: 'ABC123' })
+  ok('describeSource keeps the git fields', described.source === 'git', JSON.stringify(described))
+  ok('describeSource lowercases the commit', described.commit === 'abc123', described.commit)
+  ok('describeSource writes the ref and subpath', described.ref === 'main' && described.subpath === 'skills/x')
+
+  const asString = describeSource({ source: 'wrapped.zip' })
+  ok('a bare string address stays a file source', asString.source === 'file' && asString.url === 'wrapped.zip', JSON.stringify(asString))
+  const asRepo = describeSource({ source: { kind: 'zip' }, repo: 'https://github.com/a/b.git' })
+  ok('a repo wins over a generic kind', asRepo.source === 'git', JSON.stringify(asRepo))
+  const asText = describeSource({ source: { kind: 'text' } })
+  ok('an explicit kind is trusted over inference', asText.source === 'text', JSON.stringify(asText))
+
+  ok('a 40-hex ref is a pinned revision', isPinnedRevision('a'.repeat(40)) === true)
+  ok('a branch name is not pinned', isPinnedRevision('main') === false)
+  ok('an empty ref is not pinned', isPinnedRevision('') === false)
+
+  const serialized = serializeRecord({ source: 'git', url: 'u', ref: '', commit: '', name: 'n' })
+  ok('empty fields are omitted from the file', !serialized.includes('"ref"') && serialized.includes('"url"'), serialized)
+  ok('the record file ends with one newline', serialized.endsWith('}\n') && !serialized.endsWith('}\n\n'))
+}
+
+console.log('\n[22] every install records where it came from')
+{
+  const pasted = await prov.install({ action: 'install', mode: 'text', text: md('prov-text', '粘贴来的'), name: 'prov-text' })
+  ok('the install succeeded', pasted.ok === true, JSON.stringify(pasted.error ?? {}))
+  ok('the response carries the provenance', pasted.provenance?.known === true, JSON.stringify(pasted.provenance))
+  ok('a pasted skill is recorded as text', pasted.provenance.source === 'text', pasted.provenance?.source)
+  ok('a fresh install reports no local drift', pasted.provenance.changedSinceInstall === false)
+
+  const record = JSON.parse(readFileSync(join(provRoot, 'prov-text', PROVENANCE_FILE), 'utf8'))
+  ok('the record names the skill', record.name === 'prov-text', record.name)
+  ok('the record carries the plugin version', record.plugin === '4.0.0-test', record.plugin)
+  ok('the record counts the payload, not itself', record.files === 1, String(record.files))
+
+  const zipProv = await prov.install({ action: 'install', mode: 'file', filename: 'prov-zip.zip', dataBase64: makeZip([{ name: 'prov-zip/SKILL.md', data: md('prov-zip', '压缩包来的') }]).toString('base64') })
+  ok('an uploaded archive is recorded as a file', zipProv.provenance?.source === 'file', JSON.stringify(zipProv.provenance))
+  ok('...naming the archive it came from', zipProv.provenance.url === 'prov-zip.zip', zipProv.provenance?.url)
+  ok('the archive file count still excludes the record', zipProv.files === 1, String(zipProv.files))
+
+  const urlProv = await provUrlInstaller.install({ action: 'install', mode: 'url', url: 'https://example.com/skills/prov-from-url.md' })
+  ok('a URL install is recorded as a url', urlProv.provenance?.source === 'url', JSON.stringify(urlProv.provenance))
+  ok('...with the address it was fetched from', urlProv.provenance.url === 'https://example.com/skills/prov-from-url.md', urlProv.provenance?.url)
+
+  // A rename rewrites meta.yaml, which is the skill's OWN file. Recording the new
+  // display name is not "the user edited this skill", and reporting it as drift
+  // would train the user to ignore the one warning that actually matters.
+  const renamedProv = await prov.install({ action: 'rename', name: 'prov-text', displayNameZh: '粘贴技能' })
+  ok('renaming keeps the record intact', renamedProv.ok === true && readProvenance(join(provRoot, 'prov-text')) !== null)
+  ok('...and the rename does not count as local drift', prov.provenance('prov-text').changedSinceInstall === false)
+
+  ok('a skill with no record reports unknown', prov.provenance('never-installed').known === false)
+  ok('a traversal slug does not throw', prov.provenance('../escape').known === false)
+
+  // A hand edit IS drift — the one case an update would silently discard.
+  const skillsFile = join(provRoot, 'prov-text', 'SKILL.md')
+  const original = readFileSync(skillsFile, 'utf8')
+  writeFileSync(skillsFile, `${original}extra\n`, 'utf8')
+  ok('editing a skill after install is reported as drift', prov.provenance('prov-text').changedSinceInstall === true)
+  writeFileSync(skillsFile, original, 'utf8')
+  ok('...and restoring the bytes clears it again', prov.provenance('prov-text').changedSinceInstall === false)
+}
+
+console.log('\n[23] claim / check / update, and what each refuses')
+{
+  // A skill with no record at all — the state of everything installed before 4.0,
+  // and of anything a user dropped into the folder by hand.
+  const handMade = await prov.install({ action: 'install', mode: 'text', text: md('hand-made', '手工装的'), name: 'hand-made' })
+  ok('the stand-in skill installed', handMade.ok === true)
+  rmSync(join(provRoot, 'hand-made', PROVENANCE_FILE), { force: true })
+  ok('...and reads as hand-installed once the record is gone', prov.provenance('hand-made').known === false)
+
+  const noRecord = await prov.install({ action: 'check', name: 'hand-made' })
+  ok('checking a skill with no record still answers 200', noRecord.ok === true, JSON.stringify(noRecord.error ?? {}))
+  ok('...and says the source is not comparable', noRecord.check.supported === false, JSON.stringify(noRecord.check))
+  ok('...with a reason a user can read', noRecord.check.note === '没有来源记录', noRecord.check.note)
+
+  const notGit = await prov.install({ action: 'check', name: 'prov-text' })
+  ok('a pasted skill cannot be compared', notGit.check.supported === false && notGit.check.error === '', JSON.stringify(notGit.check))
+  ok('...and the verdict does not claim an update', notGit.check.hasUpdate === false)
+
+  const claimed = await prov.install({ action: 'claim', name: 'hand-made', input: 'https://github.com/owner/repo' })
+  ok('a source can be recorded for a hand-installed skill', claimed.ok === true, JSON.stringify(claimed.error ?? {}))
+  ok('...and it is marked as claimed, not verified', claimed.provenance.claimed === true, JSON.stringify(claimed.provenance))
+  ok('...naming the repo', claimed.provenance.repo === 'https://github.com/owner/repo.git', claimed.provenance?.repo)
+  ok('a bare slug is recorded canonically', (await prov.install({ action: 'claim', name: 'hand-made', input: 'owner/repo' })).provenance.repo === 'https://github.com/owner/repo.git')
+  ok('claiming adds only the record', readdirSync(join(provRoot, 'hand-made')).sort().join(',') === `${PROVENANCE_FILE},SKILL.md`, readdirSync(join(provRoot, 'hand-made')).sort().join(','))
+  ok('...and leaves the content alone', readFileSync(join(provRoot, 'hand-made', 'SKILL.md'), 'utf8').includes('手工装的'))
+
+  const claimedCheck = await prov.install({ action: 'check', name: 'hand-made' })
+  ok("a claimed source is not compared behind the user's back", claimedCheck.check.supported === false, JSON.stringify(claimedCheck.check))
+  ok('...and says why', claimedCheck.check.note === '来源是手动标记的，尚未核对', claimedCheck.check.note)
+
+  const needsConfirm = await prov.install({ action: 'update', name: 'hand-made' })
+  ok('updating from a claimed source needs confirmation', needsConfirm.ok === false && needsConfirm.error.code === 'NEEDS_CONFIRM', JSON.stringify(needsConfirm.error))
+  ok('...and the hint says what will happen', needsConfirm.error.hint.includes('备份'), needsConfirm.error.hint)
+
+  const unknownClaim = await prov.install({ action: 'claim', name: 'hand-made', input: 'not an address at all' })
+  ok('an unrecognisable address is refused', unknownClaim.ok === false && unknownClaim.error.code === 'BAD_REQUEST', JSON.stringify(unknownClaim.error))
+  const emptyClaim = await prov.install({ action: 'claim', name: 'hand-made', input: '   ' })
+  ok('an empty address is refused', emptyClaim.ok === false && emptyClaim.error.code === 'BAD_REQUEST')
+  const missingClaim = await prov.install({ action: 'claim', name: 'no-such-skill', input: 'https://github.com/a/b' })
+  ok('claiming an unknown skill is NOT_FOUND', missingClaim.ok === false && missingClaim.error.code === 'NOT_FOUND')
+
+  const updatePasted = await prov.install({ action: 'update', name: 'prov-text' })
+  ok('a non-git source cannot be updated', updatePasted.ok === false && updatePasted.error.code === 'BAD_REQUEST', JSON.stringify(updatePasted.error))
+  ok('...and the hint offers the way out', updatePasted.error.hint.includes('装一次'), updatePasted.error.hint)
+
+  const unknown = await prov.install({ action: 'get' })
+  ok('an unknown action is still refused', unknown.ok === false && unknown.error.code === 'BAD_REQUEST')
+  const bulk = await prov.install({ action: 'check' })
+  ok('checking the whole catalogue answers once', bulk.ok === true && Array.isArray(bulk.checks), JSON.stringify(bulk.ok))
+  ok('...with one verdict per installed skill', bulk.checks.length === prov.onDisk().length, `${bulk.checks.length} vs ${prov.onDisk().length}`)
+  ok('...and every verdict names its skill', bulk.checks.every((c) => typeof c.name === 'string' && c.name !== ''))
+  ok('the check action is recorded in the history', prov.history().some((entry) => entry.action === 'check'))
+  ok('the claim action is recorded in the history', prov.history().some((entry) => entry.action === 'claim'))
+}
+
+console.log('\n[24] a real repository: install, notice a newer commit, update')
+{
+  const gitOk = spawnSync('git', ['--version'], { windowsHide: true }).status === 0
+  if (!gitOk) {
+    // Never invent a pass: a machine without git genuinely cannot run this door.
+    console.log('  SKIP  git is unavailable on this machine — the git update path was not exercised')
+  } else {
+    const work = mkdtempSync(join(tmpdir(), 'echocat-git-'))
+    const origin = join(work, 'origin.git')
+    const seed = join(work, 'seed')
+    const git = (args, cwd) => spawnSync('git', args, { cwd, windowsHide: true, encoding: 'utf8' })
+    git(['init', '--bare', '--quiet', origin])
+    git(['init', '--quiet', seed])
+    git(['-C', seed, 'config', 'user.email', 'test@example.com'])
+    git(['-C', seed, 'config', 'user.name', 'Test'])
+    mkdirSync(join(seed, 'skills', 'git-skill'), { recursive: true })
+    writeFileSync(join(seed, 'skills', 'git-skill', 'SKILL.md'), md('git-skill', '第一版'), 'utf8')
+    git(['-C', seed, 'add', '-A'])
+    git(['-C', seed, 'commit', '--quiet', '-m', 'first'])
+    git(['-C', seed, 'branch', '-M', 'main'])
+    git(['-C', seed, 'remote', 'add', 'origin', origin])
+    git(['-C', seed, 'push', '--quiet', 'origin', 'main'])
+
+    const gitInstaller = createInstaller({ root: provRoot, backupRoot: provBackups, logger: quiet, gitBinary: 'git', pluginVersion: '4.0.0-test' })
+    const first = await gitInstaller.install({ action: 'install', mode: 'git', repo: origin, ref: 'main', subpath: 'skills/git-skill', name: 'git-skill' })
+    ok('a local repository installs', first.ok === true, JSON.stringify(first.error ?? {}))
+    ok('...recording the repository', first.provenance?.repo === origin, first.provenance?.repo)
+    ok('...and the branch', first.provenance?.ref === 'main', first.provenance?.ref)
+    ok('...and the subdirectory', first.provenance?.subpath === 'skills/git-skill', first.provenance?.subpath)
+    ok('...and a real commit id', /^[0-9a-f]{40}$/u.test(first.provenance?.commit ?? ''), first.provenance?.commit)
+    const installed = first.provenance.commit
+
+    const checked = await gitInstaller.install({ action: 'check', name: 'git-skill' })
+    ok('a freshly installed skill is up to date', checked.check.hasUpdate === false, JSON.stringify(checked.check))
+    ok('...and the check is supported', checked.check.supported === true)
+    ok('...and the remote commit is reported', checked.check.remoteCommit === installed, `${checked.check.remoteCommit} vs ${installed}`)
+
+    // The author publishes a fix.
+    writeFileSync(join(seed, 'skills', 'git-skill', 'SKILL.md'), md('git-skill', '第二版'), 'utf8')
+    git(['-C', seed, 'add', '-A'])
+    git(['-C', seed, 'commit', '--quiet', '-m', 'second'])
+    git(['-C', seed, 'push', '--quiet', 'origin', 'main'])
+
+    const behind = await gitInstaller.install({ action: 'check', name: 'git-skill' })
+    ok('the newer commit is noticed', behind.check.hasUpdate === true, JSON.stringify(behind.check))
+    ok('...and it is not the installed one', behind.check.remoteCommit !== installed)
+
+    const updated = await gitInstaller.install({ action: 'update', name: 'git-skill' })
+    ok('the update succeeds', updated.ok === true, JSON.stringify(updated.error ?? {}))
+    ok('...replacing the old copy', readFileSync(join(provRoot, 'git-skill', 'SKILL.md'), 'utf8').includes('第二版'))
+    ok('...keeping a backup of the old one', updated.overwritten === true && typeof updated.backup === 'string' && existsSync(updated.backup), String(updated.backup))
+    ok('...moving the recorded commit forward', updated.provenance.commit === behind.check.remoteCommit, String(updated.provenance?.commit))
+    ok('the update is recorded in the history', gitInstaller.history().some((entry) => entry.action === 'update' && entry.ok === true))
+    ok('no drift is reported right after an update', updated.provenance.changedSinceInstall === false)
+
+    const settled = await gitInstaller.install({ action: 'check', name: 'git-skill' })
+    ok('a second check agrees it is current', settled.check.hasUpdate === false, JSON.stringify(settled.check))
+
+    // A pinned revision has no "newer": claiming one would be a lie the UI shows.
+    const pinnedInstall = await gitInstaller.install({ action: 'install', mode: 'git', repo: origin, ref: behind.check.remoteCommit, subpath: 'skills/git-skill', name: 'git-pinned' })
+    ok('installing an exact commit works', pinnedInstall.ok === true, JSON.stringify(pinnedInstall.error ?? {}))
+    const pinnedCheck = await gitInstaller.install({ action: 'check', name: 'git-pinned' })
+    ok('a pinned install is never called out of date', pinnedCheck.check.hasUpdate === false && pinnedCheck.check.supported === false, JSON.stringify(pinnedCheck.check))
+    ok('...and says it is pinned', pinnedCheck.check.pinned === true && pinnedCheck.check.note.includes('提交'), pinnedCheck.check.note)
+
+    const claimedLocal = await gitInstaller.install({ action: 'claim', name: 'hand-made', input: origin })
+    ok('a local repository can be claimed', claimedLocal.ok === true, JSON.stringify(claimedLocal.error ?? {}))
+    ok('...and the claim has no subdirectory to go on', claimedLocal.provenance.subpath === '', claimedLocal.provenance?.subpath)
+
+    // A claim that does NOT pin down where the skill lives cannot silently install
+    // the wrong thing: the host searches the clone, finds no SKILL.md at the root,
+    // and refuses with the one instruction that fixes it.
+    const noSubpath = await gitInstaller.install({ action: 'update', name: 'hand-made', confirm: true })
+    ok('updating from a claim with no subdirectory is refused', noSubpath.ok === false && noSubpath.error.code === 'NOT_FOUND', JSON.stringify(noSubpath.error))
+    ok('...and the refusal says how to fix it', noSubpath.error.hint.includes('子目录'), noSubpath.error.hint)
+    ok('...leaving the skill untouched', readFileSync(join(provRoot, 'hand-made', 'SKILL.md'), 'utf8').includes('手工装的'))
+
+    // The realistic claim: the folder URL an author publishes, which carries the
+    // branch and the subdirectory. Now the confirmed update really replaces the files.
+    const claimedFolder = await gitInstaller.install({ action: 'claim', name: 'hand-made', input: `${pathToFileURL(origin).href}/tree/main/skills/git-skill` })
+    ok('a folder URL can be claimed', claimedFolder.ok === true, JSON.stringify(claimedFolder.error ?? {}))
+    ok('...recording the branch and subdirectory', claimedFolder.provenance.ref === 'main' && claimedFolder.provenance.subpath === 'skills/git-skill', JSON.stringify(claimedFolder.provenance))
+
+    const claimedUpdate = await gitInstaller.install({ action: 'update', name: 'hand-made', confirm: true })
+    ok('a confirmed update from a claimed source succeeds', claimedUpdate.ok === true, JSON.stringify(claimedUpdate.error ?? {}))
+    ok('...and the files come from the repository', readFileSync(join(provRoot, 'hand-made', 'SKILL.md'), 'utf8').includes('第二版'))
+    ok('...keeping a backup of what was there', typeof claimedUpdate.backup === 'string' && existsSync(claimedUpdate.backup), String(claimedUpdate.backup))
+    ok('...and the claim becomes a verified record', claimedUpdate.provenance.claimed === false && claimedUpdate.provenance.commit !== '', JSON.stringify(claimedUpdate.provenance))
+
+    const remote = await resolveRemoteRef({ repo: join(work, 'missing.git'), ref: 'main', timeoutMs: 15000 })
+    ok('resolveRemoteRef reports a missing repo instead of throwing', remote.ok === false && remote.error !== '', JSON.stringify(remote))
+    const badRef = await resolveRemoteRef({ repo: origin, ref: 'no-such-branch', timeoutMs: 15000 })
+    ok('an unknown ref is reported', badRef.ok === false && badRef.code === 'NOT_FOUND', JSON.stringify(badRef))
+    const noRepo = await resolveRemoteRef({ repo: '', ref: 'main' })
+    ok('an empty repo is refused without spawning anything', noRepo.ok === false && noRepo.code === 'BAD_REQUEST')
+
+    rmSync(work, { recursive: true, force: true })
+  }
+}
+
+rmSync(provSandbox, { recursive: true, force: true })
+ok('the provenance sandbox was removed too', !existsSync(provSandbox))
 
 console.log('\n[19] cleanup can never fail a caller')
 // A real install reported "EPERM, Permission denied" to the user while the skill had

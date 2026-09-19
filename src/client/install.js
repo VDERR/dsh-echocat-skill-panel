@@ -15,6 +15,7 @@
 
 const React = require('react')
 const { Icon } = require('./icons.js')
+const api = require('./api.js')
 const {
   canInstall,
   installDisabled,
@@ -35,7 +36,9 @@ const {
   pushToast,
   performInstall,
   performUninstall,
-} = require('./api.js')
+  performUpdate,
+  performClaim,
+} = api
 
 const h = React.createElement
 
@@ -227,12 +230,25 @@ function copyText(text, onDone) {
  * click can never remove a skill. The host takes its own backup, and its path is
  * reported back through the status rail.
  */
-function SkillRowActions({ skill, onUse, capability, onChanged, onEdit }) {
-  const [armed, setArmed] = React.useState(false)
+function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }) {
+  // Which destructive action is armed right now — `''` when none. A single shared
+  // flag would arm the delete button while the user was confirming an update, which
+  // is exactly the stray click both confirmations exist to prevent.
+  const [armed, setArmed] = React.useState('')
   const [copied, setCopied] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  // The source claim is a two-step in-card flow too: 「标记来源」 reveals the field,
+  // and nothing is written until the address is submitted.
+  const [claiming, setClaiming] = React.useState(false)
+  const [claimDraft, setClaimDraft] = React.useState('')
+  const [claimNote, setClaimNote] = React.useState('')
   const name = String(skill?.name ?? '')
   const hasChinese = typeof skill?.displayNameZh === 'string' && skill.displayNameZh !== ''
+  const provenance = skill?.provenance
+  const canUpdate = api.updateable(provenance)
+  const checked = update?.phase === 'done' && update?.result !== undefined && update.result !== null
+  const behind = checked && update.result.hasUpdate === true
+  const edited = api.locallyEdited(provenance)
 
   const onCopy = React.useCallback(() => {
     copyText(name, () => {
@@ -242,11 +258,11 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit }) {
   }, [name])
 
   const onDelete = React.useCallback(() => {
-    if (!armed) {
-      setArmed(true)
+    if (armed !== 'delete') {
+      setArmed('delete')
       return
     }
-    setArmed(false)
+    setArmed('')
     setBusy(true)
     void performUninstall(name, {
       onDone: () => {
@@ -255,7 +271,50 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit }) {
     }).then(() => setBusy(false))
   }, [armed, name, onChanged])
 
-  const removable = canInstall(capability)
+  /**
+   * Replace this skill with its source's current content.
+   *
+   * Two-step for the same reason delete is: it overwrites files. The text says what
+   * actually happens — the host parks the old copy in the backup root first — and
+   * when the local files were edited after the install, that is said out loud,
+   * because this is the one action that discards such an edit.
+   */
+  const onUpdate = React.useCallback(() => {
+    if (armed !== 'update') {
+      setArmed('update')
+      return
+    }
+    setArmed('')
+    setBusy(true)
+    void performUpdate(name, {
+      // Only a user-claimed source needs the host's extra confirmation; a verified
+      // one proceeds, because the update IS the action the button promised.
+      confirm: provenance?.claimed === true,
+      onDone: () => {
+        if (typeof onChanged === 'function') onChanged()
+      },
+    }).then(() => setBusy(false))
+  }, [armed, name, onChanged, provenance])
+
+  const submitClaim = React.useCallback(() => {
+    const verdict = api.validateClaim({ input: claimDraft, capability })
+    if (verdict.ok !== true) {
+      setClaimNote(verdict.message)
+      return
+    }
+    setBusy(true)
+    setClaimNote('')
+    void performClaim(name, claimDraft.trim(), {
+      onDone: () => {
+        setClaiming(false)
+        setClaimDraft('')
+        if (typeof onChanged === 'function') onChanged()
+      },
+    }).then(() => setBusy(false))
+  }, [claimDraft, capability, name, onChanged])
+
+  // Every action on this row writes, so one predicate gates them all.
+  const writable = canInstall(capability)
 
   return h(
     'div',
@@ -286,22 +345,101 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit }) {
           hasChinese ? '改中文名' : '中文名',
         )
       : null,
-    removable
+    // Update: only for a VERIFIED recorded source. A claimed one is offered the
+    // 「标记来源」 flow instead — offering "update" from an address nobody checked
+    // would be a guess presented as a fact.
+    canUpdate && writable
       ? h(
           'button',
           {
             type: 'button',
-            className: armed ? 'sr-btn sr-btn--sm sr-btn--danger sr-btn--armed' : 'sr-btn sr-btn--sm sr-btn--danger sr-btn--icon',
-            onClick: onDelete,
+            className: armed === 'update' ? 'sr-btn sr-btn--sm sr-btn--danger sr-btn--armed' : behind ? 'sr-btn sr-btn--sm sr-btn--accent' : 'sr-btn sr-btn--sm',
+            onClick: onUpdate,
             disabled: busy,
-            title: armed ? '再点一次即删除' : `删除 ${name}`,
-            'aria-label': armed ? `确认删除 ${name}` : `删除 ${name}`,
+            title:
+              armed === 'update'
+                ? `再点一次：用 ${api.sourceLabel(provenance)} 的内容替换 ${name}`
+                : behind
+                  ? `${name} 的来源有新版本`
+                  : `用 ${api.sourceLabel(provenance)} 的内容更新 ${name}`,
+            'aria-label': armed === 'update' ? `确认更新 ${name}` : `更新 ${name}`,
           },
-          armed ? '确认删除' : h(Icon, { name: 'trash', size: 12 }),
+          armed === 'update' ? '确认更新' : behind ? '可更新' : '更新',
         )
       : null,
-    armed
+    !canUpdate && api.hasSource(provenance) !== true && writable && !claiming
+      ? h(
+          'button',
+          {
+            type: 'button',
+            className: 'sr-btn sr-btn--sm sr-btn--icon',
+            onClick: () => {
+              setClaiming(true)
+              setClaimNote('')
+            },
+            title: `记录 ${name} 的来源地址，之后就能检查更新`,
+            'aria-label': `标记 ${name} 的来源`,
+          },
+          h(Icon, { name: 'link', size: 12 }),
+        )
+      : null,
+    writable
+      ? h(
+          'button',
+          {
+            type: 'button',
+            className: armed === 'delete' ? 'sr-btn sr-btn--sm sr-btn--danger sr-btn--armed' : 'sr-btn sr-btn--sm sr-btn--danger sr-btn--icon',
+            onClick: onDelete,
+            disabled: busy,
+            title: armed === 'delete' ? '再点一次即删除' : `删除 ${name}`,
+            'aria-label': armed === 'delete' ? `确认删除 ${name}` : `删除 ${name}`,
+          },
+          armed === 'delete' ? '确认删除' : h(Icon, { name: 'trash', size: 12 }),
+        )
+      : null,
+    armed === 'update'
+      ? h(
+          'span',
+          { className: 'sr-confirm' },
+          edited
+            ? '再点一次即更新：你改过这个 skill 的文件，更新会覆盖它们；旧副本会先备份到备份根目录。'
+            : '再点一次即更新；旧副本会先备份到备份根目录。',
+        )
+      : null,
+    armed === 'delete'
       ? h('span', { className: 'sr-confirm' }, '再点一次即删除；主机侧会先把该目录备份到备份根目录。')
+      : null,
+    claiming
+      ? h(
+          'div',
+          { className: 'sr-claim' },
+          h('input', {
+            className: 'sr-input sr-input--mono sr-claim-input',
+            value: claimDraft,
+            placeholder: '粘贴来源地址：仓库主页 / 文件夹链接 / 直链',
+            'aria-label': `为 ${name} 标记来源地址`,
+            spellCheck: 'false',
+            onChange: (event) => setClaimDraft(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                submitClaim()
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                setClaiming(false)
+              }
+            },
+            'data-sr-focusable': 'true',
+            'data-sr-autofocus': 'true',
+          }),
+          h('button', { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--primary', onClick: submitClaim, disabled: busy }, '记录'),
+          h('button', { type: 'button', className: 'sr-btn sr-btn--sm', onClick: () => setClaiming(false), disabled: busy }, '取消'),
+          h(
+            'span',
+            { className: claimNote === '' ? 'sr-help' : 'sr-help sr-help--bad' },
+            claimNote === '' ? '只写记录，不动文件；标记后可用「更新」按这个地址替换。' : claimNote,
+          ),
+        )
       : null,
   )
 }

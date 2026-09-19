@@ -18,7 +18,7 @@
 
 const React = require('react')
 const { SkillReportPanel, SkillReportIcon, SkillReportStrip } = require('./panel.js')
-const { useSkillReport, refresh, stopPolling, getSnapshot, subscribe, DEFAULT_PATH } = require('./source.js')
+const { useSkillReport, refresh, stopPolling, getSnapshot, subscribe, DEFAULT_PATH, checkForUpdates, getUpdates, clearUpdates } = require('./source.js')
 
 const h = React.createElement
 
@@ -112,7 +112,7 @@ module.exports = {
   apply,
   inject,
   PANEL_ID,
-  __source: { refresh, stopPolling, getSnapshot, subscribe, DEFAULT_PATH },
+  __source: { refresh, stopPolling, getSnapshot, subscribe, DEFAULT_PATH, checkForUpdates, getUpdates, clearUpdates },
   __api: require('./api.js'),
   __ui: require('./panel.js'),
   __install: require('./install.js'),

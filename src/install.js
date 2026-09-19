@@ -43,7 +43,20 @@ import {
 } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { inflateRawSync } from 'node:zlib'
+import {
+  buildRecord,
+  describeSource,
+  fingerprintTree,
+  isPinnedRevision,
+  PROVENANCE_FILE,
+  provenanceSummary,
+  readProvenance,
+  resolveRemoteRef,
+  revParse,
+  writeProvenance,
+} from './provenance.js'
 
 /** Version of the install protocol the browser half speaks. */
 export const INSTALL_API = 1
@@ -520,6 +533,45 @@ export function detectSource(input) {
   if (/^[\w.-]+\/[\w.-]+$/u.test(raw)) {
     return { kind: 'git', input: raw, url: `https://github.com/${raw}.git`, repo: raw, ref: '', subpath: '', note: 'GitHub 仓库简写' }
   }
+  // A local repository. Checked before `new URL()`, which would read a Windows path
+  // as the scheme `c:` and reject anything absolute as a protocol error. Also the
+  // documented way to install from a repo already on this machine.
+  //
+  // A `<repo>/tree/<ref>/<sub>` path is understood here too: the same browse URL a
+  // forge serves is how a user points at a folder in a repository that is not on
+  // github.com (a self-hosted GitLab, or a bare repo on this disk).
+  const localTree = raw.split('/tree/')
+  if (localTree.length === 2 && (isAbsolute(localTree[0]) || existsSync(localTree[0]))) {
+    const [repoPath, rest] = localTree
+    const segments = rest.split('/').filter(Boolean)
+    return {
+      kind: 'git',
+      input: raw,
+      url: repoPath,
+      repo: repoPath,
+      ref: segments[0] ?? '',
+      subpath: segments.slice(1).join('/'),
+      note: '本机仓库的文件夹路径',
+    }
+  }
+  if (isAbsolute(raw) || existsSync(raw)) {
+    return { kind: 'git', input: raw, url: raw, repo: raw, ref: '', subpath: '', note: '本机仓库路径' }
+  }
+  // `file:///…` naming a local repository, with the same `/tree/<ref>/<sub>` suffix.
+  // `git clone` accepts the URL form, so it is kept as the address.
+  if (/^file:\/\//iu.test(raw)) {
+    const [repoUrl, rest] = raw.split('/tree/')
+    const segments = typeof rest === 'string' ? rest.split('/').filter(Boolean) : []
+    return {
+      kind: 'git',
+      input: raw,
+      url: repoUrl,
+      repo: repoUrl,
+      ref: segments[0] ?? '',
+      subpath: segments.slice(1).join('/'),
+      note: '本机仓库地址',
+    }
+  }
   if (/^git@[^:]+:/u.test(raw)) {
     const repo = raw.split(':').slice(1).join(':').replace(/\.git$/u, '')
     return { kind: 'git', input: raw, url: raw, repo, ref: '', subpath: '', note: 'SSH 仓库地址' }
@@ -642,6 +694,7 @@ const BACKUP_KEEP = 20
  * @param options.logger - host logger, optional.
  * @param options.fetchImpl - injectable for tests; defaults to global fetch.
  * @param options.allowPrivateHosts - permit fetching from LAN/localhost URLs.
+ * @param options.pluginVersion - stamped into each provenance record for diagnosis.
  */
 export function createInstaller({
   root,
@@ -652,6 +705,7 @@ export function createInstaller({
   limits = LIMITS,
   env = process.env,
   gitBinary = 'git',
+  pluginVersion = '',
 } = {}) {
   const skillsRoot = resolve(root ?? resolveSkillsRoot({ env }))
   const trashRoot = resolve(backupRoot ?? join(env.DSH_HOME ?? join(homedir(), '.dsh-beta'), 'skill-report', 'backups'))
@@ -679,6 +733,93 @@ export function createInstaller({
   }
 
   const exists = (name) => existsSync(join(skillsRoot, name))
+
+  /**
+   * Absolute directory of one installed skill, or `null` when there is none.
+   *
+   * Uses `assertSkillName` first, so a traversal slug can never be turned into a
+   * path here either — same rule as every other entry point.
+   */
+  function skillDirOf(name) {
+    let slug
+    try {
+      slug = assertSkillName(name)
+    } catch {
+      return null
+    }
+    const dir = assertInside(skillsRoot, join(skillsRoot, slug))
+    return existsSync(dir) ? dir : null
+  }
+
+  /** The provenance block the panel renders for one skill (see provenance.js). */
+  function skillProvenance(name) {
+    const dir = skillDirOf(name)
+    if (dir === null) return { known: false, source: '', changedSinceInstall: false }
+    try {
+      return { ...provenanceSummary(dir), name: assertSkillName(name) }
+    } catch (error) {
+      logger?.warn?.(`skill-report: could not read the provenance of "${name}": ${error?.message ?? error}`)
+      return { known: false, source: '', changedSinceInstall: false }
+    }
+  }
+
+  /** One single-line `key: value` scalar out of a small YAML file, or `''`. */
+  function yamlScalarOf(file, key) {
+    try {
+      if (file === '' || !existsSync(file)) return ''
+      const match = new RegExp(`^${key}:[ \\t]*(.+)$`, 'mu').exec(readFileSync(file, 'utf8'))
+      if (match === null) return ''
+      return match[1].trim().replace(/^['"]|['"]$/gu, '')
+    } catch {
+      return ''
+    }
+  }
+
+  /**
+   * Ask the recorded source whether it moved on.
+   *
+   * Every field of the answer exists so the panel never has to guess:
+   *   - `supported: false` — this kind of source cannot be compared (a pasted
+   *     SKILL.md or an upload has no address; a zip's bytes are not stable enough
+   *     to diff meaningfully). The UI hides the update action rather than
+   *     pretending a check happened.
+   *   - `pinned: true` — the user asked for an exact revision, so "newer" does not
+   *     apply and a check would be noise.
+   *   - `changedSinceInstall` — the local files no longer match the recorded
+   *     fingerprint, i.e. the user edited the skill. That is the one case where an
+   *     update would silently discard work, so the UI must warn first.
+   */
+  async function checkOne(name) {
+    const base = { name, supported: true, hasUpdate: false, pinned: false, localChanged: false, remoteCommit: '', error: '', note: '', checkedAt: Date.now() }
+    const summary = skillProvenance(name)
+    if (summary.known !== true) {
+      return { ...base, supported: false, note: '没有来源记录' }
+    }
+    if (summary.source !== 'git' || summary.repo === '') {
+      return {
+        ...base,
+        supported: false,
+        localChanged: summary.changedSinceInstall === true,
+        note: summary.source === 'url' ? '来源是直链，无法比对版本' : '来源是本地内容，无法比对版本',
+      }
+    }
+    if (summary.claimed === true) {
+      return { ...base, supported: false, localChanged: summary.changedSinceInstall === true, note: '来源是手动标记的，尚未核对' }
+    }
+    if (summary.commit === '' || isPinnedRevision(summary.ref)) {
+      return { ...base, supported: false, pinned: true, note: summary.commit === '' ? '没有记录版本号' : '来源固定在某个提交上' }
+    }
+    const remote = await resolveRemoteRef({ repo: summary.repo, ref: summary.ref, gitBinary })
+    if (remote.ok !== true) {
+      return { ...base, error: remote.error, note: remote.code === 'NETWORK' ? '连接远端失败' : '查询远端失败' }
+    }
+    return {
+      ...base,
+      remoteCommit: remote.sha,
+      hasUpdate: remote.sha !== summary.commit,
+      localChanged: summary.changedSinceInstall === true,
+    }
+  }
 
   /** Enumerate skill directories currently on disk (not the live snapshot). */
   function onDisk() {
@@ -735,8 +876,13 @@ export function createInstaller({
    * Move a fully-built staging directory into place as `<root>/<name>`.
    * Existing content is parked in the backup directory first: an install must
    * never be the reason a user loses a skill they had edited by hand.
+   *
+   * `afterCommit` runs only once the rename has SUCCEEDED. The provenance record is
+   * written there rather than before the move so that an install which is going to
+   * be refused (`NAME_TAKEN`) never writes to disk at all — a rejection must leave
+   * the filesystem exactly as it found it.
    */
-  function commit(stage, name, overwrite) {
+  function commit(stage, name, overwrite, afterCommit = null) {
     const target = assertInside(skillsRoot, join(skillsRoot, name))
     const existed = existsSync(target)
     if (existed && overwrite !== true) {
@@ -751,7 +897,8 @@ export function createInstaller({
       rmSync(target, { recursive: true, force: true })
     }
     renameSync(stage, target)
-    return { target, existed, backup }
+    const extra = afterCommit === null ? null : afterCommit(target)
+    return { target, existed, backup, ...(extra === null ? {} : extra) }
   }
 
   /**
@@ -780,8 +927,39 @@ export function createInstaller({
     return name
   }
 
-  /** Run `build(stageDir)`, then commit; the stage is always cleaned up. */
-  function staged(name, overwrite, build) {
+  /**
+   * Files that belong to the SKILL, excluding this plugin's own provenance record.
+   *
+   * Used for the counts the panel reports. Excluding it keeps "12 个文件" meaning
+   * "twelve files arrived" whether or not this plugin keeps bookkeeping beside them,
+   * and keeps the number in the install response equal to what a plain directory
+   * listing would show the user.
+   */
+  function countPayloadFiles(dir) {
+    try {
+      return readdirSync(dir, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile() && entry.name !== PROVENANCE_FILE).length
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * Run `await build(stageDir)`, then commit; the stage is always cleaned up.
+   *
+   * `build` may be async because the git path has to ask the fresh clone for its
+   * commit id, and that has to happen while the clone still exists.
+   *
+   * `origin` is the source description this install came from; when present, the
+   * provenance record is written INSIDE the stage, so the new skill carries its own
+   * history from the very first byte that becomes visible — there is no window in
+   * which an installed skill exists without knowing where it came from.
+   *
+   * `origin` may be a function when the description is not fully known until the
+   * build has run (the git path only learns its commit id from the fresh clone).
+   * It is resolved BEFORE the record is written, so the stored fingerprint still
+   * describes exactly the tree the record ships with.
+   */
+  async function staged(name, overwrite, build, origin = null) {
     if (writable() !== true) {
       throw new InstallError('FS_ERROR', `skills 目录不可写：${skillsRoot}`, '检查目录权限，或用配置项 skillsRoot 指到别处。')
     }
@@ -789,8 +967,49 @@ export function createInstaller({
     while (existsSync(stage)) stage = stagePath(skillsRoot)
     mkdirSync(stage, { recursive: true })
     try {
-      const built = build(stage)
-      return { ...commit(stage, name, overwrite), ...built }
+      const built = await build(stage)
+      const described = typeof origin === 'function' ? await origin(built) : origin
+      // The record is built while the tree is still the STAGE, so the fingerprint it
+      // stores describes exactly the files about to be committed.
+      let record = null
+      if (described !== null && described !== undefined) {
+        try {
+          record = buildRecord({
+            dir: stage,
+            name,
+            // `describeSource` reads a `{ source }` descriptor, which is the shape the
+            // engine's own callers produce; the install paths pass `{kind, url, …}`.
+            // Both reach here, so the descriptor is spelled out rather than guessed.
+            fields: describeSource({ ...described, source: described.source ?? described }),
+            version: pluginVersion,
+            now: Date.now(),
+          })
+        } catch (error) {
+          logger?.warn?.(`skill-report: could not fingerprint "${name}": ${error?.message ?? error}`)
+        }
+      }
+      // Two separate steps on purpose: `commit` must be awaited/called OUTSIDE the
+      // value expression so its `NAME_TAKEN` and filesystem failures propagate from
+      // `staged` itself. Invoking it inside the returned object literal would move
+      // the throw into this function body, where no caller's try/catch can see it.
+      const committed = commit(
+        stage,
+        name,
+        overwrite,
+        record === null
+          ? null
+          : (target) => {
+              try {
+                return { provenance: writeProvenance(target, record) }
+              } catch (error) {
+                // A record we failed to write is worth a warning, never a failed
+                // install: the skill itself is what the user asked for.
+                logger?.warn?.(`skill-report: could not record the provenance of "${name}": ${error?.message ?? error}`)
+                return null
+              }
+            },
+      )
+      return { ...committed, ...built }
     } catch (error) {
       removeTree(stage)
       throw error
@@ -851,13 +1070,18 @@ export function createInstaller({
     return { name: finalName, description, content: output, hadFrontmatter: parsed.present }
   }
 
-  async function installText({ text, name, overwrite, displayNameZh }) {
+  async function installText({ text, name, overwrite, displayNameZh, originKind = 'text', originUrl = '' }) {
     const warnings = []
     const normalized = normalizeMarkdown({ text, name, warnings })
-    const result = staged(normalized.name, overwrite, (stage) => {
-      writeFileSync(join(stage, 'SKILL.md'), normalized.content, 'utf8')
-      return { files: 1, bytes: Buffer.byteLength(normalized.content, 'utf8'), displayNameZh: applyDisplayName(stage, displayNameZh, warnings) }
-    })
+    const result = await staged(
+      normalized.name,
+      overwrite,
+      (stage) => {
+        writeFileSync(join(stage, 'SKILL.md'), normalized.content, 'utf8')
+        return { files: 1, bytes: Buffer.byteLength(normalized.content, 'utf8'), displayNameZh: applyDisplayName(stage, displayNameZh, warnings) }
+      },
+      { kind: originKind, url: originUrl },
+    )
     return { ...result, name: normalized.name, description: normalized.description, warnings }
   }
 
@@ -923,47 +1147,53 @@ export function createInstaller({
   }
 
   /** Shared tail of the archive-based modes. */
-  function installArchive({ buffer, name, overwrite, source, displayNameZh }) {
+  async function installArchive({ buffer, name, overwrite, source, displayNameZh, originKind = 'file' }) {
     const warnings = []
+    // `source` is the archive's own address: an upload's filename, or the URL the
+    // zip came from. `originKind` says which of the two, so the panel can label it.
+    const origin = { kind: originKind, url: source }
     return {
-      ...staged(name, overwrite, (stage) => {
-        const extracted = extractZip(buffer, stage)
-        for (const note of extracted.skipped) warnings.push(`已跳过 ${note}`)
-        const skillDir = locateSkillRoot(stage)
-        if (skillDir === null) {
-          throw new InstallError(
-            'BAD_ARCHIVE',
-            '压缩包里找不到 SKILL.md。',
-            'skill 的目录里必须有 SKILL.md；如果这是一个 Git 仓库快照，请确认 skill 在仓库内（深度 3 层以内）。',
-          )
-        }
-        const skillFile = join(skillDir, 'SKILL.md')
-        const parsed = parseFrontmatter(readFileSync(skillFile, 'utf8'))
-        for (const issue of parsed.errors) warnings.push(`frontmatter：${issue}`)
-        const declared = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
-        if (declared !== '' && declared !== name) {
-          // The directory name and the declared name disagree. Discovery may key
-          // on either, so say so instead of letting the catalog look inconsistent.
-          warnings.push(`SKILL.md 里声明的名称是 "${declared}"，目录名是 "${name}"。`)
-        }
-        const files = readdirSync(skillDir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length
-
-        if (skillDir !== stage) {
-          // Flatten: move the payload up, then drop the wrapper directories. The
-          // intermediate lives BESIDE the stage, never inside it — removing the
-          // stage would otherwise take the payload with it.
-          const flat = stagePath(skillsRoot)
-          renameSync(skillDir, flat)
-          rmSync(stage, { recursive: true, force: true })
-          renameSync(flat, stage)
-        }
-        // After the flatten, so the file lands in the directory that gets committed
-        // rather than in a wrapper that is about to be dropped.
-        const written = applyDisplayName(stage, displayNameZh, warnings)
-        const description = typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
-        return { files, bytes: extracted.bytes, description, warnings, source, displayNameZh: written }
-      }),
-      name,
+      ...(await staged(
+        name,
+        overwrite,
+        (stage) => {
+          const extracted = extractZip(buffer, stage)
+          for (const note of extracted.skipped) warnings.push(`已跳过 ${note}`)
+          const skillDir = locateSkillRoot(stage)
+          if (skillDir === null) {
+            throw new InstallError(
+              'BAD_ARCHIVE',
+              '压缩包里找不到 SKILL.md。',
+              'skill 的目录里必须有 SKILL.md；如果这是一个 Git 仓库快照，请确认 skill 在仓库内（深度 3 层以内）。',
+            )
+          }
+          const skillFile = join(skillDir, 'SKILL.md')
+          const parsed = parseFrontmatter(readFileSync(skillFile, 'utf8'))
+          for (const issue of parsed.errors) warnings.push(`frontmatter：${issue}`)
+          const declared = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
+          if (declared !== '' && declared !== name) {
+            // The directory name and the declared name disagree. Discovery may key
+            // on either, so say so instead of letting the catalog look inconsistent.
+            warnings.push(`SKILL.md 里声明的名称是 "${declared}"，目录名是 "${name}"。`)
+          }
+          const files = countPayloadFiles(skillDir)
+          if (skillDir !== stage) {
+            // Flatten: move the payload up, then drop the wrapper directories. The
+            // intermediate lives BESIDE the stage, never inside it — removing the
+            // stage would otherwise take the payload with it.
+            const flat = stagePath(skillsRoot)
+            renameSync(skillDir, flat)
+            rmSync(stage, { recursive: true, force: true })
+            renameSync(flat, stage)
+          }
+          // After the flatten, so the file lands in the directory that gets committed
+          // rather than in a wrapper that is about to be dropped.
+          const written = applyDisplayName(stage, displayNameZh, warnings)
+          const description = typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
+          return { name, files, bytes: extracted.bytes, description, warnings, source, displayNameZh: written }
+        },
+        origin,
+      )),
     }
   }
 
@@ -1044,13 +1274,13 @@ export function createInstaller({
       if (derived === '') {
         throw new InstallError('INVALID_NAME', '无法从网址推断 skill 名称。', '请在「名称」一栏里填一个，例如 my-skill。')
       }
-      return installText({ text, name: derived, overwrite, displayNameZh })
+      return installText({ text, name: derived, overwrite, displayNameZh, originKind: 'url', originUrl: finalUrl })
     }
     const derived = firstName(name, fromUrl)
     if (derived === '') {
       throw new InstallError('INVALID_NAME', '无法从网址推断 skill 名称。', '请在「名称」一栏里填一个，例如 my-skill。')
     }
-    return installArchive({ buffer, name: assertSkillName(derived), overwrite, source: finalUrl, displayNameZh })
+    return installArchive({ buffer, name: assertSkillName(derived), overwrite, source: finalUrl, displayNameZh, originKind: 'url' })
   }
 
   /* ------------------------------------------------------------------ git -- */
@@ -1127,12 +1357,32 @@ export function createInstaller({
    * Accept `owner/repo`, a full URL, a `…/tree/<ref>/<path>` browser URL, or a
    * `…/blob/<ref>/<path>/SKILL.md` file URL (whose directory becomes the subpath).
    *
+   * A LOCAL PATH is accepted verbatim as well. That is what makes the git path
+   * testable without a network — a bare repository in a temp directory is a real
+   * repository — and it is also how a user installs from a repo they already have
+   * on disk. It is passed straight to git; nothing here reads it.
+   *
    * GitLab spells its browse URLs `…/-/tree/<ref>/<path>`, and a trailing `-` is
    * stripped from the project path so the clone URL stays correct.
    */
   function normalizeRepo(input) {
     const raw = String(input ?? '').trim()
     if (raw === '') throw new InstallError('BAD_REQUEST', '请填写 Git 仓库地址。')
+    // Before `new URL()`: on Windows a path like `C:\repos\x` parses as the scheme
+    // `c:`, and on any platform a bare `/srv/git/x.git` would be rejected as a
+    // protocol error. Checked first, and only for a path that exists or is absolute,
+    // so `owner/repo` still takes the GitHub branch below.
+    if (existsSync(raw) || isAbsolute(raw)) return { url: raw, ref: '', subpath: '' }
+    // `file:///…` is a real way to name a local repository (`git clone` accepts it).
+    // It is turned into the plain path, which is what `git ls-remote` and a later
+    // `clone` both take without any escaping questions.
+    if (/^file:\/\//iu.test(raw)) {
+      try {
+        return { url: fileURLToPath(raw), ref: '', subpath: '' }
+      } catch {
+        throw new InstallError('BAD_REQUEST', `不是合法的本机仓库地址：${raw}`)
+      }
+    }
     if (/^[\w.-]+\/[\w.-]+$/u.test(raw)) return { url: `https://github.com/${raw}.git`, ref: '', subpath: '' }
     let url
     try {
@@ -1156,6 +1406,21 @@ export function createInstaller({
     return { url: url.href.endsWith('.git') ? url.href : `${url.href.replace(/\/$/u, '')}.git`, ref: '', subpath: '' }
   }
 
+  /**
+   * The address a RECORD should store for a detected source.
+   *
+   * `owner/repo` is a GitHub shorthand, so the canonical address is a GitHub URL:
+   * storing the shorthand itself would produce a record whose `repo` cannot be
+   * handed to git, and an update does exactly that with it.
+   */
+  function canonicalRepo(detected) {
+    const url = typeof detected?.url === 'string' ? detected.url : ''
+    const repo = typeof detected?.repo === 'string' ? detected.repo : ''
+    if (/^https?:\/\//iu.test(url)) return url
+    if (repo !== '' && url === '') return `https://github.com/${repo}.git`
+    return url !== '' ? url : repo
+  }
+
   async function installGit({ repo, ref, subpath, name, overwrite, displayNameZh }) {
     if ((await gitAvailable()) !== true) {
       throw new InstallError('GIT_MISSING', '这台机器上没有可用的 git。', '改用「上传文件」或「粘贴 SKILL.md」，或先安装 git。')
@@ -1168,14 +1433,24 @@ export function createInstaller({
     const cloneDir = join(tmpdir(), `echocat-skill-${randomBytes(6).toString('hex')}`)
     mkdirSync(cloneDir, { recursive: true })
     try {
-      const branch = String(ref ?? normalized.ref ?? '').trim()
+      const wanted = String(ref ?? normalized.ref ?? '').trim()
+      const wantedSubpath = String(subpath ?? normalized.subpath ?? '').trim()
+      // A pinned revision is NOT a branch: `git clone --branch <sha>` fails outright
+      // ("Remote branch … not found"). The clone takes the repository's default
+      // branch and the revision is checked out afterwards, which also means a wrong
+      // sha fails loudly instead of silently installing the latest content.
+      const pinned = isPinnedRevision(wanted)
+      const branch = pinned ? '' : wanted
       const args = ['clone', '--depth', '1', '--quiet']
       if (branch !== '') args.push('--branch', branch)
       args.push(normalized.url, cloneDir)
       await run(gitBinary, args, { timeoutMs: limits.gitMs })
-      const wanted = String(subpath ?? normalized.subpath ?? '').trim()
-      const searchRoot = wanted === '' ? cloneDir : assertInside(cloneDir, join(cloneDir, wanted))
-      if (!existsSync(searchRoot)) throw new InstallError('NOT_FOUND', `仓库里没有这个目录：${wanted}`)
+      if (pinned) {
+        await run(gitBinary, ['-C', cloneDir, 'fetch', '--depth', '1', '--quiet', 'origin', wanted], { timeoutMs: limits.gitMs })
+        await run(gitBinary, ['-C', cloneDir, 'checkout', '--quiet', wanted], { timeoutMs: limits.gitMs })
+      }
+      const searchRoot = wantedSubpath === '' ? cloneDir : assertInside(cloneDir, join(cloneDir, wantedSubpath))
+      if (!existsSync(searchRoot)) throw new InstallError('NOT_FOUND', `仓库里没有这个目录：${wantedSubpath}`)
       const skillDir = locateSkillRoot(searchRoot)
       if (skillDir === null) {
         throw new InstallError('NOT_FOUND', '仓库里找不到 SKILL.md。', '可以填一个子目录，例如 skills/<名字>。')
@@ -1187,19 +1462,44 @@ export function createInstaller({
       const warnings = []
       for (const issue of parsed.errors) warnings.push(`frontmatter：${issue}`)
       if (declared !== '' && declared !== finalName) warnings.push(`文件里声明的名称是 "${declared}"，已按 "${finalName}" 安装。`)
-      const result = staged(finalName, overwrite, (stage) => {
-        const files = readdirSync(skillDir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length
-        // Copy beside the stage, not inside it: swapping through a child of the
-        // stage would delete the copy along with the wrapper.
-        const inner = stagePath(skillsRoot)
-        cpSync(skillDir, inner, { recursive: true })
-        rmSync(stage, { recursive: true, force: true })
-        renameSync(inner, stage)
-        // After the swap, so the merge reads the repository's own meta.yaml.
-        const written = applyDisplayName(stage, displayNameZh, warnings)
-        return { files, bytes: 0, displayNameZh: written }
-      })
-      return { ...result, name: finalName, description: typeof parsed.data.description === 'string' ? parsed.data.description : '', warnings, source: normalized.url }
+      const result = await staged(
+        finalName,
+        overwrite,
+        async (stage) => {
+          const files = countPayloadFiles(skillDir)
+          // Copy beside the stage, not inside it: swapping through a child of the
+          // stage would delete the copy along with the wrapper.
+          const inner = stagePath(skillsRoot)
+          cpSync(skillDir, inner, { recursive: true })
+          rmSync(stage, { recursive: true, force: true })
+          renameSync(inner, stage)
+          // After the swap, so the merge reads the repository's own meta.yaml.
+          const written = applyDisplayName(stage, displayNameZh, warnings)
+          return { files, bytes: 0, displayNameZh: written }
+        },
+        // Resolved only once the clone exists: the commit id is the one durable
+        // record of what was actually installed, and it is what turns a later update
+        // check into a single `ls-remote` instead of a re-download.
+        async () => ({
+          kind: 'git',
+          // `repo` and `url` are the same thing for git; recording both keeps the
+          // client's field names uniform across kinds.
+          url: normalized.url,
+          repo: normalized.url,
+          // For a pinned install the ref IS the revision, which is what tells a later
+          // check that this skill has no "newer" to look for.
+          ref: pinned ? wanted : branch,
+          subpath: wantedSubpath,
+          commit: await revParse(cloneDir, { gitBinary }),
+        }),
+      )
+      return {
+        ...result,
+        name: finalName,
+        description: typeof parsed.data.description === 'string' ? parsed.data.description : '',
+        warnings,
+        source: normalized.url,
+      }
     } finally {
       // Must never throw: by now the skill is committed, and a cleanup failure used
       // to turn that success into an error the user saw instead.
@@ -1263,6 +1563,18 @@ export function createInstaller({
     } catch (error) {
       throw new InstallError('FS_ERROR', `写 meta.yaml 失败：${error?.message ?? error}`)
     }
+    // The record's fingerprint describes the skill as INSTALLED. Writing the display
+    // name is this plugin's own edit of the skill's own file, so it must not later
+    // read back as "you changed these files" — that flag exists to warn before an
+    // update discards a USER's edit, and crying wolf here would devalue it.
+    const record = readProvenance(target)
+    if (record !== null) {
+      try {
+        writeProvenance(target, { ...record, fingerprint: fingerprintTree(target).hash })
+      } catch (error) {
+        logger?.warn?.(`skill-report: could not refresh the record of "${finalName}" after the rename: ${error?.message ?? error}`)
+      }
+    }
     return { name: finalName, displayNameZh: value }
   }
 
@@ -1314,9 +1626,18 @@ export function createInstaller({
           const isZip = buffer.length > 4 && buffer.readUInt32LE(0) === LOC_SIG
           if (isZip || /\.zip$/iu.test(filename)) {
             const derived = request.name ?? slugify(filename.replace(/\.zip$/iu, ''))
-            result = installArchive({ buffer, name: assertSkillName(derived), overwrite, source: filename, displayNameZh })
+            result = await installArchive({ buffer, name: assertSkillName(derived), overwrite, source: filename, displayNameZh })
           } else {
-            result = await installText({ text: buffer.toString('utf8'), name: request.name ?? slugify(filename.replace(/\.(md|markdown|txt)$/iu, '')), overwrite, displayNameZh })
+            result = await installText({
+              text: buffer.toString('utf8'),
+              name: request.name ?? slugify(filename.replace(/\.(md|markdown|txt)$/iu, '')),
+              overwrite,
+              displayNameZh,
+              // An upload has no address to go back to; the record still names the
+              // file it came from, which is the honest thing to show the user.
+              originKind: 'file',
+              originUrl: filename,
+            })
           }
         } else {
           throw new InstallError('BAD_REQUEST', `不支持的安装方式：${mode === '' ? '(空)' : mode}`)
@@ -1333,6 +1654,9 @@ export function createInstaller({
           warnings: result.warnings ?? [],
           // What the address turned out to be, so the panel can say "按 Git 仓库安装".
           source: resolved,
+          // Where this install was recorded as coming from, so the panel can show
+          // the update affordance on the card it just refreshed.
+          provenance: skillProvenance(result.name),
           skills: onDisk(),
         }
       }
@@ -1399,6 +1723,109 @@ export function createInstaller({
         return { ok: true, skills: onDisk(), capability: capability() }
       }
 
+      if (action === 'check') {
+        // One skill (`name`) or the whole catalogue (no name). Every answer is a
+        // value, never a thrown error: "I could not tell" is a legitimate result of
+        // a network question, and the panel must be able to say so.
+        const names = typeof request.name === 'string' && request.name !== '' ? [assertSkillName(request.name)] : onDisk().map((entry) => entry.name)
+        const results = []
+        for (const skillName of names) {
+          results.push(await checkOne(skillName))
+        }
+        if (typeof request.name === 'string' && request.name !== '') {
+          const only = results[0]
+          record({ action: 'check', name: only.name, ok: only.error === '', ms: Date.now() - started })
+          return { ok: true, check: only, skills: onDisk() }
+        }
+        record({ action: 'check', name: '', ok: true, ms: Date.now() - started })
+        return { ok: true, checks: results, skills: onDisk() }
+      }
+
+      if (action === 'claim') {
+        // "This skill came from there" — for the skills a user installed by hand or
+        // with 2.x, which have no record. Nothing but the record is written; the
+        // files on disk are untouched.
+        const finalName = assertSkillName(request.name)
+        const dir = skillDirOf(finalName)
+        if (dir === null) throw new InstallError('NOT_FOUND', `没有找到叫 "${finalName}" 的 skill。`)
+        const input = String(request.input ?? request.url ?? request.repo ?? '').trim()
+        if (input === '') throw new InstallError('BAD_REQUEST', '请填写这个 skill 的来源地址。')
+        const detected = detectSource(input)
+        // A local upload genuinely has no address; everything else must look like one.
+        if (detected.kind === 'unknown' && !/^https?:\/\//iu.test(input)) {
+          throw new InstallError('BAD_REQUEST', `认不出这个地址：${input}`, '可以粘贴仓库主页、仓库里的文件夹链接、SKILL.md 链接或 zip 直链。')
+        }
+        const record_ = buildRecord({
+          dir,
+          name: finalName,
+          // `claimed` is the honest bit: we are recording what the USER says, and we
+          // have not verified it against the remote. The update action asks for one
+          // extra confirmation because of it.
+          //
+          // For a repository, `repo` and `url` both hold the CANONICAL address rather
+          // than what was typed: `owner/repo` is a GitHub shorthand, and the field an
+          // update check feeds to `git ls-remote` has to be a real address.
+          fields: {
+            ...describeSource({
+              source: detected.kind === 'git' ? { ...detected, url: canonicalRepo(detected), repo: canonicalRepo(detected) } : detected,
+            }),
+            claimed: true,
+          },
+          version: pluginVersion,
+          now: Date.now(),
+        })
+        writeProvenance(dir, record_)
+        record({ action: 'claim', name: finalName, ok: true, ms: Date.now() - started })
+        logger?.info?.(`skill-report: recorded the source of "${finalName}" as ${record_.url}`)
+        return { ok: true, skill: { name: finalName }, provenance: skillProvenance(finalName), skills: onDisk() }
+      }
+
+      if (action === 'update') {
+        const finalName = assertSkillName(request.name)
+        const summary = skillProvenance(finalName)
+        if (summary.known !== true) {
+          throw new InstallError('NOT_FOUND', `"${finalName}" 没有来源记录，无法更新。`, '先在卡片上选「标记来源」，把这个 skill 的地址记下来。')
+        }
+        if (summary.source !== 'git' || summary.repo === '') {
+          throw new InstallError(
+            'BAD_REQUEST',
+            `"${finalName}" 的来源是${summary.source === 'url' ? '一个直链' : '本地内容'}，没法比对更新。`,
+            summary.url === '' ? '重新从作者给的地址装一次即可。' : `重新从 ${summary.url} 装一次即可。`,
+          )
+        }
+        if (summary.claimed === true && request.confirm !== true) {
+          throw new InstallError(
+            'NEEDS_CONFIRM',
+            `"${finalName}" 的来源是你手动标记的，还没有核对过。`,
+            '再点一次确认：会用这个地址的内容替换现在的文件（旧文件先进备份目录）。',
+          )
+        }
+        // An update is an install from the recorded address, nothing more: it keeps
+        // every safety property (stage, commit, back up the old copy first) and the
+        // Chinese display name the user chose.
+        const displayNameZh = yamlScalarOf(join(skillDirOf(finalName) ?? '', 'meta.yaml'), 'display-name-zh')
+        const result = await installGit({
+          repo: summary.repo,
+          ref: summary.ref,
+          subpath: summary.subpath,
+          name: finalName,
+          overwrite: true,
+          displayNameZh,
+        })
+        record({ action: 'update', mode: 'git', name: result.name, ok: true, ms: Date.now() - started })
+        logger?.info?.(`skill-report: updated skill "${result.name}" from ${summary.repo}`)
+        return {
+          ok: true,
+          skill: { name: result.name, description: result.description ?? '', displayNameZh: result.displayNameZh ?? '' },
+          files: result.files ?? 0,
+          overwritten: result.existed === true,
+          backup: result.backup ?? null,
+          warnings: result.warnings ?? [],
+          provenance: skillProvenance(result.name),
+          skills: onDisk(),
+        }
+      }
+
       throw new InstallError('BAD_REQUEST', `不认识的 action：${action === '' ? '(空)' : action}`)
     } catch (error) {
       const wire = toInstallError(error)
@@ -1413,6 +1840,10 @@ export function createInstaller({
     onDisk,
     install: run_action,
     uninstall,
+    /** Provenance + update state of one skill, for the panel's cards. */
+    provenance: skillProvenance,
+    /** Ask one skill's recorded source whether it moved on (network). */
+    check: checkOne,
     root: skillsRoot,
     backupRoot: trashRoot,
     history: () => [...history],

@@ -90,6 +90,7 @@ const { Icon } = require('./icons.js')
 const { VERSION } = require('./theme.js')
 const api = require('./api.js')
 const { InstallSheet, SkillRowActions, LiveRail, copyText } = require('./install.js')
+const { checkForUpdates, useUpdates } = require('./source.js')
 
 const h = React.createElement
 
@@ -535,7 +536,7 @@ function Avatar({ name }) {
   )
 }
 
-function SkillRow({ skill, counts, onUse, capability, onChanged }) {
+function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
   const chinese = typeof skill.descriptionZh === 'string' && skill.descriptionZh !== ''
   const blurb = chinese ? skill.descriptionZh : skill.description
   const used = typeof counts?.[skill.name] === 'number' ? counts[skill.name] : 0
@@ -646,8 +647,71 @@ function SkillRow({ skill, counts, onUse, capability, onChanged }) {
       typeof blurb === 'string' && blurb !== ''
         ? h('div', { className: chinese ? 'sr-blurb' : 'sr-blurb sr-blurb--en', title: blurb }, blurb)
         : null,
+      // Where the skill came from, and — when the source has been compared — whether
+      // it moved on. Sits in the text column so it can never crowd the buttons.
+      h(SourceLine, { skill, update }),
     ),
-    h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit }),
+    h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update }),
+  )
+}
+
+/**
+ * One line of provenance under a card's blurb.
+ *
+ * Three states, and the difference between them is the whole point of the feature:
+ *   * a comparable source that the host has checked -> 可更新 / 已是最新
+ *   * a recorded source whose kind cannot be compared -> the address, no verdict
+ *   * no record at all (installed by hand, or by 2.x) -> nothing; the card offers
+ *     「标记来源」 instead
+ *
+ * `claimed` sources are shown as such: the address is what the USER typed, and
+ * presenting it as a fact would be the dishonest version of this line.
+ */
+function SourceLine({ skill, update }) {
+  const provenance = skill?.provenance
+  const checkbox = update?.result
+  const known = provenance !== null && typeof provenance === 'object' && provenance.known === true
+  // No record at all: nothing true can be said, and a "来源未知" line on every
+  // hand-installed skill would be noise. The card offers 标记来源 instead.
+  if (!known) return null
+  const label = api.sourceLabel(provenance)
+  const claimed = provenance.claimed === true
+  const comparable = api.hasSource(provenance) === true
+  const checked = update?.phase === 'done' && checkbox !== undefined && checkbox !== null
+  const hasUpdate = checked && checkbox.hasUpdate === true
+  const failed = checked && typeof checkbox.error === 'string' && checkbox.error !== ''
+  const classes = ['sr-src']
+  if (hasUpdate) classes.push('sr-src--new')
+  else if (failed) classes.push('sr-src--warn')
+
+  const parts = []
+  if (claimed) parts.push('标记来源')
+  if (label !== '') parts.push(label)
+  let verdict = ''
+  if (hasUpdate) verdict = '可更新'
+  else if (failed) verdict = checkbox.note === '' ? '检查失败' : checkbox.note
+  else if (checked) verdict = checkbox.supported === true ? '已是最新' : checkbox.note
+  else if (comparable && update?.phase === 'checking') verdict = '检查中…'
+  if (verdict !== '') parts.push(verdict)
+
+  return h(
+    'div',
+    {
+      className: classes.join(' '),
+      // The full address lives here: available without being in the way of a card
+      // that is ~200px wide.
+      title:
+        [
+          claimed ? `来源是你标记的，尚未核对：${provenance.url ?? provenance.repo}` : (provenance.url ?? provenance.repo),
+          provenance.ref === '' ? '' : `分支 ${provenance.ref}`,
+          provenance.subpath === '' ? '' : `子目录 ${provenance.subpath}`,
+          api.locallyEdited(provenance) ? '安装后本地有改动，更新会覆盖它们（旧文件先进备份目录）' : '',
+        ]
+          .filter((line) => line !== '')
+          .join('\n') || label,
+    },
+    h('span', { className: 'sr-src-dot' }),
+    h('span', { className: 'sr-src-text' }, parts.join(' · ')),
   )
 }
 
@@ -668,7 +732,7 @@ const SORTS = [
   { key: 'count', label: '调用次数' },
 ]
 
-function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged, phase, filterRef }) {
+function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged, phase, filterRef, updates, checking, onCheckUpdate }) {
   const [query, setQuery] = React.useState('')
   const [onlySlash, setOnlySlash] = React.useState(false)
   const [onlyUsed, setOnlyUsed] = React.useState(false)
@@ -818,6 +882,21 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
           ? h(
               'button',
               {
+                key: 'check',
+                type: 'button',
+                className: 'sr-btn sr-btn--sm sr-btn--icon',
+                disabled: checking === true,
+                title: checking === true ? '正在检查更新…' : '检查所有 skill 的来源有没有更新',
+                'aria-label': '检查 skill 更新',
+                onClick: () => void onCheckUpdate?.(),
+              },
+              h(Icon, { name: 'refresh', size: 12 }),
+            )
+          : null,
+        installable
+          ? h(
+              'button',
+              {
                 key: 'install',
                 type: 'button',
                 className: 'sr-btn sr-btn--sm',
@@ -841,7 +920,7 @@ function SkillsSection({ skills, capability, counts, onUse, onInstall, onChanged
             : h(
                 'div',
                 { key: 'grid', className: 'sr-grid' },
-                shown.map((skill) => h(SkillRow, { key: skill.name, skill, counts, onUse, capability, onChanged })),
+                shown.map((skill) => h(SkillRow, { key: skill.name, skill, counts, onUse, capability, onChanged, update: updates?.[skill.name] })),
               ),
           onUse === undefined
             ? h('div', { key: 'hint', className: 'sr-hint' }, '在输入框上方的横栏里点「引用」可直接写入对话。')
@@ -1062,6 +1141,26 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, now, title = '技
   const [scrolled, setScrolled] = React.useState(false)
   const [atBottom, setAtBottom] = React.useState(false)
   const filterRef = React.useRef(null)
+  // Update verdicts live in the module store (source.js), not in component state:
+  // the check resolves after an await, and this panel is unmounted whenever the
+  // user switches back to the conversation.
+  const updateState = useUpdates()
+  const updates = updateState.results
+
+  /**
+   * Ask the host, once per mounted panel, whether any skill's recorded source has
+   * moved on. Deliberately NOT part of the 5-second poll: a check is one network
+   * request per skill, and doing that on a timer would hammer the origin for a
+   * panel that is merely open.
+   */
+  const autoChecked = React.useRef(false)
+  React.useEffect(() => {
+    if (autoChecked.current === true) return
+    if (api.canInstall(capability) !== true) return
+    if (!skills.some((skill) => api.hasSource(skill?.provenance) === true)) return
+    autoChecked.current = true
+    void checkForUpdates(skills)
+  }, [capability, skills])
 
   const onScrollTrack = React.useCallback((event) => {
     const node = event?.currentTarget
@@ -1220,7 +1319,20 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, now, title = '技
             // hidden still gets reported — and with both surfaces on screen the
             // same toast used to appear twice (once above the report, once inside
             // it), because they render the same global store.
-            h(SkillsSection, { key: 'skills', skills, capability, counts, onUse, onInstall: installable ? openInstall : undefined, onChanged: onRefresh, phase, filterRef }),
+            h(SkillsSection, {
+              key: 'skills',
+              skills,
+              capability,
+              counts,
+              onUse,
+              onInstall: installable ? openInstall : undefined,
+              onChanged: onRefresh,
+              phase,
+              filterRef,
+              updates,
+              checking: updateState.checking,
+              onCheckUpdate: () => void checkForUpdates(skills),
+            }),
             h(PerSkillSection, { key: 'per', perSkill }),
             h(RecentSection, { key: 'recent', recent, now }),
           ],

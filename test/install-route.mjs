@@ -82,11 +82,18 @@ class Skills extends Service {
   }
 }
 
-/** Mount the plugin against an isolated skills root and hand back its routes. */
-async function mountPlugin(config = {}) {
+/**
+ * Mount the plugin against an isolated skills root and hand back its routes.
+ * @param config - plugin config overrides.
+ * @param options.withSkills - also provide the `skills` service, which is what makes
+ *   the STATE feed report a catalogue (`test/http.mjs` does this; the install-route
+ *   assertions mostly work below the feed, against the write endpoint's own replies).
+ */
+async function mountPlugin(config = {}, { withSkills = false } = {}) {
   const sandbox = mkdtempSync(join(tmpdir(), 'echocat-route-'))
   const ctx = new Context()
   new Sessions(ctx)
+  if (withSkills) new Skills(ctx, join(sandbox, 'skills'))
   const connection = new Connection(ctx)
   const warns = []
   ctx.logger = { info: () => {}, warn: (message) => warns.push(String(message)) }
@@ -271,7 +278,13 @@ ok('an over-long value answers 400', longRename.status === 400, `${longRename.st
 ok('the code is BAD_REQUEST', longRenameBody.error?.code === 'BAD_REQUEST', JSON.stringify(longRenameBody.error))
 // A refused rename must leave the file exactly as it was.
 ok('the previous value survives the refusal', readMeta().includes('display-name-zh: 新中文名'), JSON.stringify(readMeta()))
-ok('...and left no temporary file behind', readdirSync(join(ren.sandbox, 'skills', 'ren-demo')).sort().join(',') === 'SKILL.md,meta.yaml', readdirSync(join(ren.sandbox, 'skills', 'ren-demo')).sort().join(','))
+// A refused rename must leave the file exactly as it was. 4.0 adds `.echocat.json`
+// to every skill this plugin installs (the provenance record), so the expected
+// listing names it: the assertion is about a REFUSED write leaving no temp file,
+// and a missing record would now be a different bug, not a cleaner directory.
+const afterRefusal = readdirSync(join(ren.sandbox, 'skills', 'ren-demo')).sort().join(',')
+ok('...and left no temporary file behind', afterRefusal === '.echocat.json,SKILL.md,meta.yaml', afterRefusal)
+ok('...and no half-written record', !readdirSync(join(ren.sandbox, 'skills', 'ren-demo')).some((f) => f.includes('tmp-')), afterRefusal)
 
 const cleared = await jsonPost(renRoute, { action: 'rename', name: 'ren-demo', displayNameZh: '' })
 const clearedBody = await cleared.json()
@@ -298,7 +311,82 @@ ok('an over-long name answers 400', zhLong.status === 400, `${zhLong.status} ${J
 ok('the code is BAD_REQUEST', zhLongBody.error?.code === 'BAD_REQUEST', JSON.stringify(zhLongBody.error))
 ok('nothing was written for it', !existsSync(join(main.sandbox, 'skills', 'route-long')))
 
-console.log('\n[8] configuration can remove the write surface')
+console.log('\n[8] provenance over the route: claim, check, and the state feed')
+{
+  // The panel's update affordance is driven entirely by what the STATE feed reports,
+  // so this mount provides the `skills` service — without it the feed has no
+  // catalogue at all (this deployment has no global skill provider).
+  const feed = await mountPlugin({}, { withSkills: true })
+  const feedRoute = feed.byPath.get(plugin.DEFAULT_INSTALL_PATH)
+  const feedState = () => feed.byPath.get(plugin.DEFAULT_HTTP_PATH).fetch(new Request('http://dsh.internal/api/skill-report/state'))
+
+  const feedInstall = await jsonPost(feedRoute, { action: 'install', mode: 'text', text: md('feed-skill', '喂给面板的'), displayNameZh: '面板技能' })
+  const feedInstallBody = await feedInstall.json()
+  ok('the feed mount installed a skill', feedInstallBody.ok === true, JSON.stringify(feedInstallBody.error ?? {}))
+
+  const stateBody = await (await feedState()).json()
+  const row = stateBody.skills.find((skill) => skill.name === 'feed-skill')
+  ok('the catalogue carries a provenance block per skill', row?.provenance !== undefined, JSON.stringify(stateBody.skills))
+  ok('...recorded as a pasted source', row?.provenance?.source === 'text', JSON.stringify(row?.provenance))
+  ok('...with no local drift right after the install', row?.provenance?.changedSinceInstall === false)
+  ok('...alongside the Chinese display name it was installed with', row?.displayNameZh === '面板技能', row?.displayNameZh)
+  ok('the install response itself carries it too', feedInstallBody.provenance?.known === true, JSON.stringify(feedInstallBody.provenance))
+
+  const renamedFeed = await jsonPost(feedRoute, { action: 'rename', name: 'feed-skill', displayNameZh: '改过的名字' })
+  ok('a rename still succeeds on a recorded skill', renamedFeed.status === 200, String(renamedFeed.status))
+  const afterRename = await (await feedState()).json()
+  const renamedRow = afterRename.skills.find((skill) => skill.name === 'feed-skill')
+  ok('the feed reports the new display name', renamedRow?.displayNameZh === '改过的名字', renamedRow?.displayNameZh)
+  ok('...and the plugin\'s own rename is not reported as local drift', renamedRow?.provenance?.changedSinceInstall === false, JSON.stringify(renamedRow?.provenance))
+
+  const claimed = await jsonPost(feedRoute, { action: 'claim', name: 'feed-skill', input: 'https://github.com/owner/repo' })
+  const claimedBody = await claimed.json()
+  ok('a claim answers 200', claimed.status === 200, `${claimed.status} ${JSON.stringify(claimedBody.error)}`)
+  ok('...and returns the claimed provenance', claimedBody.provenance?.claimed === true, JSON.stringify(claimedBody.provenance))
+  const afterClaim = await (await feedState()).json()
+  const claimedRow = afterClaim.skills.find((skill) => skill.name === 'feed-skill')
+  ok('the claim reaches the feed the panel reads', claimedRow?.provenance?.claimed === true, JSON.stringify(claimedRow?.provenance))
+
+  const claimBad = await jsonPost(feedRoute, { action: 'claim', name: 'feed-skill', input: '' })
+  const claimBadBody = await claimBad.json()
+  ok('a claim with no address answers 400', claimBad.status === 400, String(claimBad.status))
+  ok('...with BAD_REQUEST', claimBadBody.error?.code === 'BAD_REQUEST', JSON.stringify(claimBadBody.error))
+
+  const claimMissing = await jsonPost(feedRoute, { action: 'claim', name: 'no-such-route-skill', input: 'https://github.com/a/b' })
+  ok('claiming an unknown skill answers 404', claimMissing.status === 404, String(claimMissing.status))
+
+  const checked = await jsonPost(feedRoute, { action: 'check', name: 'feed-skill' })
+  const checkedBody = await checked.json()
+  ok('a check answers 200 even when it cannot compare', checked.status === 200, `${checked.status} ${JSON.stringify(checkedBody.error)}`)
+  ok('...reporting the claimed source as unverified', checkedBody.check?.supported === false, JSON.stringify(checkedBody.check))
+  ok('...and never claiming an update', checkedBody.check?.hasUpdate === false)
+
+  const checkedAll = await jsonPost(feedRoute, { action: 'check' })
+  const checkedAllBody = await checkedAll.json()
+  ok('a catalogue-wide check answers 200', checkedAll.status === 200, String(checkedAll.status))
+  ok('...with one verdict per skill', Array.isArray(checkedAllBody.checks) && checkedAllBody.checks.length === checkedAllBody.skills.length, `${checkedAllBody.checks?.length} vs ${checkedAllBody.skills?.length}`)
+
+  const updateClaimed = await jsonPost(feedRoute, { action: 'update', name: 'feed-skill' })
+  const updateClaimedBody = await updateClaimed.json()
+  ok('updating a claimed source without confirmation answers 400', updateClaimed.status === 400, String(updateClaimed.status))
+  ok('...with NEEDS_CONFIRM', updateClaimedBody.error?.code === 'NEEDS_CONFIRM', JSON.stringify(updateClaimedBody.error))
+  ok('...and an actionable hint', typeof updateClaimedBody.error?.hint === 'string' && updateClaimedBody.error.hint !== '')
+
+  const updateMissing = await jsonPost(feedRoute, { action: 'update', name: 'never-installed' })
+  ok('updating an unknown skill answers 404', updateMissing.status === 404, String(updateMissing.status))
+
+  rmSync(feed.sandbox, { recursive: true, force: true })
+}
+
+console.log('\n[8b] a non-git source cannot be updated over the route')
+{
+  const pasted = await jsonPost(route, { action: 'update', name: 'route-zh' })
+  const pastedBody = await pasted.json()
+  ok('updating a pasted skill answers 400', pasted.status === 400, String(pasted.status))
+  ok('...with BAD_REQUEST and a way out', pastedBody.error?.code === 'BAD_REQUEST' && pastedBody.error.hint !== '', JSON.stringify(pastedBody.error))
+}
+
+console.log('\n[9] the write surface can be removed, and the read surface says so')
 const readOnly = await mountPlugin({ allowInstall: false })
 ok('no install route is registered', readOnly.byPath.get(plugin.DEFAULT_INSTALL_PATH) === undefined, JSON.stringify([...readOnly.byPath.keys()]))
 ok('the state feed still works', readOnly.byPath.has(plugin.DEFAULT_HTTP_PATH))
@@ -315,7 +403,7 @@ const badPath = await mountPlugin({ installPath: '/not-api/skills' })
 ok('an install path outside /api is ignored', badPath.byPath.get(plugin.DEFAULT_INSTALL_PATH) !== undefined, JSON.stringify([...badPath.byPath.keys()]))
 ok('and it did not take the bad path', badPath.byPath.get('/not-api/skills') === undefined)
 
-console.log('\n[9] cleanup')
+console.log('\n[10] cleanup')
 for (const mounted of [main, ren, readOnly, noRoutes, badPath]) rmSync(mounted.sandbox, { recursive: true, force: true })
 ok('every sandbox was removed', !existsSync(main.sandbox) && !existsSync(readOnly.sandbox) && !existsSync(ren.sandbox))
 

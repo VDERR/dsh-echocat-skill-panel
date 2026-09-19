@@ -121,6 +121,108 @@ function stopPolling() {
   timer = null
 }
 
+/* ------------------------------- update checks ------------------------------- */
+
+/**
+ * Results of "does this skill's source have something newer?".
+ *
+ * A separate store rather than a field on the snapshot, for two reasons: the answer
+ * is not part of the host's state (it comes from a network round trip the user may
+ * never trigger), and it must survive the 5-second poll that replaces the whole
+ * snapshot object.
+ *
+ * `checking` lives here too, NOT in component state: the check resolves after an
+ * await, and a `setState` from that continuation is exactly the shape that breaks
+ * when a surface is torn down mid-flight. A module store has no such lifecycle.
+ */
+let updates = { checking: false, at: 0, error: '', results: {} }
+const updateListeners = new Set()
+let updateInflight = null
+
+const publishUpdates = (next) => {
+  updates = { ...updates, ...next }
+  for (const listener of [...updateListeners]) {
+    try {
+      listener()
+    } catch {
+      // One broken observer must not stop the others.
+    }
+  }
+}
+
+const subscribeUpdates = (listener) => {
+  updateListeners.add(listener)
+  return () => updateListeners.delete(listener)
+}
+
+const getUpdates = () => updates
+
+/** `useSyncExternalStore` binding for the update-check results. */
+function useUpdates() {
+  return React.useSyncExternalStore(subscribeUpdates, getUpdates, getUpdates)
+}
+
+/**
+ * Ask the host whether the given skills' recorded sources moved on.
+ *
+ * `skills` is the catalogue from the published snapshot: only skills with a
+ * RECORDED source are worth asking about, and asking about the rest would spend a
+ * round trip to be told "no record". Nothing happens when there is nothing to ask.
+ *
+ * @returns the host envelope, or `undefined` when no check was warranted.
+ */
+function checkForUpdates(skills) {
+  if (updateInflight !== null) return updateInflight
+  const names = (Array.isArray(skills) ? skills : [])
+    .filter((skill) => skill?.provenance !== null && typeof skill?.provenance === 'object' && skill.provenance.known === true && skill.provenance.source === 'git')
+    .map((skill) => skill.name)
+  if (names.length === 0) return undefined
+
+  // Required lazily: api.js already requires this module (for `applySkills` after a
+  // write), so a top-level require here would be a cycle. The read/write split is the
+  // reason the update CHECK lives on this side — it fetches, it changes nothing on
+  // the host, and api.js is documented as the writes.
+  const api = require('./api.js')
+  publishUpdates({
+    checking: true,
+    error: '',
+    results: names.reduce((acc, name) => {
+      acc[name] = { phase: 'checking' }
+      return acc
+    }, {}),
+  })
+
+  updateInflight = api
+    .performCheck(undefined, {})
+    .then((result) => {
+      const checks = Array.isArray(result?.data?.checks) ? result.data.checks : []
+      const results = {}
+      for (const entry of checks) results[entry.name] = { phase: 'done', result: entry }
+      publishUpdates({
+        checking: false,
+        at: Date.now(),
+        // A check that never reached the host is reported as such; the cards then
+        // say "检查失败" instead of silently showing nothing.
+        error: result?.ok === true ? '' : (result?.error?.message ?? '检查更新失败'),
+        results,
+      })
+      return result
+    })
+    .catch((error) => {
+      publishUpdates({ checking: false, at: Date.now(), error: String(error?.message ?? error), results: {} })
+      return undefined
+    })
+    .finally(() => {
+      updateInflight = null
+    })
+  return updateInflight
+}
+
+/** Drop every remembered verdict. Used by tests and by an explicit re-check. */
+function clearUpdates() {
+  publishUpdates({ checking: false, at: 0, error: '', results: {} })
+}
+
 /**
  * `useSyncExternalStore` binding, with a first-mount fetch.
  * @param options.path - override the host route.
@@ -139,4 +241,19 @@ function useSkillReport({ path: overridePath, poll = POLL_MS } = {}) {
   return snapshot
 }
 
-module.exports = { DEFAULT_PATH, POLL_MS, subscribe, getSnapshot, refresh, applySkills, useSkillReport, startPolling, stopPolling }
+module.exports = {
+  DEFAULT_PATH,
+  POLL_MS,
+  subscribe,
+  getSnapshot,
+  refresh,
+  applySkills,
+  useSkillReport,
+  startPolling,
+  stopPolling,
+  useUpdates,
+  getUpdates,
+  subscribeUpdates,
+  checkForUpdates,
+  clearUpdates,
+}
