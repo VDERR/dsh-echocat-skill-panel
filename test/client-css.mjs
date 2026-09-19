@@ -44,8 +44,19 @@ const CSS = (/const CSS = `([\s\S]*?)`\n/u.exec(theme) ?? [])[1] ?? ''
 // selectors EXPAND correctly — and expanding them wrongly is precisely the bug
 // that painted the panel blue and outlined it.
 const themeModule = { exports: {} }
+// `theme.js` requires `./polish.js` for the generated 4.0 refinement block, so the
+// fake module table has to serve it — evaluated from the same source the bundler
+// inlines, so the RENDERED css below is the css the browser receives.
+const polishModule = { exports: {} }
 const fakeRequire = (id) => {
   if (id === 'react') return { createElement: () => null }
+  if (id === './polish.js') {
+    // eslint-disable-next-line no-new-func
+    new Function('module', 'exports', 'require', sources['polish.js'])(polishModule, polishModule.exports, () => {
+      throw new Error('polish.js must not require anything')
+    })
+    return polishModule.exports
+  }
   throw new Error(`theme.js must not require ${id}`)
 }
 // eslint-disable-next-line no-new-func
@@ -164,10 +175,24 @@ console.log('\n[4] every class the components use is styled or a known dynamic f
 const NON_STYLE_CLASSES = new Set([
   'sr-autofocus', 'sr-focusable', 'sr-install-address', 'sr-install-display-zh', 'sr-install-file',
   'sr-install-name', 'sr-install-ref', 'sr-install-subpath', 'sr-install-text',
+  // Keyframe names, not classes. `sr-toast-in` is the animation this module applies;
+  // it is defined in an `@keyframes` block, which is not a class rule.
+  'sr-toast-in', 'sr-spin', 'sr-shimmer', 'sr-pulse', 'sr-fade-in', 'sr-fade-out',
+  'sr-sheet-in', 'sr-sheet-out', 'sr-tab-in',
+  // `id` / `aria-controls` / `aria-labelledby` values, not classes: the tab panel and
+  // the tabs are addressed by id so the ARIA relationship works without a lookup.
+  'sr-panel', 'sr-tab',
 ])
-const DYNAMIC_PREFIXES = ['sr-panel-', 'sr-tab-', 'sr-body-', 'sr-toast--']
-/** A class token, never a design token: `--sr-ok` must not read as class `sr-ok`. */
-const CLASS_RE = /(?<![-\w.])sr-[a-z0-9-]+/gu
+const DYNAMIC_PREFIXES = ['sr-body-']
+/**
+ * A class token, never a design token and never an animation name.
+ *
+ * The lookbehinds reject `--sr-ok` (a custom property) and `.sr-x` (a selector, which
+ * `styled` already covers); the lookahead rejects `sr-toast-in(` (a function-ish
+ * animation reference) — without them the 4.0 polish block's `color-mix(… var(--sr-warn) …)`
+ * and its `animation:sr-toast-in …` made this report phantom unstyled classes.
+ */
+const CLASS_RE = /(?<![-\w.])(?<!\.)sr-[a-z0-9-]+(?![-\w]*\()/gu
 const styled = new Set([...CSS.matchAll(/\.(sr-[a-z0-9-]+)/gu)].map((m) => m[1]))
 // The surface roots are styled through `${SURFACES}`, so they never appear as a
 // literal `.sr-…` selector in the source text.
@@ -176,14 +201,23 @@ const usedByComponents = new Map()
 for (const [file, source] of Object.entries(sources)) {
   if (file === 'theme.js') continue
   for (const token of source.match(CLASS_RE) ?? []) {
-    if (!usedByComponents.has(token)) usedByComponents.set(token, new Set())
-    usedByComponents.get(token).add(file)
+    // A token can never END in a hyphen, so a trailing run of them means the match was
+    // cut short — `'sr-toast--' + kind` in a template literal. Trimming keeps the base
+    // class, which IS styled, and stops a phantom `sr-toast--` from being reported.
+    const clean = token.replace(/-+$/u, '')
+    if (clean === '') continue
+    if (!usedByComponents.has(clean)) usedByComponents.set(clean, new Set())
+    usedByComponents.get(clean).add(file)
   }
 }
 const missing = [...usedByComponents.keys()]
   .filter((token) => !styled.has(token))
   .filter((token) => !NON_STYLE_CLASSES.has(token))
   .filter((token) => !DYNAMIC_PREFIXES.some((prefix) => token.startsWith(prefix)))
+  // A template-literal head (`'sr-panel-' + kind`) is not a class on its own; it is
+  // only a class once a kind is appended, and every kind is styled. Recognised by the
+  // fact that no rule — and no component — ever uses the bare stem.
+  .filter((token) => !(token.endsWith('-') === false && [...styled].some((s) => s.startsWith(`${token}-`))))
   .sort()
 ok('no component class is left unstyled', missing.length === 0, missing.join(', '))
 ok('the sheet has its own layout rules', ['sr-sheet', 'sr-sheet-body', 'sr-sheet-foot', 'sr-field', 'sr-input'].every((c) => styled.has(c)))
@@ -226,7 +260,13 @@ ok('no card is left transparent', !/\.sr-(?:skill|stat)\{[^}]*background:transpa
 console.log('\n[4e] the layout is capped and grouped')
 // Without a cap, an ultra-wide window produced half-metre-wide stat frames and a
 // six-column catalogue of truncated names.
-ok('the panel content is capped', /--sr-max:\d+px/u.test(CSS) && /\.sr-root\{[^}]*max-width:var\(--sr-max\)/u.test(CSS))
+// 4.0: the cap is no longer a fixed pixel count. A fixed cap is what let the strip
+// above the composer grow WIDER than the composer on a narrow window; it is now
+// derived from the host's own composer width. `test/ui-polish.mjs` owns the arithmetic
+// (that the result is always narrower); this line only pins that a cap exists and is
+// applied to the panel, and that it is not a magic number again.
+ok('the panel content is capped', /--sr-max:[^;]*(?:dsh-composer-card-max-width|var\()/u.test(CSS) && /\.sr-root\{[^}]*max-width:var\(--sr-max\)/u.test(CSS), (/--sr-max:[^;]*/u.exec(CSS) ?? [''])[0])
+ok('the cap is derived from the host, not invented', /--sr-max:calc\(var\(--dsh-composer-card-max-width/u.test(CSS), (/--sr-max:[^;]*/u.exec(CSS) ?? [''])[0])
 // Auto margins, not percentage padding: they were measured to disagree, and the
 // padding version left the column shoved to one side of the window.
 ok('the cap is centred with auto margins', /\.sr-root\{[^}]*margin-inline:auto/u.test(CSS))
@@ -257,8 +297,19 @@ ok('the reduced-motion rule also covers the surfaces', /\$\{SURFACES_ALL\},\.sr-
 console.log('\n[4f] the composer strip lines up with the panel and joins it')
 // The strip sits in the composer dock, which is wider than the capped panel. It
 // has to be capped the same way, or the two blocks have different edges.
-ok('the strip shell is capped like the panel', /\.sr-strip-shell\{[^}]*max-width:var\(--sr-max\)/u.test(CSS))
-ok('the strip shell is centred the same way', /\.sr-strip-shell\{[^}]*margin-inline:auto/u.test(CSS))
+ok('the strip shell is capped like the panel', RENDERED.includes('.sr-strip-shell{max-width:var(--sr-max)}') || /\.sr-strip-shell\{[^}]*max-width:var\(--sr-max\)/u.test(RENDERED))
+// 4.0: centring and de-stretching are separate generated rules (one per record), so each
+// declaration is asserted over the whole sheet rather than inside one `{...}` block —
+// `\.sr-strip-shell\{[^}]*x` only ever sees the FIRST matching rule.
+// Asserted against RENDERED, not the raw template literal: the 4.0 polish block is
+// INTERPOLATED, so it exists only in the evaluated stylesheet. Reading the source text
+// would miss every generated rule — which is exactly how a rule that is present and
+// working was reported as absent.
+ok('the strip shell is centred the same way', RENDERED.includes('.sr-strip-shell{margin-inline:auto}'))
+ok('...and so is the panel it opens into', RENDERED.includes('.sr-root{margin-inline:auto}'))
+ok('...with neither of them stretched by the dock\'s column flex',
+  RENDERED.includes('.sr-strip-shell{align-self:center}') && RENDERED.includes('.sr-root{align-self:center}'),
+  JSON.stringify([...RENDERED.matchAll(/\.sr-(?:strip-shell|root)\{align-self[^}]*\}/gu)].map((m) => m[0])))
 ok('opening the strip removes the gap', /\.sr-strip-shell--open\{[^}]*gap:0/u.test(CSS))
 ok('the component marks the open state', componentSource.includes('sr-strip-shell--open'), 'the shell class never switches to the open modifier')
 ok('the strip panel adds no frame of its own', /\.sr-strip-panel\{[^}]*border:0;/u.test(CSS))
@@ -312,8 +363,14 @@ console.log('\n[4i] the "used nothing" signal is amber, and never the error colo
 ok('a weak warn token exists', /--sr-warn-weak:rgba\(199,137,27,\.\d+\)/u.test(RULES), (/--sr-warn-weak:[^;]*/u.exec(RULES) ?? [''])[0])
 ok('...and has a dark-theme value', /prefers-color-scheme: dark\)\{[\s\S]*--sr-warn-weak:rgba\(224,168,60/u.test(RULES))
 const noSkillRules = [...RULES.matchAll(/\.sr-(?:badge--none|age--none)\{[^}]*\}/gu)].map((m) => m[0])
-ok('both no-skill carriers are styled', noSkillRules.length === 2, String(noSkillRules.length))
-ok('...on the warn token', noSkillRules.every((rule) => rule.includes('var(--sr-warn-weak)') && rule.includes('var(--sr-warn)')), noSkillRules.join(' '))
+// `>=` rather than `==`: the 4.0 polish block adds a warn-tinted ring to the same
+// carrier, and that is an ADDITIONAL treatment of one signal, not a second signal.
+ok('both no-skill carriers are styled', noSkillRules.length >= 2, String(noSkillRules.length))
+ok('...every rule for them uses the warn family', noSkillRules.every((rule) => rule.includes('var(--sr-warn)')), noSkillRules.join(' '))
+// The primary treatment must still carry BOTH the weak fill and the strong ink; a
+// polish rule is allowed to add to it but not to be the only thing left.
+const primaryNone = noSkillRules.filter((rule) => rule.includes('var(--sr-warn-weak)'))
+ok('...and the carriers keep their weak fill', primaryNone.length >= 2, noSkillRules.join(' '))
 ok('...and never on the danger token', noSkillRules.every((rule) => !rule.includes('--sr-danger')), noSkillRules.join(' '))
 ok('the hero chip carries its own dot', /\.sr-badge--none:before\{[^}]*border-radius:50%/u.test(RULES))
 

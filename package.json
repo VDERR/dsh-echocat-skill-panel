@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build": "node tools/build-client.mjs",
-    "test": "node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs"
+    "test": "node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs && node test/ui-polish.mjs"
   },
   "keywords": [
     "dsh",

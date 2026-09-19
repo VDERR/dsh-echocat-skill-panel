@@ -35,6 +35,7 @@ const manifest = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8'))
  */
 const MODULES = [
   { id: './theme.js', file: 'src/client/theme.js' },
+  { id: './polish.js', file: 'src/client/polish.js' },
   { id: './icons.js', file: 'src/client/icons.js' },
   { id: './source.js', file: 'src/client/source.js' },
   { id: './api.js', file: 'src/client/api.js' },

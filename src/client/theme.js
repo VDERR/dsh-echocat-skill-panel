@@ -54,6 +54,21 @@ const SURFACES_SELECTION = SURFACE_ROOTS.map((root) => `${root} ::selection`).jo
 /** Focus rings inside any surface. */
 const SURFACES_FOCUS = SURFACE_ROOTS.map((root) => `${root} :focus-visible`).join(',')
 
+/**
+ * The 200+ named refinements live in `polish.js` as DATA; their CSS is generated here
+ * and interpolated into the sheet BELOW the hand-written rules and ABOVE the media
+ * queries.
+ *
+ * That position is the whole reason the base rules above still spell their own
+ * `max-width`: the polish block must be able to win the width ties (it does, by
+ * carrying an extra surface class), and it must NOT sit after `@media (max-width:560px)`
+ * — an appended block would have silently overridden the narrow-viewport layout, which
+ * is the one place the sheet has to get smaller rather than more refined.
+ */
+const polish = require('./polish.js')
+const { POLISH, polishCounts } = polish
+const POLISH_CSS = polish.polishCSS(SURFACE_ROOTS)
+
 const CSS = `
 ${SURFACES}{
 --sr-fg:var(--dsw-alias-label-primary,#1f2329);
@@ -100,10 +115,16 @@ ${SURFACES}{
    the panel reads as a single surface with outlined blocks instead of a patchwork
    of whatever the host happens to paint behind a transparent element. */
 --sr-raised:var(--sr-fill2);
-/* Content cap. Without it the panel stretches to the viewport: on an ultra-wide
-   window the stat cells became half-metre-wide empty frames and the catalogue
-   grid crammed six truncated columns into a single row. */
---sr-max:1120px;
+/* Content cap.
+ *
+ * 4.0: this was a fixed 1120px, which is WIDER than the composer on any window below
+ * ~1500px — so the strip above the input box stuck out past the input box it belongs
+ * to, and on a narrow window the stat cells still became metre-wide frames. The cap is
+ * now derived from the host's own composer width, so it scales with the interface and
+ * is always narrower than the box it sits above. See polish.js (group: width) for the
+ * arithmetic and the reasoning; this token is only where the value is declared, because
+ * the base rules below are the ones that consume it. */
+--sr-max:calc(var(--dsh-composer-card-max-width, 952px) - 16px);
 --sr-mono:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);
 --sr-sp:4px;
 --sr-r:12px;
@@ -355,7 +376,7 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-call-n{flex:none;font-size:11px;color:var(--sr-fg2);font-variant-numeric:tabular-nums}
 
 /* ---- composer strip ---- */
-.sr-strip-shell{display:flex;flex-direction:column;gap:calc(var(--sr-sp)*1.5);width:100%;max-width:var(--sr-max);margin-inline:auto}
+.sr-strip-shell{display:flex;flex-direction:column;gap:calc(var(--sr-sp)*1.5);width:100%;max-width:var(--sr-max)}
 .sr-strip-row{display:flex;align-items:center;gap:calc(var(--sr-sp)*1.5)}
 /* Open: ONE card. The FRAME lives on the shell, so it encloses the bar row AND the
    report — which is the only way the two can share edges, because the bar is only
@@ -472,6 +493,9 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-hist-name{font-family:var(--sr-mono);color:var(--sr-fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:18ch}
 .sr-hist-msg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* ---- 4.0 polish set (generated — see the notes at the bottom of this file) ---- */
+${POLISH_CSS}
+
 /* ---- motion / transparency / responsive ---- */
 @media (prefers-reduced-motion: reduce){
 ${SURFACES_ALL},.sr-sheet{transition:none!important;animation:none!important}
@@ -514,6 +538,11 @@ ${SURFACES}{
 }
 `
 
+/* ------------------------------------------------------------------ 4.0 polish -- */
+
+/** Class names each polish record styles, for the coverage assertions. */
+const POLISH_CLASSES = [...new Set(POLISH.map((record) => (/\.(sr-[a-z0-9-]+)/u.exec(record.at) ?? [])[1]).filter(Boolean))]
+
 // Injected exactly the way the shipped client bundles do it, from inside the
 // factory, so `@deepseek-ai/dsh-client-hmr` can remove the tag on reload. The
 // literal below (not the constant) is deliberate: it is the value HMR and the
@@ -526,4 +555,4 @@ if (typeof document !== 'undefined' && document.querySelector(`style[data-plugin
   document.head.appendChild(tag)
 }
 
-module.exports = { PLUGIN_ID, TAG_ID, VERSION, CSS }
+module.exports = { PLUGIN_ID, TAG_ID, VERSION, CSS, POLISH, POLISH_CLASSES, polishCounts }

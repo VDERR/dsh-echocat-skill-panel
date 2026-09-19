@@ -40,6 +40,12 @@ https://github.com/owner/repo/tree/main/skills/my-skill
 - 手工装的、或 2.x/3.0 装的 skill 没有这条记录，卡片上给一个「标记来源」，填一次地址即纳入更新。
 - 中文显示名不受影响：更新沿用你为该 skill 设的 `display-name-zh`。
 
+## 界面（4.0 打磨）
+
+- **宽度跟着界面缩放**：横栏与面板的宽度由宿主自己的输入框宽度推导（`--dsh-composer-card-max-width` 减 16px），**永远比输入框窄**，并且和输入框共享同一条中轴 —— 宽窗口、窄窗口、嵌入式布局都对。
+- **211 项具名打磨**：卡片层次、按钮交互态、时间线、toast、安装面板、来源行、可见性与触摸目标。每一条都在 `src/client/polish.js` 里带名字和理由，样式表由它们生成，测试逐条核对它真的生效。
+- 深色主题、`prefers-reduced-motion`、`prefers-reduced-transparency`、窄屏布局都各自有覆盖。
+
 ## 一键调用
 
 输入框正上方常驻一条横栏，点开后在 skill 卡片上按「**引用**」，`/名字 ` 就追加进草稿 —— 回车即按手动手势调用它。装完 skill 的成功提示里有同一个按钮，装完即用。
@@ -77,13 +83,14 @@ npm install echocat-skill-panel-3.0                      # 或直接装进 profi
 
 每轮结束弹一次系统原生通知；给没中文的 skill 自动翻译并缓存；深色主题；宿主不允许写入时自动变只读并说明原因；全部配置项 —— 见 [安装说明.md](安装说明.md)。
 
-架构与实现要点、安装引擎的四条安全规矩、**来源记录为什么放在 skill 目录里**、**踩过的坑**（宿主语义令牌不能当视觉令牌用、逗号选择器不能共享组合符、`min-height:0` 会架空粘底页脚……），以及 1092 项断言 / 十个门的测试明细 —— 见 [docs/设计要点.md](docs/设计要点.md)。
+架构与实现要点、安装引擎的四条安全规矩、**宽度为什么用百分比而不是像素**、**211 项打磨为什么是生成的**、**来源记录为什么放在 skill 目录里**、**踩过的坑**（宿主语义令牌不能当视觉令牌用、逗号选择器不能共享组合符、`min-height:0` 会架空粘底页脚……），以及 1162 项断言 / 十一个门的测试明细 —— 见 [docs/设计要点.md](docs/设计要点.md)。
 
 ## 开发
 
 ```powershell
-node tools/build-client.mjs   # 生成 lib/client.js
-npm test                      # 八个套件
+node tools/build-client.mjs        # 生成 lib/client.js
+npm test                           # 九个套件
+node tools/check-width-live.mjs    # 真 Chrome 量宽度（改了宽度规则就跑）
 ```
 
 > `lib/client.js` 是**入库的构建产物**（目标机器没有工具链，`lib/` 必须一起提交）。**改了 `src/client/` 就要在同一个 commit 里重建它** —— `verify-install.mjs` 会核对 bundle 与包是否一致，漏了会在门里失败。

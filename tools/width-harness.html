@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>echocat-skill-panel 4.0 — width harness</title>
+<style>
+/* The part of the HOST's own stylesheet this measurement depends on, copied verbatim
+   from @deepseek-ai/dsh-client-ui-conversation/lib/client.js:
+     --dsh-chat-content-width:  clamp(680px, calc(var(--dsh-conversation-column-width,0px) * .64), 920px)
+     --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px)
+   If the host ever changes those, this harness has to change with them — which is why
+   it says so here rather than in a comment nobody reads. */
+* { box-sizing: border-box }
+html, body { margin: 0; padding: 0 }
+body {
+  --dsh-conversation-column-width: 1600px;
+  --dsh-chat-content-width: clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * .64), 920px);
+  --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
+  background: #f5f6f8;
+  font: 13px/1.5 system-ui, sans-serif;
+}
+#conversation { display: flex; flex-direction: column; height: 100vh; padding: 12px 0 20px }
+#scroller { flex: 1; min-height: 0 }
+/* Where the conversation itself is centred. */
+.chat-content { width: 100%; max-width: var(--dsh-chat-content-width); margin-inline: auto; padding: 0 16px }
+/* The composer dock is a full-width row; the composer card inside it is centred and
+   carries the host's own cap. Our strip sits in this same dock, above the card. */
+#dock { display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 0 }
+.composer-card {
+  width: 100%;
+  max-width: var(--dsh-composer-card-max-width);
+  margin-inline: auto;
+  border: 1px solid rgba(0, 0, 0, .12);
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px 14px;
+  color: #6b7280;
+}
+#out { font: 12px/1.6 monospace; white-space: pre; padding: 12px 16px }
+</style>
+</head>
+<body>
+<div id="conversation">
+  <div id="scroller"><div class="chat-content">conversation column</div></div>
+  <!-- Our surfaces live in this dock, next to the composer card. -->
+  <div id="dock"></div>
+  <div id="dock-composer"></div>
+</div>
+<div id="out"></div>
+<script>
+/**
+ * Measure the relationship the release promises: our surfaces are always narrower than
+ * the composer card, at every conversation-column width.
+ *
+ * The DOM is built to match the real one (see `SkillReportStrip` in panel.js): the
+ * surface root in the dock is `.sr-strip-shell`, and the open report lives inside a
+ * `.sr-strip-panel` wrapping a `.sr-root`. Both roots are styled by the stylesheet
+ * injected below, so these are the real computed widths, not a re-implementation.
+ */
+window.__MEASURE__ = function measure() {
+  const out = []
+  const dock = document.getElementById('dock')
+  // One dock, two children — exactly the real nesting: `conversation.input.dock` is a
+  // full-width list seat that owns BOTH our strip and the composer card, so the two
+  // share one padded container and must therefore share a left edge.
+  dock.innerHTML = '<div class="sr-strip-shell sr-strip-shell--open"><div class="sr-strip-row"><button class="sr-strip">bar</button></div><div class="sr-strip-panel"><div class="sr-root"><div class="sr-head"><span class="sr-title">report</span></div><div class="sr-body"><div class="sr-sec"><div class="sr-sec-b">body</div></div></div></div></div></div><div class="composer-card">composer</div>'
+  const shell = dock.querySelector('.sr-strip-shell')
+  const panel = dock.querySelector('.sr-root')
+  // The closed bar is the state the strip spends most of its life in, so it gets its own
+  // copy in a second dock rather than being inferred from the open one.
+  const closedHost = document.createElement('div')
+  closedHost.id = 'dock-closed'
+  closedHost.style.cssText = 'display:flex;flex-direction:column;padding:8px 16px 0'
+  closedHost.innerHTML = '<div class="sr-strip-shell"><div class="sr-strip-row"><button class="sr-strip">bar</button></div></div><div class="composer-card">composer</div>'
+  dock.parentNode.insertBefore(closedHost, dock)
+  const closedShell = closedHost.querySelector('.sr-strip-shell')
+  const composer = dock.querySelector('.composer-card')
+  const composerClosed = closedHost.querySelector('.composer-card')
+  const rect = (el) => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width * 100) / 100, x: Math.round(r.left * 100) / 100 } }
+  const result = {
+    column: Math.round(document.body.getBoundingClientRect().width),
+    composerWidth: Number(getComputedStyle(document.body).getPropertyValue('--dsh-composer-card-max-width').trim().replace('px', '')) || null,
+    closed: rect(closedShell),
+    open: rect(shell),
+    panel: rect(panel),
+    composer: rect(composer),
+    composerClosed: rect(composerClosed),
+  }
+  result.closedNarrower = result.closed.w < result.composerClosed.w
+  result.openNarrower = result.open.w < result.composer.w
+  result.panelNarrower = result.panel.w < result.composer.w
+  result.closedInset = Math.round((result.composerClosed.w - result.closed.w) * 100) / 100
+  result.openInset = Math.round((result.composer.w - result.open.w) * 100) / 100
+  result.alignedWithComposer = Math.abs(result.closed.x - result.composerClosed.x) < 0.6
+  result.openAligned = Math.abs(result.open.x - result.composer.x) < 0.6
+  out.push(result)
+  closedHost.remove()
+  return out
+}
+</script>
+</body>
+</html>
