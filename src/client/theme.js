@@ -55,19 +55,32 @@ const SURFACES_SELECTION = SURFACE_ROOTS.map((root) => `${root} ::selection`).jo
 const SURFACES_FOCUS = SURFACE_ROOTS.map((root) => `${root} :focus-visible`).join(',')
 
 /**
- * The 200+ named refinements live in `polish.js` as DATA; their CSS is generated here
- * and interpolated into the sheet BELOW the hand-written rules and ABOVE the media
- * queries.
+ * Two generated blocks, in a deliberate order:
  *
- * That position is the whole reason the base rules above still spell their own
- * `max-width`: the polish block must be able to win the width ties (it does, by
- * carrying an extra surface class), and it must NOT sit after `@media (max-width:560px)`
- * — an appended block would have silently overridden the narrow-viewport layout, which
- * is the one place the sheet has to get smaller rather than more refined.
+ *   `polish.js`  the 211 behavioural refinements (width contract, alignment, resets);
+ *   `design.js`  the 228-record design pass, which SUPERSEDES polish for the properties
+ *                they share — tokens, type scale, radii, elevation, component shape.
+ *
+ * Both are generated from data and interpolated BELOW the hand-written rules and ABOVE
+ * the media queries. That position is load-bearing in both directions:
+ *
+ *   * the polish width rules must be able to win their ties against the base `.sr-root`
+ *     and `.sr-strip-shell` caps (they win by carrying an extra surface class);
+ *   * neither block may sit after `@media (max-width:560px)`, or it would silently
+ *     override the narrow-viewport layout — the one place the sheet has to get smaller
+ *     rather than more refined.
+ *
+ * The design pass's own dark palette is the single exception: it IS appended at the very
+ * end, because it only redefines tokens inside `prefers-color-scheme: dark` and has to
+ * beat the earlier dark block, which it cannot do from a lower position.
  */
 const polish = require('./polish.js')
+const design = require('./design.js')
 const { POLISH, polishCounts } = polish
+const { DESIGN, designCounts } = design
 const POLISH_CSS = polish.polishCSS(SURFACE_ROOTS)
+const DESIGN_CSS = design.designCSS(SURFACE_ROOTS)
+const DESIGN_DARK_CSS = design.designDarkCSS(SURFACE_ROOTS)
 
 const CSS = `
 ${SURFACES}{
@@ -496,6 +509,9 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 /* ---- 4.0 polish set (generated — see the notes at the bottom of this file) ---- */
 ${POLISH_CSS}
 
+/* ---- 4.0re design pass: supersedes the polish pass above for shared properties ---- */
+${DESIGN_CSS}
+
 /* ---- motion / transparency / responsive ---- */
 @media (prefers-reduced-motion: reduce){
 ${SURFACES_ALL},.sr-sheet{transition:none!important;animation:none!important}
@@ -536,12 +552,17 @@ ${SURFACES}{
 .sr-backdrop{padding:0}
 .sr-share-name{max-width:44%}
 }
+/* The design pass's dark palette, LAST because it redefines tokens the earlier dark
+   block also declares and has to win over it. */
+${DESIGN_DARK_CSS}
 `
 
 /* ------------------------------------------------------------------ 4.0 polish -- */
 
 /** Class names each polish record styles, for the coverage assertions. */
 const POLISH_CLASSES = [...new Set(POLISH.map((record) => (/\.(sr-[a-z0-9-]+)/u.exec(record.at) ?? [])[1]).filter(Boolean))]
+/** The same, for the design pass. */
+const DESIGN_CLASSES = [...new Set(DESIGN.map((record) => (/\.(sr-[a-z0-9-]+)/u.exec(record.at) ?? [])[1]).filter(Boolean))]
 
 // Injected exactly the way the shipped client bundles do it, from inside the
 // factory, so `@deepseek-ai/dsh-client-hmr` can remove the tag on reload. The
@@ -555,4 +576,4 @@ if (typeof document !== 'undefined' && document.querySelector(`style[data-plugin
   document.head.appendChild(tag)
 }
 
-module.exports = { PLUGIN_ID, TAG_ID, VERSION, CSS, POLISH, POLISH_CLASSES, polishCounts }
+module.exports = { PLUGIN_ID, TAG_ID, VERSION, CSS, POLISH, POLISH_CLASSES, polishCounts, DESIGN, DESIGN_CLASSES, designCounts }

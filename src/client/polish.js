@@ -576,6 +576,35 @@ const UNITLESS = new Set([
   'borderTopRightRadius', 'borderBottomRightRadius', 'borderTopLeftRadius', 'borderBottomLeftRadius',
 ])
 
+/**
+ * Expand a `{all}` selector into one rooted descendant selector per surface.
+ *
+ * Two mistakes this has to avoid, both of which produce a rule that silently does
+ * nothing — or worse, one that styles the host application:
+ *
+ *   * `{all}` followed by a CLASS (`.sr-input::placeholder`) would emit `*.sr-input`,
+ *     which matches a DESCENDANT of the element rather than the element. A class selector
+ *     needs no `*` at all: `root .sr-input::placeholder` is the correct form. This bug
+ *     silently killed three placeholder/selection rules until a computed-style probe
+ *     showed the placeholder still at the host's colour.
+ *   * a comma-separated list must be rooted MEMBER BY MEMBER. Rooting only the first part
+ *     (`.sr-root *.sr-btn, .sr-chip, …`) leaves every other member matching the whole
+ *     document — precisely the host leak the guard below exists to prevent.
+ */
+function descendantSelector(list, roots) {
+  return list
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .flatMap((part) => {
+      const all = part.includes('{all}')
+      const bare = part.replace(/\{all\}/gu, '')
+      const tail = all ? (bare.startsWith('.') ? bare : `*${bare}`) : bare
+      return roots.map((root) => `${root} ${tail}`)
+    })
+    .join(',')
+}
+
 function ruleFor(record, roots) {
   const camel = (key) => key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
   const value = (key, v) => (typeof v === 'number' && v < 100 && !UNITLESS.has(key) ? px(v) : String(v))
@@ -583,9 +612,7 @@ function ruleFor(record, roots) {
     .map(([key, raw]) => `${camel(key)}:${value(key, raw)}`)
     .join(';')
   const suffix = record.weight ?? ''
-  if (record.at.includes('{all}')) {
-    return `${roots.map((root) => `${root} *${record.at.replace(/\{all\}/gu, '')}${suffix}`).join(',')}{${decls}}`
-  }
+  if (record.at.includes('{all}')) return `${descendantSelector(`${record.at}${suffix}`, roots)}{${decls}}`
   if (record.at.includes('{root}')) {
     return `${roots.map((root) => root + record.at.replace('{root}', '') + suffix).join(',')}{${decls}}`
   }
@@ -599,7 +626,7 @@ function ruleFor(record, roots) {
   if (!record.at.includes('.sr-')) {
     throw new Error(`polish rule "${record.id}" would apply OUTSIDE the plugin surfaces: ${record.at}`)
   }
-  return `${roots.map((root) => `${root} ${record.at}${suffix}`).join(',')}{${decls}}`
+  return `${descendantSelector(`${record.at}${suffix}`, roots)}{${decls}}`
 }
 
 /**

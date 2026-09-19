@@ -44,19 +44,25 @@ const CSS = (/const CSS = `([\s\S]*?)`\n/u.exec(theme) ?? [])[1] ?? ''
 // selectors EXPAND correctly — and expanding them wrongly is precisely the bug
 // that painted the panel blue and outlined it.
 const themeModule = { exports: {} }
-// `theme.js` requires `./polish.js` for the generated 4.0 refinement block, so the
-// fake module table has to serve it — evaluated from the same source the bundler
-// inlines, so the RENDERED css below is the css the browser receives.
-const polishModule = { exports: {} }
+// `theme.js` requires its two generated-data modules (`./polish.js` for the 211
+// refinements, `./design.js` for the 228-record design pass), so the fake table serves
+// both — evaluated from the same sources the bundler inlines, which is what makes the
+// RENDERED css below the css the browser actually receives.
+const generatedCache = {}
+const loadGenerated = (file) => {
+  if (generatedCache[file] !== undefined) return generatedCache[file]
+  const holder = { exports: {} }
+  generatedCache[file] = holder.exports
+  // eslint-disable-next-line no-new-func
+  new Function('module', 'exports', 'require', sources[file])(holder, holder.exports, () => {
+    throw new Error(`${file} must not require anything`)
+  })
+  generatedCache[file] = holder.exports
+  return generatedCache[file]
+}
 const fakeRequire = (id) => {
   if (id === 'react') return { createElement: () => null }
-  if (id === './polish.js') {
-    // eslint-disable-next-line no-new-func
-    new Function('module', 'exports', 'require', sources['polish.js'])(polishModule, polishModule.exports, () => {
-      throw new Error('polish.js must not require anything')
-    })
-    return polishModule.exports
-  }
+  if (id.startsWith('./')) return loadGenerated(id.slice(2))
   throw new Error(`theme.js must not require ${id}`)
 }
 // eslint-disable-next-line no-new-func

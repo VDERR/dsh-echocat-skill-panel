@@ -14,6 +14,12 @@ desktop.ini
 npm-debug.log*
 pnpm-debug.log*
 
+# Output of `node tools/preview.mjs`, which renders the real panel and screenshots it in
+# light and dark. Regenerable in seconds and specific to this machine's Chrome, so the
+# TOOL is committed and its output is not.
+tools/preview.html
+tools/preview-*.png
+
 # NOTE: `lib/client.js` is deliberately NOT ignored.
 #
 # It is a generated artifact, but it is also the only way someone can install this

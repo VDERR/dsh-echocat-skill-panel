@@ -40,11 +40,14 @@ https://github.com/owner/repo/tree/main/skills/my-skill
 - 手工装的、或 2.x/3.0 装的 skill 没有这条记录，卡片上给一个「标记来源」，填一次地址即纳入更新。
 - 中文显示名不受影响：更新沿用你为该 skill 设的 `display-name-zh`。
 
-## 界面（4.0 打磨）
+## 界面
 
 - **宽度跟着界面缩放**：横栏与面板的宽度由宿主自己的输入框宽度推导（`--dsh-composer-card-max-width` 减 16px），**永远比输入框窄**，并且和输入框共享同一条中轴 —— 宽窗口、窄窗口、嵌入式布局都对。
-- **211 项具名打磨**：卡片层次、按钮交互态、时间线、toast、安装面板、来源行、可见性与触摸目标。每一条都在 `src/client/polish.js` 里带名字和理由，样式表由它们生成，测试逐条核对它真的生效。
-- 深色主题、`prefers-reduced-motion`、`prefers-reduced-transparency`、窄屏布局都各自有覆盖。
+- **一套完整的设计语言**：四个表面台阶（画布 / 卡片 / 抬升 / 下沉）、一个强调色（靛蓝，只用于主操作、选中和"有东西可做"）、五级字阶（10.5 → 26px，字号越大字距越紧）、三级投影（每级两层低透明度叠加），发丝线用 `color-mix` 从墨色推导。
+- **443 条具名调整**：215 项行为打磨（[polish.js](src/client/polish.js)）+ 228 项设计重做（[design.js](src/client/design.js)），全部是带名字和理由的数据记录，样式表由它们生成，测试逐条核对真的生效。
+- **深浅两套都验过**：深色盘同时挂在系统偏好与**应用内主题**两条信号上；所有文字色都按 WCAG 算过对比度（正文 18.2:1、次级 6.4:1、元数据 5.3:1）。
+- `prefers-reduced-motion`、`prefers-reduced-transparency`、窄屏布局各自有覆盖。
+- 改界面的做法：`node tools/preview.mjs` 渲染真实面板并截图，加 `--measure` 打印计算样式 —— **先看见，再改**。
 
 ## 一键调用
 
@@ -83,13 +86,15 @@ npm install echocat-skill-panel-3.0                      # 或直接装进 profi
 
 每轮结束弹一次系统原生通知；给没中文的 skill 自动翻译并缓存；深色主题；宿主不允许写入时自动变只读并说明原因；全部配置项 —— 见 [安装说明.md](安装说明.md)。
 
-架构与实现要点、安装引擎的四条安全规矩、**宽度为什么用百分比而不是像素**、**211 项打磨为什么是生成的**、**来源记录为什么放在 skill 目录里**、**踩过的坑**（宿主语义令牌不能当视觉令牌用、逗号选择器不能共享组合符、`min-height:0` 会架空粘底页脚……），以及 1162 项断言 / 十一个门的测试明细 —— 见 [docs/设计要点.md](docs/设计要点.md)。
+架构与实现要点、安装引擎的四条安全规矩、**宽度为什么用百分比而不是像素**、**443 条调整为什么是生成的**、**设计重做是怎么"先看见再改"的**、**来源记录为什么放在 skill 目录里**、**踩过的坑**（宿主语义令牌不能当视觉令牌用、逗号选择器不能共享组合符、`min-height:0` 会架空粘底页脚……），以及 1201 项断言 / 十一个门的测试明细 —— 见 [docs/设计要点.md](docs/设计要点.md)。
 
 ## 开发
 
 ```powershell
-node tools/build-client.mjs        # 生成 lib/client.js
+node tools/build-client.mjs        # 生成 lib/client.js（改了 src/client/ 就必须跑）
 npm test                           # 九个套件
+node tools/preview.mjs             # 渲染真实面板并截图（浅色 + 深色）
+node tools/preview.mjs --measure   # 打印关键元素的计算样式
 node tools/check-width-live.mjs    # 真 Chrome 量宽度（改了宽度规则就跑）
 ```
 

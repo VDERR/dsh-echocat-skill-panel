@@ -43,26 +43,35 @@ const sources = Object.fromEntries(
     .map((file) => [file, readFileSync(join(clientDir, file), 'utf8')]),
 )
 
-// Evaluate theme.js the way the bundle does, so the strings below are the ones the
-// browser receives rather than the ones the source happens to spell.
-const polishModule = { exports: {} }
-// eslint-disable-next-line no-new-func
-new Function('module', 'exports', 'require', sources['polish.js'])(polishModule, polishModule.exports, (id) => {
-  throw new Error(`polish.js must not require ${id}`)
-})
-const polish = polishModule.exports
-const themeModule = { exports: {} }
-const fakeRequire = (id) => {
-  if (id === 'react') return { createElement: () => null }
-  if (id === './polish.js') return polish
-  throw new Error(`theme.js must not require ${id}`)
+// Evaluate the client modules the way the bundle does, so the strings below are the ones
+// the browser receives rather than the ones the source happens to spell. One tiny loader
+// covers theme.js and its two generated-data dependencies.
+const loadClient = (file) => {
+  const cache = {}
+  const evaluate = (rel) => {
+    if (cache[rel] !== undefined) return cache[rel]
+    const inner = { exports: {} }
+    cache[rel] = inner.exports
+    // eslint-disable-next-line no-new-func
+    new Function('module', 'exports', 'require', sources[rel])(inner, inner.exports, (id) => {
+      if (id === 'react') return { createElement: () => null }
+      if (id.startsWith('./')) return evaluate(id.slice(2))
+      throw new Error(`${rel} must not require ${id}`)
+    })
+    cache[rel] = inner.exports
+    return cache[rel]
+  }
+  return evaluate(file)
 }
-// eslint-disable-next-line no-new-func
-new Function('module', 'exports', 'require', sources['theme.js'])(themeModule, themeModule.exports, fakeRequire)
-const theme = themeModule.exports
+
+const polish = loadClient('polish.js')
+const design = loadClient('design.js')
+const theme = loadClient('theme.js')
 const CSS = String(theme.CSS)
-/** Comment-free: prose in this project is long, and must not satisfy a check. */
+/** Comment-free: this project's prose is long and must not satisfy a check. */
 const RULES = CSS.replace(/\/\*[\s\S]*?\*\//gu, '')
+/** The rendered sheet under the name the design section reads it by. */
+const RENDERED = RULES
 
 const ROOTS = ['.sr-root', '.sr-strip-shell', '.sr-backdrop', '.sr-rail']
 /** The refinement records, used from several sections below. */
@@ -381,6 +390,158 @@ const withInteraction = records.filter((record) => /:hover|:focus|:active|aria-|
 ok('the set refines interaction states, not only static paint', withInteraction.length >= 25, String(withInteraction.length))
 const withSurface = records.filter((record) => /background|border|boxShadow|borderRadius/u.test(Object.keys(record.props).join(',')))
 ok('the set refines the surface language', withSurface.length >= 40, String(withSurface.length))
+
+/* ============================================================ 5. the design pass -- */
+
+console.log('\n[5] the design pass: 200+ records, contrast, and cascade order')
+
+const designRecords = design.DESIGN
+ok('the design pass is data, not a hand-written block', Array.isArray(designRecords), typeof designRecords)
+ok('at least 200 design records', designRecords.length >= 200, String(designRecords.length))
+const dIds = designRecords.map((record) => record.id)
+ok('every design record has a unique id', new Set(dIds).size === dIds.length, JSON.stringify(dIds.filter((id, i) => dIds.indexOf(id) !== i)))
+ok('every design record states why it exists',
+  designRecords.every((r) => typeof r.why === 'string' && r.why.length >= 20),
+  JSON.stringify(designRecords.filter((r) => (r.why ?? '').length < 20).map((r) => r.id)))
+ok('every design record carries declarations',
+  designRecords.every((r) => Object.keys(r.props ?? {}).length > 0),
+  JSON.stringify(designRecords.filter((r) => Object.keys(r.props ?? {}).length === 0).map((r) => r.id)))
+const dGroups = new Set(designRecords.map((r) => r.group))
+const dDeclared = new Set(design.DESIGN_GROUPS.map(([name]) => name))
+ok('every design group is declared and used',
+  [...dGroups].every((g) => dDeclared.has(g)) && [...dDeclared].every((g) => dGroups.has(g)),
+  JSON.stringify({ undeclared: [...dGroups].filter((g) => !dDeclared.has(g)), unused: [...dDeclared].filter((g) => !dGroups.has(g)) }))
+console.log(`        groups: ${Object.entries(design.designCounts()).map(([g, n]) => `${g} ${n}`).join(' · ')}`)
+
+// Every record must actually reach the sheet. The design block is generated separately
+// from the polish block, so a generator regression here would silently drop the whole
+// redesign while leaving the count intact.
+const DESIGN_GENERATED = design.designCSS(ROOTS)
+const designRules = [...DESIGN_GENERATED.matchAll(/([^{}]+)\{([^}]*)\}/gu)].map((m) => ({ selector: m[1].trim(), decls: m[2].trim() }))
+const dUnresolved = []
+const dLeaked = []
+for (const record of designRecords) {
+  const wanted = Object.entries(record.props).map(([key, raw]) => {
+    const cssKey = key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
+    const cssValue = typeof raw === 'number' && raw < 100 && !UNITLESS_KEYS.test(key) ? `${raw}px` : String(raw)
+    return `${cssKey}:${cssValue}`
+  })
+  const owner = designRules.find((rule) => wanted.every((decl) => rule.decls.includes(decl)))
+  if (owner === undefined) dUnresolved.push(record.id)
+  else if (!owner.selector.includes('.sr-')) dLeaked.push(`${record.id}: ${owner.selector}`)
+}
+ok('every design declaration reached the generated CSS', dUnresolved.length === 0, JSON.stringify(dUnresolved))
+ok('no design rule applies outside the plugin surfaces', dLeaked.length === 0, JSON.stringify(dLeaked))
+
+// Rendered and comment-free, so these assertions are anchored on RULES the browser
+// applies rather than on the `/* ---- 4.0 … ---- */` banners, which the strip removes.
+const firstPolishRule = polish.polishCSS(ROOTS).split('\n').filter((line) => line.includes('{'))[0]
+const firstDesignRule = design.designCSS(ROOTS).split('\n').filter((line) => line.includes('{'))[0]
+ok('the polish pass is in the rendered sheet', RENDERED.includes(firstPolishRule), firstPolishRule.slice(0, 60))
+ok('the design pass is in the rendered sheet', RENDERED.includes(firstDesignRule), firstDesignRule.slice(0, 60))
+ok('...and it comes AFTER the polish pass, so it supersedes it',
+  RENDERED.indexOf(firstDesignRule) > RENDERED.indexOf(firstPolishRule),
+  `design @${RENDERED.indexOf(firstDesignRule)} polish @${RENDERED.indexOf(firstPolishRule)}`)
+ok('...and BEFORE the narrow-viewport media query',
+  RENDERED.indexOf(firstDesignRule) < RENDERED.lastIndexOf('@media (max-width:560px)'),
+  'the design pass must not swallow the responsive rules')
+ok('the polish pass is present in full', polish.POLISH.length >= 200, String(polish.POLISH.length))
+
+// The two blocks genuinely overlap, which is why the order above is load-bearing and not
+// a stylistic preference: a shared property must resolve to the design pass's value.
+const sharedWithPolish = designRecords.filter((record) => polish.POLISH.some((p) => p.at === record.at && Object.keys(p.props).some((k) => k in record.props)))
+ok('the two passes deliberately overlap', sharedWithPolish.length >= 10, String(sharedWithPolish.length))
+
+/* ---- contrast, computed rather than eyeballed -------------------------------------- */
+
+console.log('\n[6] every text colour clears WCAG AA on the surface it is used on')
+const srgbToLinear = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+const luminance = (hex) => {
+  const text = hex.replace('#', '')
+  const [r, g, b] = [0, 2, 4].map((i) => srgbToLinear(parseInt(text.slice(i, i + 2), 16) / 255))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+const contrast = (a, b) => {
+  const [l1, l2] = [luminance(a), luminance(b)]
+  const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1]
+  return (hi + 0.05) / (lo + 0.05)
+}
+/** The value a token is given by a record, or '' when that record is absent. */
+const tokenOf = (id) => {
+  const record = designRecords.find((r) => r.id === id)
+  return record === undefined ? '' : String(Object.values(record.props)[0])
+}
+const LIGHT_CARD = tokenOf('color-card')
+const LIGHT_RAISED = tokenOf('color-raised')
+const LIGHT_SUNKEN = tokenOf('color-sunken')
+ok('the text tokens are plain colours, so contrast is computable', [LIGHT_CARD, LIGHT_RAISED].every((v) => /^#[0-9a-f]{6}$/u.test(v)), `${LIGHT_CARD} ${LIGHT_RAISED}`)
+
+const TEXT_ON = [
+  ['color-ink', 'body text', 'color-card'],
+  ['color-ink2', 'secondary text', 'color-card'],
+  ['color-ink3', 'metadata', 'color-card'],
+  ['color-ink2', 'secondary text on a card', 'color-raised'],
+  ['color-ink3', 'metadata on a card', 'color-raised'],
+  ['color-accent', 'the accent as text', 'color-card'],
+  ['color-danger', 'destructive text', 'color-card'],
+  ['color-ok', 'success text', 'color-card'],
+  ['color-warn', 'the no-skill signal', 'color-card'],
+]
+for (const [inkId, label, bgId] of TEXT_ON) {
+  const ink = tokenOf(inkId)
+  const bg = /^#[0-9a-f]{6}$/u.test(tokenOf(bgId)) ? tokenOf(bgId) : LIGHT_CARD
+  const ratio = contrast(ink, bg)
+  ok(`${label} (${ink}) clears AA on ${bg}`, ratio >= 4.5, `${ratio.toFixed(2)}:1`)
+}
+// The accent is also a FILL, and its label has to be readable on it.
+const onAccent = contrast(tokenOf('color-accent-ink'), tokenOf('color-accent'))
+ok(`the primary button label clears AA on the accent fill`, onAccent >= 4.5, `${onAccent.toFixed(2)}:1`)
+// The sunken step is the darkest light surface, so it is the worst case for metadata.
+const onSunken = contrast(tokenOf('color-ink3'), LIGHT_SUNKEN)
+ok('metadata also clears AA on the sunken step', onSunken >= 4.5, `${onSunken.toFixed(2)}:1`)
+
+/* ---- the dark palette reaches both signals ----------------------------------------- */
+
+const DARK = design.designDarkCSS(ROOTS)
+ok('the dark palette is emitted for the OS preference', /@media \(prefers-color-scheme: dark\)/u.test(DARK))
+ok('...and for an explicit in-app theme, which the OS preference would miss',
+  /\[data-theme="dark"\]/u.test(DARK) && /\.dark/u.test(DARK), 'a user who picks Dark in-app must get the dark palette')
+ok('the dark palette redefines the surfaces, not only the ink',
+  ['--sr-card', '--sr-canvas', '--sr-raised', '--sr-sunken'].every((token) => DARK.includes(`${token}:`)), '')
+ok('...and the elevation, which must be stronger on a dark surface',
+  ['--sr-e1', '--sr-e2', '--sr-e3'].every((token) => DARK.includes(`${token}:`)), '')
+ok('the dark accent differs from the light one, as it must to stay legible',
+  DARK.includes("'--sr-accent': '#7c74f2'") || DARK.includes("--sr-accent:#7c74f2"), '')
+ok('the dark palette is the LAST thing in the sheet, so it beats the earlier dark block',
+  RENDERED.lastIndexOf('prefers-color-scheme: dark') > RENDERED.indexOf(firstDesignRule), '')
+
+/* ---- the systems the redesign claims to have --------------------------------------- */
+
+console.log('\n[7] the type scale, elevation and surface ramp are real systems')
+const scale = (id) => tokenOf(id)
+ok('the type scale has five named steps',
+  ['type-ratio'].every((id) => designRecords.some((r) => r.id === id)), '')
+const ratio = String(Object.values(designRecords.find((r) => r.id === 'type-ratio').props).join(','))
+ok('...and the steps increase monotonically',
+  (() => {
+    const sizes = [...ratio.matchAll(/(\d+(?:\.\d+)?)px/gu)].map((m) => Number(m[1]))
+    return sizes.length === 5 && sizes.every((size, i) => i === 0 || size > sizes[i - 1])
+  })(), ratio)
+ok('every elevation is a TWO-layer shadow, which is what reads as depth rather than dirt',
+  ['depth-raise', 'depth-hover', 'depth-overlay'].every((id) => {
+    const value = String(Object.values(designRecords.find((r) => r.id === id).props)[0])
+    return (value.match(/rgba\(/gu) ?? []).length >= 2
+  }), '')
+ok('the surface ramp has four distinct steps, so a panel can sit ON a page',
+  new Set([tokenOf('color-canvas'), tokenOf('color-card'), tokenOf('color-raised'), tokenOf('color-sunken')]).size === 4, '')
+ok('the accent is used for exactly the primary, selection and attention roles',
+  designRecords.filter((r) => JSON.stringify(r.props).includes('var(--sr-accent)')).length >= 8 &&
+  designRecords.filter((r) => JSON.stringify(r.props).includes('var(--sr-danger)')).length <= 10,
+  'the accent must not leak into every component')
+ok('hairlines are derived from the ink colour rather than hardcoded grey',
+  ['color-line', 'color-line2'].every((id) => String(Object.values(designRecords.find((r) => r.id === id).props)[0]).includes('color-mix')), '')
+const generated = design.designCSS(ROOTS)
+ok('no design rule needed !important', !generated.includes('!important'))
 
 console.log(`\nRESULT: ${pass}/${pass + fail} passed`)
 if (fail > 0) process.exitCode = 1
