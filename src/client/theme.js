@@ -26,7 +26,7 @@ const TAG_ID = 'echocat-skill-panel-3.0/panel.css'
  * module table, resolved against the host's frozen platform table. So this copy is a
  * necessity — and therefore the one that silently goes stale. Bump it with the others.
  */
-const VERSION = '4.0.1'
+const VERSION = '4.0.2'
 
 /**
  * Every element that can be the ROOT of one of this plugin's surfaces: the centre

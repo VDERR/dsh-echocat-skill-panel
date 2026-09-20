@@ -492,8 +492,25 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
 
 /* ------------------------------ the install sheet ------------------------------ */
 
-/** The surface roots, so the portal host carries the design tokens and base type. */
-const PORTAL_HOST_CLASS = 'sr-root sr-portal-host'
+/**
+ * The class on the portal host appended to `document.body`.
+ *
+ * DELIBERATELY NOT `sr-root` ANY MORE, and that matters more than it looks. `sr-root` is the
+ * PANEL FRAME class: `height:100%`, `max-width:var(--sr-max)`, a 1px border, a radius, a white
+ * background. Putting it on a node that lives on `document.body` meant that if the rule which
+ * neutralises the host ever failed to apply, the page gained a full-viewport-tall bordered
+ * white box BELOW the app shell — a blank, scrollable page under the interface. That is exactly
+ * what happened in 4.0.1: the neutraliser was generated as the descendant selector
+ * `.sr-root .sr-portal-host`, which can never match the host, because the host IS a `.sr-root`
+ * rather than being inside one.
+ *
+ * The host needs none of that frame. The tokens and base typography come from `.sr-backdrop`,
+ * which is a surface root in its own right and is ALWAYS the portal's content, so the sheet
+ * inherits everything it needs from there. Dropping the frame class means the worst case for a
+ * future rule-loss is a zero-height empty div — the dialog stops being centred — instead of a
+ * blank page.
+ */
+const PORTAL_HOST_CLASS = 'sr-portal-host'
 
 /**
  * The one portal host, created on first use and reused for the life of the page.

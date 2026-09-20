@@ -659,8 +659,18 @@ const DESIGN = Object.freeze([
     'one frame, not two: the row owns the rule and the padding'),
   D('claim-help', 'card', '.sr-claim-row .sr-help', { textAlign: 'left' },
     'the helper line sits under the field it describes'),
-  D('portal-host', 'a11y', '.sr-portal-host', { position: 'static', display: 'contents' },
-    'the portal host adds no box of its own: the sheet is positioned against the viewport'),
+  // Both forms, on purpose, and BOTH are needed:
+  //   * `.sr-portal-host` — the host as it is now (`install.js` no longer puts `sr-root` on a
+  //     node that lives on `document.body`, so a future rule-loss cannot grow the page);
+  //   * `.sr-root.sr-portal-host` — if the frame class ever comes back, this variant outranks
+  //     `.sr-root` on specificity (0,2,0 vs 0,1,0) and still neutralises it.
+  // What must NEVER happen is the form that shipped in 4.0.1: a rooted descendant
+  // (`.sr-root .sr-portal-host`), which cannot match an element that IS a `.sr-root` rather
+  // than being inside one. The host kept the panel frame as an empty box below `#root` and the
+  // document grew by a full viewport of blank, scrollable page.
+  D('portal-host', 'a11y', '.sr-portal-host,.sr-root.sr-portal-host', { position: 'static', display: 'contents' },
+    'the portal host adds no box of its own: the sheet is positioned against the viewport',
+    { rooted: false }),
 ])
 
 /**
@@ -704,6 +714,17 @@ function designRuleFor(record, roots) {
     .map(([key, raw]) => `${camel(key)}:${value(key, raw)}`)
     .join(';')
   const at = record.at
+  // `rooted: false` emits the selector EXACTLY as written, for a rule that must match an
+  // element which is not a descendant of a surface — the portal host on `document.body` is
+  // the case that forced this. Without it, a bare class silently became "a descendant of a
+  // surface", which for `.sr-portal-host` produced a selector that could never match the host
+  // itself: the host kept the `.sr-root` frame (height:100%, 1px border, radius, --sr-max
+  // width) as an empty box after `#root`, and the document grew by a full viewport — the
+  // "blank framed page below the shell" a user reported.
+  if (record.rooted === false) {
+    if (!at.includes('.sr-')) throw new Error(`design rule "${record.id}" opts out of rooting with a selector that is not the plugin's: ${at}`)
+    return `${at}{${decls}}`
+  }
   if (at.includes('{all}')) return `${descendantSelector(at, roots)}{${decls}}`
   if (at.includes('{root}')) return `${roots.map((root) => root + at.replace('{root}', '')).join(',')}{${decls}}`
   if (roots.some((root) => at.startsWith(root))) return `${at}{${decls}}`

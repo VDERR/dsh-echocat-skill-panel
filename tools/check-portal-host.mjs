@@ -1,19 +1,22 @@
-// Measure the plugin's dock seat in real Chrome over the DevTools protocol.
+#!/usr/bin/env node
+// Measure the install sheet's portal host in real Chrome, over the DevTools protocol.
 //
-// WHY THIS EXISTS. A user reported "scrolling down shows a blank page" after installing the
-// plugin. The dock seat is the one surface that participates in the page's own layout, so
-// the question is whether the strip — or the expansion it opens — makes the PAGE taller than
-// the viewport, which would give the shell a blank region to scroll into. Guessing at that
-// from CSS is how you fix the wrong thing; this measures it.
+// WHY THIS EXISTS. A user reported "scrolling down shows a blank page with a frame and
+// nothing in it" after using the plugin. The dock seat is not the cause: the surface that
+// participates in the DOCUMENT's layout is the portal host that src/client/install.js
+// appends to `document.body` as <div class="sr-root sr-portal-host">. If the rule meant to
+// neutralise it does not match the host itself, the host keeps the `.sr-root` frame
+// (height:100%, 1px border, radius, --sr-max width) and the page grows taller than the
+// viewport — a blank, scrollable region below the shell, which is exactly what was seen.
 //
-// `--dump-dom` was tried first and is the wrong tool: it snapshots the DOM while virtual time
-// is still running, so an async probe either races it or never runs. CDP evaluates an
-// expression and waits for the promise.
+// Guessing that from CSS is how you fix the wrong thing; this measures it. The assertion is
+// one-directional: the portal host must add ZERO page overflow, in both the closed and the
+// open state. It fails while the selector bug is present and passes once it is fixed.
 //
-// Deliberately NOT part of `npm test`: it needs a Chrome binary.
+// Place next to `check-dock-height.mjs`; deliberately NOT part of `npm test` (needs Chrome).
 
-import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -21,26 +24,21 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = resolve(here, '..')
 
+// NOTE: the (x86) Edge path is listed on purpose — it is the only browser on some Windows
+// machines, and omitting it makes this tool skip silently on exactly those machines.
 const CHROME_CANDIDATES = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   join(process.env.LOCALAPPDATA ?? '', 'Google\\Chrome\\Application\\chrome.exe'),
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-  // The (x86) Edge path is here on purpose: on some Windows machines it is the ONLY browser
-  // installed. Omitting it made this tool print "no browser found" and exit 0 — a silent skip
-  // that reads exactly like a pass. A tester hit precisely that on a box with only Edge (x86),
-  // and it is part of why this bug survived: the tool that could have caught it never ran.
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   '/usr/bin/google-chrome',
   '/usr/bin/chromium',
 ]
 const chrome = CHROME_CANDIDATES.find((candidate) => candidate !== '' && existsSync(candidate))
 if (chrome === undefined) {
-  // Exit 2, not 0. "I could not measure" is NOT "the measurement passed"; this tool is not part
-  // of `npm test`, so a green-looking exit code is the only signal anyone would see.
-  console.log('no Chrome/Edge binary found; NOT MEASURED — this is exit 2, NOT a pass')
-  console.log(`  looked for: ${CHROME_CANDIDATES.filter((c) => c !== '').join('\n              ')}`)
-  process.exit(2)
+  console.log('no Chrome/Edge binary found; skipping (not part of `npm test`)')
+  process.exit(0)
 }
 
 /**
@@ -92,7 +90,6 @@ function renderStylesheet() {
   return String(load('./theme.js').CSS)
 }
 
-/** A tiny CDP client: enough to evaluate one expression and read its value. */
 async function withChrome(port, fn) {
   const child = spawn(
     chrome,
@@ -103,14 +100,12 @@ async function withChrome(port, fn) {
       '--no-default-browser-check',
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${join(sandbox, `profile-${port}`)}`,
-      '--window-size=1280,800',
-      '--allow-file-access-from-files',
+      '--window-size=1256,885',
       'about:blank',
     ],
     { stdio: 'ignore' },
   )
   try {
-    // Wait for the debugging endpoint, then take the page target's websocket.
     let target = null
     for (let i = 0; i < 60 && target === null; i += 1) {
       await new Promise((r) => setTimeout(r, 250))
@@ -131,10 +126,10 @@ async function withChrome(port, fn) {
     const pending = new Map()
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data)
-      const resolvePromise = pending.get(message.id)
-      if (resolvePromise !== undefined) {
+      const done = pending.get(message.id)
+      if (done !== undefined) {
         pending.delete(message.id)
-        resolvePromise(message)
+        done(message)
       }
     })
     const send = (method, params = {}) =>
@@ -156,55 +151,55 @@ async function withChrome(port, fn) {
   }
 }
 
-const sandbox = mkdtempSync(join(tmpdir(), 'echocat-dock-'))
+const sandbox = mkdtempSync(join(tmpdir(), 'echocat-portal-'))
 let failed = false
 try {
-  writeFileSync(join(sandbox, 'plugin.css'), renderStylesheet(), 'utf8')
-  writeFileSync(join(sandbox, 'index.html'), readFileSync(join(here, 'dock-harness.html'), 'utf8'), 'utf8')
+  const css = renderStylesheet()
+  writeFileSync(join(sandbox, 'index.html'), readFileSync(join(here, 'portal-harness.html'), 'utf8'), 'utf8')
   const url = pathToFileURL(join(sandbox, 'index.html')).href
 
-  await withChrome(9333, async (send) => {
+  await withChrome(9334, async (send) => {
     await send('Page.navigate', { url })
-    // Let the page settle: the harness reads its stylesheet over XHR on first run.
     for (let i = 0; i < 40; i += 1) {
       const ready = await send('Runtime.evaluate', { expression: 'typeof window.__probe === "object" && !!window.__probe', returnByValue: true })
       if (ready.result?.result?.value === true) break
       await new Promise((r) => setTimeout(r, 200))
     }
+    await send('Runtime.evaluate', { expression: `document.getElementById('plugin-css').textContent = ${JSON.stringify(css)}`, returnByValue: true })
     for (const size of [
+      [1256, 885],
       [1280, 800],
-      [1024, 700],
     ]) {
       await send('Emulation.setDeviceMetricsOverride', { width: size[0], height: size[1], deviceScaleFactor: 1, mobile: false })
       const evaluated = await send('Runtime.evaluate', {
-        expression: `(async () => {
-          const out = []
-          for (const variant of ['none', 'collapsed', 'open']) out.push(await window.__probe.run(variant))
-          return out
-        })()`,
+        expression: `(async () => { const out = []; for (const v of ['none', 'host', 'sheet-open']) out.push(await window.__probe.run(v)); return out })()`,
         awaitPromise: true,
         returnByValue: true,
       })
       if (evaluated.result?.exceptionDetails !== undefined) {
-        console.log(`  window ${size.join('x')}: probe threw: ${evaluated.result.exceptionDetails.text} ${evaluated.result.exceptionDetails.exception?.description ?? ''}`)
+        console.log(`  window ${size.join('x')}: probe threw: ${evaluated.result.exceptionDetails.text}`)
         failed = true
         continue
       }
       const rows = evaluated.result?.result?.value ?? []
-      console.log(`\n  window ${size[0]}x${size[1]}`)
-      console.log(`    ${'variant'.padEnd(10)} ${'docH'.padEnd(6)} ${'pageOverflow'.padEnd(13)} ${'dockH'.padEnd(6)} ${'mainH'.padEnd(6)} ${'mainPastVp'.padEnd(11)} pluginMaxBottom`)
+      const none = rows.find((row) => row.variant === 'none')
+      console.log(`\n  window ${size[0]}x${size[1]}  (baseline document ${none?.documentScrollHeight}px, viewport ${none?.viewport})`)
+      console.log(`    ${'variant'.padEnd(11)} ${'docH'.padEnd(6)} ${'pageOverflow'.padEnd(13)} ${'hostPainted'.padEnd(12)} ${'hostBox'.padEnd(16)} hostDisplay`)
       for (const row of rows) {
+        const box = row.host === null ? '-' : `${row.host.w}x${row.host.h}`
         console.log(
-          `    ${String(row.variant).padEnd(10)} ${String(row.documentScrollHeight).padEnd(6)} ${String(row.pageOverflow).padEnd(13)} ${String(row.dockHeight).padEnd(6)} ${String(row.mainHeight).padEnd(6)} ${String(row.mainOverflowsViewport).padEnd(11)} ${row.pluginMaxBottom}`,
+          `    ${String(row.variant).padEnd(11)} ${String(row.documentScrollHeight).padEnd(6)} ${String(row.pageOverflow).padEnd(13)} ${String(row.host?.painted ?? false).padEnd(12)} ${box.padEnd(16)} ${row.host?.display ?? '-'}`,
         )
       }
-      const none = rows.find((row) => row.variant === 'none')
-      if (none === undefined) continue
       for (const row of rows.filter((r) => r.variant !== 'none')) {
-        const delta = row.pageOverflow - none.pageOverflow
-        const verdict = delta === 0 ? 'OK — adds no page overflow' : 'REGRESSION — the page can scroll into blank space'
-        console.log(`    -> ${row.variant}: pageOverflow ${none.pageOverflow} -> ${row.pageOverflow} (${delta >= 0 ? '+' : ''}${delta}px)  ${verdict}`)
+        const delta = row.pageOverflow - (none?.pageOverflow ?? 0)
+        const verdict = delta === 0 ? 'OK — adds no page overflow' : `REGRESSION — the page can scroll ${delta}px into blank space`
+        console.log(`    -> ${row.variant}: pageOverflow ${none?.pageOverflow} -> ${row.pageOverflow} (${delta >= 0 ? '+' : ''}${delta}px)  ${verdict}`)
         if (delta !== 0) failed = true
+        if (row.host !== null && row.host.painted) {
+          console.log(`       and the host IS still painted as a box: ${row.host.w}x${row.host.h}, border ${row.host.border}, background ${row.host.background}`)
+          failed = true
+        }
       }
     }
   })

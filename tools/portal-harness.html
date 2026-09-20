@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>echocat-skill-panel — portal-host page-overflow harness</title>
+<style>
+/* The part of the HOST's own stylesheet these numbers depend on, copied verbatim from
+   @deepseek-ai/dsh-web-frontend/dist/assets/index-DPX2bQLO.css:
+       html,body,#root{height:100%;margin:0}
+   and from @deepseek-ai/dsh-client-ui-layout (AppFrame):
+       .frame{height:100%;display:grid;overflow:hidden}
+   A plugin's client half may append nodes to document.body — `portal()` in
+   src/client/install.js does exactly that — so the document can grow past #root, and a
+   shell that only ever sized to 100% cannot get that space back. */
+* { box-sizing: border-box }
+html, body, #root { height: 100%; margin: 0 }
+body {
+  --dsh-conversation-column-width: 1256px;
+  --dsh-chat-content-width: clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * .64), 920px);
+  --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
+  --dsw-alias-bg-base: #fff;
+  font: 13px/1.5 system-ui, sans-serif;
+  background: #fff;
+}
+.frame { height: 100%; display: grid; grid-template-columns: 264px minmax(0, 1fr); overflow: hidden }
+.sidebar { background: #f9fafb; border-right: .5px solid #0000001f; overflow: hidden }
+.center { min-width: 0; display: flex; flex-direction: column; overflow: hidden }
+.composer-card {
+  width: calc(100% - 32px); max-width: var(--dsh-composer-card-max-width);
+  margin: 0 auto 16px; border: .5px solid #0000001a; border-radius: 14px; background: #fff; height: 96px;
+}
+</style>
+<!-- The tool fills this with the stylesheet read back out of lib/client.js. -->
+<style id="plugin-css"></style>
+</head>
+<body>
+<div id="root">
+  <div class="frame">
+    <div class="sidebar">sidebar</div>
+    <div class="center"><div style="flex:1"></div><div class="composer-card"></div></div>
+  </div>
+</div>
+<script>
+/** The portal host exactly as src/client/install.js creates it. */
+function makePortalHost(innerHTML) {
+  const host = document.createElement('div')
+  host.className = 'sr-root sr-portal-host'
+  if (innerHTML !== undefined) host.innerHTML = innerHTML
+  document.body.appendChild(host)
+  return host
+}
+/** What the sheet renders while it is open: a fixed backdrop, so it adds no flow height. */
+const SHEET = '<div class="sr-backdrop"><div class="sr-sheet">' +
+  '<div class="sr-sheet-head"><div class="sr-sheet-title">install skill</div></div></div></div>'
+
+window.__probe = {
+  /** `variant`: none | host | sheet-open. Returns the numbers the tool prints. */
+  run(variant) {
+    for (const node of [...document.querySelectorAll('.sr-portal-host')]) node.remove()
+    let host = null
+    if (variant === 'host') host = makePortalHost()
+    if (variant === 'sheet-open') host = makePortalHost(SHEET)
+    const doc = document.documentElement
+    const measure = (el) => {
+      if (el === null) return null
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      return {
+        w: Math.round(r.width), h: Math.round(r.height), y: Math.round(r.top),
+        display: cs.display, height: cs.height,
+        border: cs.borderTopWidth + ' ' + cs.borderTopColor,
+        background: cs.backgroundColor,
+        painted: cs.display !== 'contents' && (r.width > 0 || r.height > 0),
+      }
+    }
+    return {
+      variant,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      documentScrollHeight: doc.scrollHeight,
+      pageOverflow: doc.scrollHeight - window.innerHeight,
+      canScrollDown: doc.scrollHeight > window.innerHeight,
+      hostIsLastBodyChild: document.body.lastElementChild === host,
+      host: measure(host),
+    }
+  },
+}
+</script>
+</body>
+</html>

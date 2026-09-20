@@ -1,6 +1,6 @@
 {
   "name": "echocat-skill-panel-3.0",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Per-turn skill audit for DeepSeek Harness, plus an in-app skill manager: a native notification and a resident panel showing which skills each turn invoked, an install sheet that adds, replaces and removes skills without leaving the app, and per-skill provenance so an installed skill can be checked for and pulled up to its author's latest revision.",
   "type": "module",
   "main": "src/index.js",
@@ -19,7 +19,10 @@
     "tools/preview.mjs",
     "tools/check-width-live.mjs",
     "tools/check-dock-height.mjs",
+    "tools/check-portal-host.mjs",
     "tools/width-harness.html",
+    "tools/dock-harness.html",
+    "tools/portal-harness.html",
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
@@ -27,7 +30,7 @@
   ],
   "scripts": {
     "build": "node tools/build-client.mjs",
-    "test": "node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/release.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs && node test/ui-polish.mjs"
+    "test": "node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/release.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs && node test/ui-polish.mjs && node tools/check-portal-assertions.mjs"
   },
   "keywords": [
     "dsh",

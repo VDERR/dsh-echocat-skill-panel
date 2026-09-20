@@ -612,6 +612,20 @@ function ruleFor(record, roots) {
     .map(([key, raw]) => `${camel(key)}:${value(key, raw)}`)
     .join(';')
   const suffix = record.weight ?? ''
+  // `rooted: false` emits the selector EXACTLY as written, for a rule that must match an
+  // element which is not a descendant of a surface. The JSDoc at the top of this file has
+  // promised this option since it was written and it was NEVER IMPLEMENTED — and design.js
+  // inherited the same gap. That is how `.sr-portal-host` became the descendant selector
+  // `.sr-root .sr-portal-host`: a rule that can never match the portal host itself (the host
+  // sits on `document.body` and IS a `.sr-root`, it is not inside one), so the host kept the
+  // `.sr-root` frame as an empty 100%-height bordered box and the document grew by a full
+  // viewport of blank, scrollable page.
+  if (record.rooted === false) {
+    if (!record.at.includes('.sr-')) {
+      throw new Error(`polish rule "${record.id}" opts out of rooting with a selector that is not the plugin's: ${record.at}`)
+    }
+    return `${record.at}${suffix}{${decls}}`
+  }
   if (record.at.includes('{all}')) return `${descendantSelector(`${record.at}${suffix}`, roots)}{${decls}}`
   if (record.at.includes('{root}')) {
     return `${roots.map((root) => root + record.at.replace('{root}', '') + suffix).join(',')}{${decls}}`

@@ -583,7 +583,27 @@ ok('a parked card is dashed, so it reads as inactive rather than deleted',
 ok('the claim field is no longer a child of the button row',
   !/\.sr-row-actions \.sr-claim/u.test(RENDERED) && /\.sr-claim-row\{[^}]*width:100%/u.test(RENDERED),
   (/\.sr-claim-row\{[^}]*\}/u.exec(RENDERED) ?? [''])[0].slice(0, 140))
-ok('the portal host adds no box of its own', /\.sr-portal-host\{[^}]*display:contents/u.test(RENDERED))
+// THE regression test for the 4.0.1 blank-page bug, and the reason the old assertion here was
+// worthless: it checked that a DECLARATION reached the sheet
+// (`/\.sr-portal-host\{[^}]*display:contents/`), and the broken selector
+// `.sr-root .sr-portal-host{…display:contents}` satisfied it perfectly. The 135-assertion suite
+// stayed green while every user who opened the install sheet once got a blank, scrollable page
+// a full viewport tall, because the rule could not match the element it was written for.
+//
+// So assert the MATCH, not the declaration: the selector has to name the host itself, and no
+// rule may try to reach it as a descendant of a surface.
+const PORTAL_HOST_MATCHES_ITSELF = /(?:^|,)\s*(?:\.sr-root\.sr-portal-host|\.sr-portal-host)\{[^}]*display:contents/mu
+ok('the portal host adds no box of its own, and the rule can match the host itself',
+  PORTAL_HOST_MATCHES_ITSELF.test(RENDERED),
+  (/[^{}]*sr-portal-host[^{}]*\{[^}]*\}/u.exec(RENDERED) ?? ['<no rule names the host>'])[0].slice(0, 220))
+ok('...and nothing tries to reach the host as a DESCENDANT of a surface',
+  !/\.sr-(?:root|strip-shell|backdrop|rail)\s+\.sr-portal-host/u.test(RENDERED),
+  'a rooted form can never match an element that lives on document.body')
+// The host must not carry the panel-frame class at all: that is what turned a missing rule into
+// a full-viewport bordered box instead of a zero-height div.
+ok('the portal host is not given the panel frame class',
+  !/PORTAL_HOST_CLASS = '[^']*sr-root/u.test(readFileSync(join(clientDir, 'install.js'), 'utf8')),
+  'sr-root on a body-level node is a blank page waiting for a rule to go missing')
 
 /* ---- the card is three rows, so the name is never truncated --------------------- */
 
