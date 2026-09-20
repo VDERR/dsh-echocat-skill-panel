@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dock seat height probe</title>
+<style>
+  /* The DSH variables the plugin actually reads (measured from the host source earlier). */
+  :root{
+    --dsh-conversation-column-width: 720px;
+    --dsh-chat-user-width: 680px;
+    --dsh-chat-content-width: var(--dsh-chat-user-width, clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * .64), 920px));
+    --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:#f4f4f5;font:13px/1.5 system-ui,sans-serif}
+
+  /* A mock of the DSH shell: a fixed-height row holding the sidebar and the centre column,
+     which stacks a scrollable conversation, the plugin's dock seat, and the composer. */
+  #shell{display:flex;height:100%;overflow:hidden}
+  #sidebar{flex:none;width:56px;display:flex;flex-direction:column;gap:8px;padding:8px;background:#ececee}
+  .glyph{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px}
+  #main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+  #scroll{flex:1;min-height:0;overflow-y:auto;padding:16px}
+  .turn{height:120px;margin-bottom:12px;background:#fff;border:1px solid #e4e4e7;border-radius:10px}
+  #dock{padding:0 16px}
+  #composer{margin:8px 16px 16px;padding:14px;background:#fff;border:1px solid #e4e4e7;border-radius:14px;max-width:var(--dsh-composer-card-max-width)}
+  #report{height:600px;background:#fff;border:1px dashed #c4c4c8;margin:16px;border-radius:10px}
+</style>
+</head>
+<body>
+<div id="shell">
+  <!-- The sidebar seat: `sidebar.panellist` is a LIST, and the plugin contributes one entry
+       to it. A list item that is taller than its siblings is a classic way for a plugin to
+       stretch the app frame, so the harness renders it. -->
+  <div id="sidebar">
+    <div class="glyph">A</div>
+    <div class="glyph">B</div>
+    <div class="glyph" id="sr-glyph">
+      <div class="sr-root" style="height:auto;min-height:0;border:0;box-shadow:none;background:none;padding:0;width:auto">
+        <span class="sr-avatar" style="width:26px;height:26px">S</span>
+      </div>
+    </div>
+    <div class="glyph">C</div>
+  </div>
+  <div id="main">
+    <div id="scroll">
+      <div class="turn"></div><div class="turn"></div><div class="turn"></div><div class="turn"></div>
+      <div class="turn"></div><div class="turn"></div><div class="turn"></div><div class="turn"></div>
+    </div>
+    <div id="dock">
+      <!-- Replaced by the real plugin markup once the stylesheet is injected. -->
+    </div>
+    <div id="composer">composer — max-width var(--dsh-composer-card-max-width)</div>
+  </div>
+</div>
+
+<!--
+  The plugin's `main` surface: the full report, mounted in the centre column and sized by the
+  app's own layout — 100% of ITS container, which is what makes it invisible to the page's
+  scroll height unless an ancestor is content-sized. Kept off-screen so it cannot affect the
+  measurement, and measured separately.
+-->
+<div id="mainwrap" style="position:fixed;left:-10000px;top:0;width:900px;height:700px">
+  <div class="sr-root">
+    <header class="sr-head"><span class="sr-title">\u6280\u80fd\u8c03\u7528\u62a5\u544a</span></header>
+    <div class="sr-body">
+      <div class="sr-hero"><div class="sr-hero-top"><div class="sr-hero-main">
+        <div class="sr-hero-meta">\u672c\u8f6e \u00b7 17:02:42</div>
+        <div class="sr-hero-line"><span class="sr-badge">cinema-dna-21x9x3</span></div>
+      </div></div></div>
+      <div class="sr-stats">
+        <div class="sr-stat"><span class="sr-stat-v">37</span><span class="sr-stat-l">\u56de\u5408</span></div>
+        <div class="sr-stat"><span class="sr-stat-v">24</span><span class="sr-stat-l">\u7528\u5230 skill</span></div>
+      </div>
+      <section class="sr-sec"><div class="sr-sec-body"><div class="sr-grid">
+        <div class="sr-skill"><div class="sr-skill-head"><span class="sr-avatar">C</span><div class="sr-skill-headtext"><span class="sr-skill-name">cinema-dna-21x9x3</span></div></div>
+          <div class="sr-skill-main"><div class="sr-blurb">\u628a\u6545\u4e8b\u8f6c\u8bd1\u6210\u7535\u5f71\u611f\u5355\u5e27\u3002</div></div>
+          <div class="sr-card-foot"><div class="sr-row-actions"><button type="button" class="sr-btn sr-btn--sm sr-btn--toggle sr-btn--on"><span class="sr-switch"><span class="sr-switch-knob"></span></span></button><button type="button" class="sr-btn sr-btn--sm sr-btn--primary">\u5f15\u7528</button></div></div>
+        </div>
+      </div></div></section>
+    </div>
+    <footer class="sr-foot">v4.0.0 \u00b7 \u4e3b\u673a\u4fa7\u5df2\u8fde\u63a5</footer>
+  </div>
+</div>
+
+<script>
+// The real plugin markup, in the shapes panel.js emits. Only the shells matter here: the
+// question is what the DOCK SEAT contributes to the page's height.
+const MARKUP_COLLAPSED = `
+  <div class="sr-strip-shell">
+    <div class="sr-strip-row">
+      <button type="button" class="sr-strip">
+        <span class="sr-strip-dot" style="background:var(--sr-accent)"></span>
+        <span class="sr-strip-label">\u6280\u80fd</span>
+        <span class="sr-strip-text">\u672c\u8f6e cinema-dna-21x9x3</span>
+        <span class="sr-strip-n">37</span>
+        <span class="sr-strip-caret">\u203a</span>
+      </button>
+      <button type="button" class="sr-btn sr-btn--icon">+</button>
+      <button type="button" class="sr-btn sr-btn--icon">\u21bb</button>
+      <div class="sr-release">
+        <button type="button" class="sr-btn sr-btn--icon">\u2193</button>
+        <button type="button" class="sr-btn sr-btn--icon">gh</button>
+      </div>
+    </div>
+    <div class="sr-rail"></div>
+  </div>`
+
+const MARKUP_OPEN = `
+  <div class="sr-strip-shell sr-strip-shell--open">
+    <div class="sr-strip-row">
+      <button type="button" class="sr-strip">
+        <span class="sr-strip-dot" style="background:var(--sr-accent)"></span>
+        <span class="sr-strip-label">\u6280\u80fd</span>
+        <span class="sr-strip-text">\u672c\u8f6e cinema-dna-21x9x3</span>
+        <span class="sr-strip-stats">
+          <span class="sr-statcard sr-statcard--inline sr-statcard--bar"><span class="sr-stat-l">\u56de\u5408</span><span class="sr-stat-v">37</span></span>
+          <span class="sr-statcard sr-statcard--inline sr-statcard--bar"><span class="sr-stat-l">\u7528\u5230 skill</span><span class="sr-stat-v">24</span></span>
+          <span class="sr-statcard sr-statcard--inline sr-statcard--bar"><span class="sr-stat-l">\u672a\u7528</span><span class="sr-stat-v">13</span></span>
+          <span class="sr-statcard sr-statcard--inline sr-statcard--bar"><span class="sr-stat-l">\u8c03\u7528\u6b21\u6570</span><span class="sr-stat-v">61</span></span>
+        </span>
+        <span class="sr-strip-n">37</span>
+        <span class="sr-strip-caret">\u2039</span>
+      </button>
+      <button type="button" class="sr-btn sr-btn--icon">+</button>
+      <div class="sr-release">
+        <button type="button" class="sr-btn sr-btn--icon">\u2193</button>
+        <button type="button" class="sr-btn sr-btn--icon">gh</button>
+      </div>
+    </div>
+    <div class="sr-strip-panel">
+      <div class="sr-root">
+        <header class="sr-head"><span class="sr-title">\u6280\u80fd\u8c03\u7528\u62a5\u544a</span></header>
+        <div class="sr-body">
+          <div class="sr-hero"><div class="sr-hero-top"><div class="sr-hero-main">
+            <div class="sr-hero-meta">\u672c\u8f6e \u00b7 17:02:42</div>
+            <div class="sr-hero-line"><span class="sr-badge">cinema-dna-21x9x3</span></div>
+          </div></div></div>
+          <div class="sr-stats">
+            <div class="sr-stat"><span class="sr-stat-v">37</span><span class="sr-stat-l">\u56de\u5408</span></div>
+            <div class="sr-stat"><span class="sr-stat-v">24</span><span class="sr-stat-l">\u7528\u5230 skill</span></div>
+          </div>
+          <section class="sr-sec"><div class="sr-sec-body">
+            <div class="sr-grid">
+              <div class="sr-skill"><div class="sr-skill-head"><span class="sr-avatar">C</span><div class="sr-skill-headtext"><span class="sr-skill-name">cinema-dna-21x9x3</span></div></div>
+                <div class="sr-skill-main"><div class="sr-blurb">\u628a\u6545\u4e8b\u8f6c\u8bd1\u6210\u7535\u5f71\u611f\u5355\u5e27\u3002</div></div>
+                <div class="sr-card-foot"><div class="sr-row-actions"><button type="button" class="sr-btn sr-btn--sm sr-btn--toggle sr-btn--on"><span class="sr-switch"><span class="sr-switch-knob"></span></span></button><button type="button" class="sr-btn sr-btn--sm sr-btn--primary">\u5f15\u7528</button></div></div>
+              </div>
+              <div class="sr-skill"><div class="sr-skill-head"><span class="sr-avatar">H</span><div class="sr-skill-headtext"><span class="sr-skill-name">h3-prompt-writing</span></div></div>
+                <div class="sr-skill-main"><div class="sr-blurb">Write MiniMax H3 video prompts.</div></div>
+                <div class="sr-card-foot"><div class="sr-row-actions"><button type="button" class="sr-btn sr-btn--sm sr-btn--toggle sr-btn--on"><span class="sr-switch"><span class="sr-switch-knob"></span></span></button><button type="button" class="sr-btn sr-btn--sm sr-btn--primary">\u5f15\u7528</button></div></div>
+              </div>
+            </div>
+          </div></section>
+        </div>
+      </div>
+    </div>
+    <div class="sr-rail"></div>
+  </div>`
+
+window.__probe = {
+  /** Inject the plugin's real stylesheet, then mount one of the two dock shapes. */
+  async run(variant) {
+    if (!document.getElementById('sr-css')) {
+      // XHR, not fetch: this page is opened over `file://`, where `fetch` refuses a sibling
+      // request outright while XHR with `--allow-file-access-from-files` succeeds.
+      const css = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('GET', 'plugin.css', true)
+        xhr.onload = () => (xhr.status === 0 || xhr.status === 200 ? resolve(xhr.responseText) : reject(new Error('css status ' + xhr.status)))
+        xhr.onerror = () => reject(new Error('could not read plugin.css'))
+        xhr.send()
+      })
+      const tag = document.createElement('style')
+      tag.id = 'sr-css'
+      tag.textContent = css
+      document.head.appendChild(tag)
+    }
+    const dock = document.getElementById('dock')
+    dock.innerHTML = variant === 'open' ? MARKUP_OPEN : variant === 'collapsed' ? MARKUP_COLLAPSED : ''
+    // Force layout, then measure.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    const shell = document.getElementById('shell')
+    const scroller = document.getElementById('scroll')
+    const dockBox = dock.getBoundingClientRect()
+    const shellBox = shell.getBoundingClientRect()
+    // The `main` panel: does a 100%-height flex column inside a sized ancestor reach past
+    // the viewport? If it does, the page gains scrollable blank space, which is the report.
+    const main = document.querySelector('#mainwrap .sr-root')
+    const mainBox = main === null ? null : main.getBoundingClientRect()
+    return {
+      variant,
+      documentScrollHeight: document.documentElement.scrollHeight,
+      documentClientHeight: document.documentElement.clientHeight,
+      // The number that matters: is there anywhere to scroll the PAGE to?
+      pageOverflow: Math.max(0, document.documentElement.scrollHeight - document.documentElement.clientHeight),
+      bodyOverflow: Math.max(0, document.body.scrollHeight - document.body.clientHeight),
+      shellHeight: Math.round(shellBox.height),
+      shellBottom: Math.round(shellBox.bottom),
+      dockHeight: Math.round(dockBox.height),
+      dockBottom: Math.round(dockBox.bottom),
+      dockOverflowsShell: Math.round(dockBox.bottom - shellBox.bottom),
+      scrollerScrollHeight: scroller.scrollHeight,
+      scrollerClientHeight: scroller.clientHeight,
+      scrollerOverflow: scroller.scrollHeight - scroller.clientHeight,
+      stripShellHeight: Math.round((document.querySelector('.sr-strip-shell')?.getBoundingClientRect().height) ?? 0),
+      mainHeight: mainBox === null ? null : Math.round(mainBox.height),
+      mainOverflowsViewport: mainBox === null ? null : Math.round(mainBox.bottom - window.innerHeight),
+      // The plugin's own contribution to the page's scrollable height, measured directly:
+      // every element the plugin owns, and how far past the viewport it reaches.
+      pluginMaxBottom: (() => {
+        let worst = 0
+        for (const node of document.querySelectorAll('[class^="sr-"],[class*=" sr-"]')) {
+          worst = Math.max(worst, Math.round(node.getBoundingClientRect().bottom))
+        }
+        return worst
+      })(),
+    }
+  },
+}
+</script>
+</body>
+</html>
