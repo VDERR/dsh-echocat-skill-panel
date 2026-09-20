@@ -19,8 +19,14 @@ const PLUGIN_ID = 'echocat-skill-panel-3.0'
 /** `data-plugin-css` value — the selector that makes re-injection idempotent. */
 const TAG_ID = 'echocat-skill-panel-3.0/panel.css'
 
-/** Mirrors package.json; the bundle test asserts the two agree. */
-const VERSION = '4.0.0'
+/**
+ * Mirrors `package.json`, and `test/release.mjs` asserts all three copies agree.
+ *
+ * The browser half cannot import `src/version.js`: it ships as its own bundle with its own
+ * module table, resolved against the host's frozen platform table. So this copy is a
+ * necessity — and therefore the one that silently goes stale. Bump it with the others.
+ */
+const VERSION = '4.0.1'
 
 /**
  * Every element that can be the ROOT of one of this plugin's surfaces: the centre

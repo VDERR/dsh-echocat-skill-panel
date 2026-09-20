@@ -52,6 +52,22 @@ console.log('\n[1] one version string is written once')
   ok('index.js no longer hardcodes a version literal', !/export const VERSION = '\d/u.test(index))
   ok('index.js re-exports the shared one', index.includes("from './version.js'"))
   ok('the release module uses the shared one', readFileSync(join(pkgRoot, 'src', 'release.js'), 'utf8').includes("from './version.js'"))
+
+  // The browser half CANNOT import src/version.js — it ships as its own bundle, resolved
+  // against the host's frozen platform table — so it carries a THIRD copy, and that copy is
+  // the one nobody looks at. It had already gone stale once before this assertion existed,
+  // which is precisely the drift `src/version.js` warns about. Three copies, three assertions.
+  const theme = readFileSync(join(pkgRoot, 'src', 'client', 'theme.js'), 'utf8')
+  const clientVersion = /const VERSION = '([^']+)'/u.exec(theme)?.[1]
+  ok('the browser bundle carries a version at all', typeof clientVersion === 'string', String(clientVersion))
+  ok('...and it equals package.json', clientVersion === pkg.version, `theme.js ${clientVersion} vs package.json ${pkg.version}`)
+
+  // The user-facing documents state the version too; a release that forgets them advertises
+  // the previous number on the repo page and in the install manual.
+  const readme = readFileSync(join(pkgRoot, 'README.md'), 'utf8')
+  ok('the README headline matches', readme.includes(`**v${pkg.version}**`), (/\*\*v[\d.]+\*\*/u.exec(readme) ?? ['(none)'])[0])
+  const manual = readFileSync(join(pkgRoot, '安装说明.md'), 'utf8')
+  ok('the install manual matches', manual.includes(`\`${pkg.version}\``), (/- 包名：[^\n]*/u.exec(manual) ?? ['(none)'])[0].slice(0, 90))
 }
 
 console.log('\n[2] compareVersions orders versions the way semver does')
@@ -209,9 +225,13 @@ console.log('\n[10] the timeout is bounded, so a dead network cannot hang the bu
 
 console.log('\n[11] the state payload can describe the plugin before any check')
 {
-  const checker = createReleaseChecker({ version: '4.0.0', fetchImpl: stubFetch({}) })
+  // Version-agnostic on purpose: this assertion is about the checker DEFAULTING to the
+  // shipped version, not about which version that is. Hardcoding it here meant every release
+  // broke this test, which trains people to edit the test instead of reading it.
+  const checker = createReleaseChecker({ fetchImpl: stubFetch({}) })
   const base = checker.base
-  ok('the current version is always known', base.current === VERSION)
+  ok('the current version is always known', base.current === VERSION, `${base.current} vs ${VERSION}`)
+  ok('...and it defaults to the SHIPPED version, not a caller-supplied one', base.current === VERSION)
   ok('...and the repo and release URLs are constants', base.repo === REPO_URL && base.releases === RELEASES_URL)
   ok('a fresh checker has no cached answer', checker.peek() === null)
 }
