@@ -460,6 +460,17 @@ console.log('\n[9b] the composer strip: persistent counters, an install count, a
     JSON.stringify(byId('r-strip-flank-text')?.props))
   ok('...and the counters stay at their natural width, so the flanks keep their share',
     String(byId('r-strip-flank-stats')?.props?.flex) === 'none')
+  // EQUAL WIDTHS ARE NOT THE SAME AS CENTRED CONTENTS, and conflating the two shipped a strip whose
+  // summary text read as a centred heading. The flanks are equal so the MARK is centred; their
+  // contents stay where a reader expects, against their own outer edges. Asserting only the width
+  // would let the alignment regress again, so both are asserted.
+  ok('the left flank keeps its contents at the left edge',
+    String(flankLeft?.props?.justifyContent) === 'flex-start', String(flankLeft?.props?.justifyContent))
+  ok('...and the right flank at the right edge',
+    String(flankRight?.props?.justifyContent) === 'flex-end', String(flankRight?.props?.justifyContent))
+  ok('...and the summary is explicitly left-aligned, not centred',
+    String(byId('r-strip-flank-text')?.props?.textAlign) === 'left',
+    String(byId('r-strip-flank-text')?.props?.textAlign))
   const dark = design.designDarkCSS(ROOTS)
   ok('the dark sheet swaps the mark', dark.includes('.sr-logo--light{display:none}') && dark.includes('.sr-logo--dark{display:block}'))
   ok('...for the OS preference AND an explicit in-app theme',
