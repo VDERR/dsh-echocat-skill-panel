@@ -1,4 +1,4 @@
-// echocat-skill-panel-3.0 — per-turn skill-usage audit (host half).
+// echocat-skill-panel — per-turn skill-usage audit (host half).
 //
 // Answers one question for every finished user turn, whether or not the model
 // remembers to mention it: WHICH skills this turn invoked — loaded by the model
@@ -59,7 +59,7 @@
 //   * The state payload gained `capability` (write target, writability, install
 //     modes, size caps) and `installHistory`, so the panel can offer only the
 //     actions that can actually succeed and can explain the ones that cannot.
-//   * Package renamed to the all-lowercase `echocat-skill-panel-3.0`: npm-style
+//   * Package renamed to the all-lowercase `echocat-skill-panel`: npm-style
 //     names are lowercase, and the name is simultaneously the Loader entry name,
 //     the vendor directory name and the client bundle id.
 //
@@ -93,7 +93,7 @@ import { createInstaller, resolveSkillsRoot, toInstallError } from './install.js
 import { createReleaseChecker, RELEASES_URL, REPO_URL } from './release.js'
 import { VERSION as pluginVersion } from './version.js'
 
-export const name = 'echocat-skill-panel-3.0'
+export const name = 'echocat-skill-panel'
 
 /** Reported to the browser half so the panel can show what it is talking to. */
 export const VERSION = pluginVersion
@@ -773,7 +773,7 @@ function mount(ctx, config) {
         stopEvents()
         tracker.clear()
       }
-    }, 'echocat-skill-panel-3.0: turn skill audit')
+    }, 'echocat-skill-panel: turn skill audit')
   })
 
   // The browser panel is a pure renderer: it cannot derive skill usage itself,
@@ -796,7 +796,7 @@ function mount(ctx, config) {
       return () => {
         skillsService = undefined
       }
-    }, 'echocat-skill-panel-3.0: skills handle')
+    }, 'echocat-skill-panel: skills handle')
   })
 
   /** Agents service: only used to obtain the scope that owns local skill discovery. */
@@ -807,7 +807,7 @@ function mount(ctx, config) {
       return () => {
         agentsService = undefined
       }
-    }, 'echocat-skill-panel-3.0: agents handle')
+    }, 'echocat-skill-panel: agents handle')
   })
 
   /** Model handles for on-demand translation of skills that ship no Chinese text. */
@@ -818,7 +818,7 @@ function mount(ctx, config) {
       return () => {
         llmService = undefined
       }
-    }, 'echocat-skill-panel-3.0: llm handle')
+    }, 'echocat-skill-panel: llm handle')
   })
   let defaultModel
   ctx.inject(['agentDefaultModel'], (modelCtx) => {
@@ -827,7 +827,7 @@ function mount(ctx, config) {
       return () => {
         defaultModel = undefined
       }
-    }, 'echocat-skill-panel-3.0: default model handle')
+    }, 'echocat-skill-panel: default model handle')
   })
 
   /**
@@ -1051,7 +1051,7 @@ function mount(ctx, config) {
             }
           }
         }
-      }, 'echocat-skill-panel-3.0: panel feed')
+      }, 'echocat-skill-panel: panel feed')
     })
   } else {
     ctx.logger?.info?.('skill-report: panel feed disabled by config')

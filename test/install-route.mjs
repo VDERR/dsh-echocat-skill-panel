@@ -286,6 +286,50 @@ const afterRefusal = readdirSync(join(ren.sandbox, 'skills', 'ren-demo')).sort()
 ok('...and left no temporary file behind', afterRefusal === '.echocat.json,SKILL.md,meta.yaml', afterRefusal)
 ok('...and no half-written record', !readdirSync(join(ren.sandbox, 'skills', 'ren-demo')).some((f) => f.includes('tmp-')), afterRefusal)
 
+/* ----------------------------------------------------------- [7d] colour -- */
+
+console.log('\n[7d] a skill can be marked with a colour, and the feed reports it')
+// This action shipped for two releases WITHOUT a route test, and the user found it broken in the app by
+// pressing a swatch and seeing nothing happen. The cause turned out to be that the host half is
+// snapshotted at boot while the client half is re-fetched per page load — a client-only reload leaves a
+// client posting an action the running host has never heard of. A test cannot prevent that specific
+// mismatch, but it pins the ROUND TRIP, which is what "the colour tag does not work" reduces to: the
+// write has to land in the record AND come back on the feed the card renders from.
+const colorWrite = await jsonPost(renRoute, { action: 'color', name: 'ren-demo', color: 'teal' })
+const colorBody = await colorWrite.json()
+ok('the colour action answers 200', colorWrite.status === 200, `${colorWrite.status} ${JSON.stringify(colorBody.error ?? {})}`)
+ok('it reports ok', colorBody.ok === true, JSON.stringify(colorBody.error ?? {}))
+ok('it echoes the colour', colorBody.skill?.color === 'teal', JSON.stringify(colorBody.skill))
+const skillRecord = readFileSync(join(ren.sandbox, 'skills', 'ren-demo', '.echocat.json'), 'utf8')
+ok('the colour goes into the plugin\'s own record, not the author\'s meta.yaml',
+  JSON.parse(skillRecord).color === 'teal' && !readMeta().includes('color'), skillRecord.slice(0, 160))
+
+// The round trip the panel depends on: the colour must come back on the state feed, or the card renders
+// unmarked and the user concludes that clicking does nothing even though the write succeeded.
+const afterColor = await (await renFeed.fetch(new Request('http://dsh.internal/api/skill-report/state'))).json()
+const coloredEntry = (afterColor.skills ?? []).find((skill) => skill.name === 'ren-demo')
+ok('the state feed carries the colour back — the round trip the card renders from',
+  coloredEntry?.provenance?.color === 'teal', JSON.stringify(coloredEntry?.provenance))
+
+// Clearing is a real operation rather than a missing value: the reset swatch writes an empty colour.
+const clearedMark = await jsonPost(renRoute, { action: 'color', name: 'ren-demo', color: '' })
+const clearedMarkBody = await clearedMark.json()
+ok('an empty colour clears the marking',
+  clearedMarkBody.ok === true && clearedMarkBody.skill?.color === '',
+  JSON.stringify(clearedMarkBody.error ?? clearedMarkBody.skill))
+const afterClearingMark = await (await renFeed.fetch(new Request('http://dsh.internal/api/skill-report/state'))).json()
+const unmarkedEntry = (afterClearingMark.skills ?? []).find((skill) => skill.name === 'ren-demo')
+ok('...and the feed drops it again', (unmarkedEntry?.provenance?.color ?? '') === '', JSON.stringify(unmarkedEntry?.provenance))
+
+// An unknown key must be refused rather than written, or a typo would persist on disk forever.
+const badColor = await jsonPost(renRoute, { action: 'color', name: 'ren-demo', color: 'chartreuse' })
+const badColorBody = await badColor.json()
+ok('an unknown colour key answers 400', badColor.status === 400, `${badColor.status} ${JSON.stringify(badColorBody.error)}`)
+ok('...with BAD_REQUEST', badColorBody.error?.code === 'BAD_REQUEST', JSON.stringify(badColorBody.error))
+ok('...and nothing was written', !readFileSync(join(ren.sandbox, 'skills', 'ren-demo', '.echocat.json'), 'utf8').includes('chartreuse'))
+const unknownColorTarget = await jsonPost(renRoute, { action: 'color', name: 'no-such-skill', color: 'teal' })
+ok('colouring an unknown slug answers 404', unknownColorTarget.status === 404, String(unknownColorTarget.status))
+
 const cleared = await jsonPost(renRoute, { action: 'rename', name: 'ren-demo', displayNameZh: '' })
 const clearedBody = await cleared.json()
 ok('clearing answers 200', cleared.status === 200, String(cleared.status))

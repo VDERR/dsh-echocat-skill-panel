@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Install (or roll back) echocat-skill-panel-3.0 in the live DSH Desktop Beta profile.
+  Install (or roll back) echocat-skill-panel in the live DSH Desktop Beta profile.
 
 .DESCRIPTION
   Upgrading this plugin means changing its *name* as well as its contents, because
@@ -9,7 +9,7 @@
   does four things atomically:
 
     1. backs up the profile manifest before it touches anything,
-    2. mirrors the plugin into <profile>\vendor\echocat-skill-panel-3.0,
+    2. mirrors the plugin into <profile>\vendor\echocat-skill-panel,
     3. removes the previous name everywhere it appears (an entry in
        `dsh.profile.bundles` whose directory no longer exists aborts profile
        assembly — the app will not start),
@@ -38,7 +38,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$NewName = 'echocat-skill-panel-3.0'
+$NewName = 'echocat-skill-panel'
 $VendorDir = Join-Path $ProfileDir "vendor\$NewName"
 $Junction = Join-Path $ProfileDir "node_modules\$NewName"
 $BackupRoot = Join-Path $ProfileDir '.echocat-backups'

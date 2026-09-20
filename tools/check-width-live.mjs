@@ -76,7 +76,7 @@ function buildPage() {
   const harness = readFileSync(join(here, 'width-harness.html'), 'utf8')
   // Inject the real stylesheet at the end of <head>, i.e. after the host stub, which is
   // also where theme.js injects it in the real app.
-  const style = `<style data-plugin-css="echocat-skill-panel-3.0/panel.css">\n${theme.CSS}\n</style>`
+  const style = `<style data-plugin-css="echocat-skill-panel/panel.css">\n${theme.CSS}\n</style>`
   const measureScript = `<script>
     window.addEventListener('load', () => {
       try {

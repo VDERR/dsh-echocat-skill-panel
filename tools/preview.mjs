@@ -163,7 +163,7 @@ function serialize(node) {
 
 /* ------------------------------------------------------------------- the fixture -- */
 
-const REPO = 'https://github.com/VDERR/echocat-skill-panel-3.0.git'
+const REPO = 'https://github.com/VDERR/echocat-skill-panel.git'
 
 /** A catalogue with every card state the design has to survive. */
 const SKILLS = [
@@ -191,7 +191,7 @@ const CALLS = [
 ]
 
 const SNAPSHOT = {
-  plugin: 'echocat-skill-panel-3.0',
+  plugin: 'echocat-skill-panel',
   version: '4.0.0',
   generatedAt: Date.now(),
   pending: [],
@@ -220,9 +220,9 @@ const SNAPSHOT = {
   // The plugin's own release state, as the host serves it on the polled payload.
   release: {
     current: '4.0.0',
-    name: 'echocat-skill-panel-3.0',
-    repo: 'https://github.com/VDERR/echocat-skill-panel-3.0',
-    releases: 'https://github.com/VDERR/echocat-skill-panel-3.0/releases',
+    name: 'echocat-skill-panel',
+    repo: 'https://github.com/VDERR/echocat-skill-panel',
+    releases: 'https://github.com/VDERR/echocat-skill-panel/releases',
     checkable: true,
     // A page-load state: nothing checked yet, which is what most users see first.
     cached: null,
@@ -361,7 +361,7 @@ function buildPage(state, exports) {
     '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">',
     '<title>echocat-skill-panel preview</title>',
     `<style>${HOST_TOKENS}</style>`,
-    '<style data-plugin-css="echocat-skill-panel-3.0/panel.css">',
+    '<style data-plugin-css="echocat-skill-panel/panel.css">',
     exports.__theme.CSS,
     '</style>',
     '</head><body>',
@@ -390,7 +390,7 @@ globalThis.localStorage = {
 }
 // Every collapsible section open, so the screenshot shows the whole design rather than
 // one collapsed row.
-storeBackup.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true, perSkill: true, recent: true }))
+storeBackup.set('echocat-skill-panel/sections', JSON.stringify({ skills: true, perSkill: true, recent: true }))
 globalThis.document = {
   addEventListener: () => {},
   removeEventListener: () => {},

@@ -47,15 +47,15 @@ function css() {
 /** Mirrors tools/preview.mjs fixtures, with one skill marked so the colour path is visible. */
 const SKILLS = [
   { initial: 'C', zh: '电影9格故事版', name: 'cinema-dna-21x9x3', tag: '影视', used: 19, color: 'indigo',
-    blurb: '把故事转译成电影感 21:9 单帧、三联镜头或九镜故事板，锁住人物与风格一致性。', src: 'VDERR/echocat-skill-panel-3.0' },
+    blurb: '把故事转译成电影感 21:9 单帧、三联镜头或九镜故事板，锁住人物与风格一致性。', src: 'VDERR/echocat-skill-panel' },
   { initial: 'H', zh: '', name: 'h3-prompt-writing', tag: '提示词', used: 14, color: '',
-    blurb: '为 T2VA、I2VA、FL2VA、L2VA 与 Ref2VA 写 MiniMax H3 视频提示词。', src: 'VDERR/echocat-skill-panel-3.0' },
+    blurb: '为 T2VA、I2VA、FL2VA、L2VA 与 Ref2VA 写 MiniMax H3 视频提示词。', src: 'VDERR/echocat-skill-panel' },
   { initial: 'G', zh: '图像生成', name: 'gpt-image', tag: '图像', used: 14, color: 'teal',
-    blurb: '用 GPT Image 2 生成或编辑图片，支持海报、排版、中文文字与 UI 稿。', src: 'VDERR/echocat-skill-panel-3.0' },
+    blurb: '用 GPT Image 2 生成或编辑图片，支持海报、排版、中文文字与 UI 稿。', src: 'VDERR/echocat-skill-panel' },
   { initial: 'M', zh: '音乐视频字幕', name: 'music-video-subtitle-generator', tag: '音乐', used: 9, color: '',
-    blurb: '按节拍与唱词切分长片，设计随拍律动的空间排版。', src: 'VDERR/echocat-skill-panel-3.0' },
+    blurb: '按节拍与唱词切分长片，设计随拍律动的空间排版。', src: 'VDERR/echocat-skill-panel' },
   { initial: 'P', zh: '', name: 'paper-collage-explainer-generator', tag: '教育', used: 5, color: 'amber',
-    blurb: 'tactile paper-collage language for narration and knowledge points.', src: 'VDERR/echocat-skill-panel-3.0' },
+    blurb: 'tactile paper-collage language for narration and knowledge points.', src: 'VDERR/echocat-skill-panel' },
 ]
 
 const card = (s) => `

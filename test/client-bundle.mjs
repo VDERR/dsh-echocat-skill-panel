@@ -25,7 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = join(here, '..')
 const APP = process.env.DSH_APP_ROOT ?? 'C:\\Users\\Administrator\\AppData\\Local\\Programs\\DSH Desktop Beta\\resources\\app'
 
-const PKG = 'echocat-skill-panel-3.0'
+const PKG = 'echocat-skill-panel'
 
 let pass = 0
 let fail = 0
@@ -394,9 +394,9 @@ globalThis.fetch = async (url, init) => {
     calls.push({ target, body: init?.body, headers: init?.headers })
     return json({
       current: '4.0.0',
-      name: 'echocat-skill-panel-3.0',
-      repo: 'https://github.com/VDERR/echocat-skill-panel-3.0',
-      releases: 'https://github.com/VDERR/echocat-skill-panel-3.0/releases',
+      name: 'echocat-skill-panel',
+      repo: 'https://github.com/VDERR/echocat-skill-panel',
+      releases: 'https://github.com/VDERR/echocat-skill-panel/releases',
       checkable: true,
       checked: true,
       latest: '4.0.0',
@@ -651,16 +651,16 @@ console.log('\n[9] installed skills and one-click reference')
 
 console.log('\n[10] package identity')
 {
-  ok('the loader id is echocat-skill-panel-3.0', captured.id === PKG)
+  ok('the loader id is echocat-skill-panel', captured.id === PKG)
   ok('no 2.0 package name survives in the bundle', !source.includes('EchoCat-skill-Panel-2.0'))
-  ok('the CSS tag carries the 3.0 plugin id literally', source.includes("tag.dataset.plugin = 'echocat-skill-panel-3.0'"))
+  ok('the CSS tag carries the 3.0 plugin id literally', source.includes("tag.dataset.plugin = 'echocat-skill-panel'"))
   ok('the CSS dedupe selector is keyed on TAG_ID', source.includes('style[data-plugin-css="${TAG_ID}"]'))
   ok('theme.PLUGIN_ID is the package name', exports.__theme.PLUGIN_ID === PKG, String(exports.__theme.PLUGIN_ID))
   ok('theme.TAG_ID is the package id plus /panel.css', exports.__theme.TAG_ID === `${PKG}/panel.css`, String(exports.__theme.TAG_ID))
   ok('the injected stylesheet is non-trivial', exports.__theme.CSS.length > 8000, String(exports.__theme.CSS.length))
-  ok('the section key is namespaced to 3.0', source.includes('echocat-skill-panel-3.0/sections'))
-  ok('the prefs key is namespaced to 3.0', source.includes('echocat-skill-panel-3.0/prefs'))
-  ok('the console prefix uses the new id', source.includes('[echocat-skill-panel-3.0]'))
+  ok('the section key is namespaced to 3.0', source.includes('echocat-skill-panel/sections'))
+  ok('the prefs key is namespaced to 3.0', source.includes('echocat-skill-panel/prefs'))
+  ok('the console prefix uses the new id', source.includes('[echocat-skill-panel]'))
   ok('the panel version matches package.json', exports.__ui.VERSION === manifest.version, `${exports.__ui.VERSION} vs ${manifest.version}`)
   ok('the write endpoint is under the authenticated /api prefix', exports.__api.SKILLS_PATH === '/api/skill-report/skills', exports.__api.SKILLS_PATH)
   ok('the read endpoint was not renamed', exports.__source.DEFAULT_PATH === '/api/skill-report/state', exports.__source.DEFAULT_PATH)
@@ -1577,24 +1577,24 @@ await (async () => {
         setItem: (k, v) => store.set(k, v),
       }
       try {
-        store.set('echocat-skill-panel-3.0/scroll', JSON.stringify({ 'itest-surface': 77 }))
+        store.set('echocat-skill-panel/scroll', JSON.stringify({ 'itest-surface': 77 }))
         await withMount(exports.__ui.SkillReportPanel, { snapshot: { ...HOST_SNAPSHOT, capability: CAP_FULL }, onRefresh: () => {}, scrollKey: 'itest-surface' }, async (view) => {
-          ok('[22] the surface asks the store for its remembered offset', reads.includes('echocat-skill-panel-3.0/scroll'), JSON.stringify(reads))
+          ok('[22] the surface asks the store for its remembered offset', reads.includes('echocat-skill-panel/scroll'), JSON.stringify(reads))
           const root = view.findAll((n) => String(n.props?.className ?? '').includes('sr-root'))[0]
           ok('[22] the scrolling element is wired to the handler', typeof root?.props?.onScroll === 'function')
           root.props.onScroll({ currentTarget: { scrollTop: 240, clientHeight: 400, scrollHeight: 3000 } })
-          const saved = JSON.parse(store.get('echocat-skill-panel-3.0/scroll') ?? '{}')
+          const saved = JSON.parse(store.get('echocat-skill-panel/scroll') ?? '{}')
           ok('[22] scrolling is remembered', saved['itest-surface'] === 240, JSON.stringify(saved))
           // A second event must not disturb anything else in the same record.
           root.props.onScroll({ currentTarget: { scrollTop: 260, clientHeight: 400, scrollHeight: 3000 } })
-          ok('[22] the newest offset wins', JSON.parse(store.get('echocat-skill-panel-3.0/scroll'))['itest-surface'] === 260, store.get('echocat-skill-panel-3.0/scroll'))
+          ok('[22] the newest offset wins', JSON.parse(store.get('echocat-skill-panel/scroll'))['itest-surface'] === 260, store.get('echocat-skill-panel/scroll'))
         })
         // The strip's transient panel opts out entirely.
-        const before = store.get('echocat-skill-panel-3.0/scroll')
+        const before = store.get('echocat-skill-panel/scroll')
         await withMount(exports.__ui.SkillReportPanel, { snapshot: { ...HOST_SNAPSHOT, capability: CAP_FULL }, onRefresh: () => {}, scrollKey: null }, async (view) => {
           const root = view.findAll((n) => String(n.props?.className ?? '').includes('sr-root'))[0]
           root.props.onScroll({ currentTarget: { scrollTop: 999, clientHeight: 400, scrollHeight: 3000 } })
-          ok('[22] a surface that opts out writes nothing', store.get('echocat-skill-panel-3.0/scroll') === before, String(store.get('echocat-skill-panel-3.0/scroll')))
+          ok('[22] a surface that opts out writes nothing', store.get('echocat-skill-panel/scroll') === before, String(store.get('echocat-skill-panel/scroll')))
         })
       } finally {
         if (realDocument === undefined) delete globalThis.document
@@ -1628,7 +1628,7 @@ await (async () => {
         setItem: (key, value) => store.set(key, value),
       }
       try {
-        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        store.set('echocat-skill-panel/sections', JSON.stringify({ skills: true }))
         await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {} }, async (view) => {
           const text = view.text()
           ok('[23] a skill with a Chinese name is titled by it', text.includes(ZH), text.slice(0, 200))
@@ -1719,7 +1719,7 @@ await (async () => {
         setItem: (key, value) => store.set(key, value),
       }
       try {
-        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        store.set('echocat-skill-panel/sections', JSON.stringify({ skills: true }))
         await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {} }, async (view) => {
           const text = view.text()
           // The label is the SHORT form: a card is ~200px and a clone URL is 60 chars.
@@ -1847,7 +1847,7 @@ await (async () => {
         setItem: (key, value) => store.set(key, value),
       }
       try {
-        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        store.set('echocat-skill-panel/sections', JSON.stringify({ skills: true }))
         await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
           const rendered = view.text()
           ok('[26] the catalogue is split into two groups', rendered.includes('\u5df2\u542f\u7528') && rendered.includes('\u5df2\u505c\u7528'), rendered.slice(0, 300))
@@ -1996,7 +1996,7 @@ await (async () => {
 
         // The report drops the cards when it is rendered inside the strip, so the same
         // four numbers are never on screen twice; the check-updates control lives there.
-        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        store.set('echocat-skill-panel/sections', JSON.stringify({ skills: true }))
         await withMount(exports.__ui.SkillReportPanel, { snapshot: stats, onRefresh: () => {}, onUse: () => {}, onInstall: () => {}, compact: true, now: Date.now() }, async (view) => {
           ok('[27] the compact report does not repeat them as cards',
             view.findAll((n) => String(n.props?.className ?? '') === 'sr-stats').length === 0)
@@ -2021,9 +2021,9 @@ await (async () => {
     {
       const RELEASE = {
         current: '4.0.0',
-        name: 'echocat-skill-panel-3.0',
-        repo: 'https://github.com/VDERR/echocat-skill-panel-3.0',
-        releases: 'https://github.com/VDERR/echocat-skill-panel-3.0/releases',
+        name: 'echocat-skill-panel',
+        repo: 'https://github.com/VDERR/echocat-skill-panel',
+        releases: 'https://github.com/VDERR/echocat-skill-panel/releases',
         checkable: true,
       }
       const snapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: HOST_SKILLS, disabledSkills: [], release: RELEASE }
@@ -2039,7 +2039,7 @@ await (async () => {
       // the `window` the bundle actually sees.
       openedExternal.length = 0
       try {
-        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        store.set('echocat-skill-panel/sections', JSON.stringify({ skills: true }))
         exports.__source.clearRelease()
         await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
           const checkBtn = view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u68c0\u67e5\u63d2\u4ef6\u66f4\u65b0')

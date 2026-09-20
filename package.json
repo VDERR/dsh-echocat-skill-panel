@@ -1,5 +1,5 @@
 {
-  "name": "echocat-skill-panel-3.0",
+  "name": "echocat-skill-panel",
   "version": "4.0.2",
   "description": "Per-turn skill audit for DeepSeek Harness, plus an in-app skill manager: a native notification and a resident panel showing which skills each turn invoked, an install sheet that adds, replaces and removes skills without leaving the app, and per-skill provenance so an installed skill can be checked for and pulled up to its author's latest revision.",
   "type": "module",
@@ -47,11 +47,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/VDERR/echocat-skill-panel-3.0.git"
+    "url": "git+https://github.com/VDERR/echocat-skill-panel.git"
   },
-  "homepage": "https://github.com/VDERR/echocat-skill-panel-3.0",
+  "homepage": "https://github.com/VDERR/echocat-skill-panel",
   "bugs": {
-    "url": "https://github.com/VDERR/echocat-skill-panel-3.0/issues"
+    "url": "https://github.com/VDERR/echocat-skill-panel/issues"
   },
   "engines": {
     "node": ">=20"

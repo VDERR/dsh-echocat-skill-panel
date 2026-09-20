@@ -22,9 +22,9 @@ import { VERSION } from './version.js'
 export const NPM_LATEST_URL = (name) => `https://registry.npmjs.org/${name}/latest`
 
 /** The repository this plugin is published from, and its human-facing release page. */
-export const REPO_URL = 'https://github.com/VDERR/echocat-skill-panel-3.0'
+export const REPO_URL = 'https://github.com/VDERR/echocat-skill-panel'
 export const RELEASES_URL = `${REPO_URL}/releases`
-export const GITHUB_LATEST_URL = 'https://api.github.com/repos/VDERR/echocat-skill-panel-3.0/releases/latest'
+export const GITHUB_LATEST_URL = 'https://api.github.com/repos/VDERR/echocat-skill-panel/releases/latest'
 
 /** How long an answer is reused before another click is allowed to ask again. */
 const CACHE_MS = 10 * 60 * 1000
@@ -85,7 +85,7 @@ async function getJson(fetchImpl, url, headers = {}) {
     // would keep a socket open for a user who already closed it.
     const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined
     response = await fetchImpl(url, {
-      headers: { accept: 'application/json', 'user-agent': `echocat-skill-panel-3.0/${VERSION}`, ...headers },
+      headers: { accept: 'application/json', 'user-agent': `echocat-skill-panel/${VERSION}`, ...headers },
       signal,
       redirect: 'follow',
     })
@@ -120,7 +120,7 @@ export function createReleaseChecker({ version = VERSION, fetchImpl, allowNetwor
   const base = {
     /** What this plugin IS, whether or not anything has been checked. */
     current: version,
-    name: 'echocat-skill-panel-3.0',
+    name: 'echocat-skill-panel',
     repo: REPO_URL,
     releases: RELEASES_URL,
     checkable: allowNetwork === true && typeof fetchImpl === 'function',

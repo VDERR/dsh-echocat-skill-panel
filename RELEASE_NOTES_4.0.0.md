@@ -1,6 +1,6 @@
-# echocat-skill-panel-3.0 4.0.0
+# echocat-skill-panel 4.0.0
 
-包名仍然是 `echocat-skill-panel-3.0`（4.0 刻意没有改名：包名 / 目录名 / bundle id / Loader entry 名必须完全一致，改名会让已安装的用户升不上来）。
+包名仍然是 `echocat-skill-panel`（4.0 刻意没有改名：包名 / 目录名 / bundle id / Loader entry 名必须完全一致，改名会让已安装的用户升不上来）。
 
 ## 4.0 的新东西
 
@@ -32,7 +32,7 @@
 ## 安装
 
 ```powershell
-npm i echocat-skill-panel-3.0
+npm i echocat-skill-panel
 ```
 
 或者在 DSH 里用面板的「安装」按钮，或直接把仓库目录放进 profile 的 `vendor/` 再重启 DSH Desktop Beta。详见 [安装说明.md](安装说明.md)。

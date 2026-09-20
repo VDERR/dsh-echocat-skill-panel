@@ -238,8 +238,8 @@ function countMap(perSkill) {
 
 /* ------------------------------ persisted prefs ------------------------------ */
 
-const OPEN_KEY = 'echocat-skill-panel-3.0/sections'
-const PREF_KEY = 'echocat-skill-panel-3.0/prefs'
+const OPEN_KEY = 'echocat-skill-panel/sections'
+const PREF_KEY = 'echocat-skill-panel/prefs'
 
 const storage = () => {
   // `document` is the environment probe on purpose: Node exposes a
@@ -313,7 +313,7 @@ function usePref(key, fallback) {
 
 /* ------------------------------ scroll memory ------------------------------ */
 
-const SCROLL_KEY = 'echocat-skill-panel-3.0/scroll'
+const SCROLL_KEY = 'echocat-skill-panel/scroll'
 
 /**
  * Clamp a remembered offset to what the node can actually scroll (item 45).
