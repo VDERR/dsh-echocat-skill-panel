@@ -87,6 +87,10 @@ const { DESIGN, designCounts } = design
 const POLISH_CSS = polish.polishCSS(SURFACE_ROOTS)
 const DESIGN_CSS = design.designCSS(SURFACE_ROOTS)
 const DESIGN_DARK_CSS = design.designDarkCSS(SURFACE_ROOTS)
+// The breakpoint steps, generated from the `r-bp-` records. Emitted AFTER the hand-written narrow
+// queries below (so a breakpoint wins an equal-specificity tie) and BEFORE the dark palette (so a
+// dark-themed narrow window gets dark tokens, not the light breakpoint values).
+const DESIGN_RESPONSIVE_CSS = design.designResponsiveCSS(SURFACE_ROOTS)
 
 const CSS = `
 ${SURFACES}{
@@ -581,6 +585,10 @@ ${SURFACES}{
 .sr-backdrop{padding:0}
 .sr-share-name{max-width:44%}
 }
+/* The breakpoint steps, generated from the r-bp- records. They come AFTER the hand-written
+   narrow queries above (so an equal-specificity tie goes to the breakpoint) and BEFORE the dark
+   palette (so a dark-themed narrow window still gets the dark tokens). */
+${DESIGN_RESPONSIVE_CSS}
 /* The design pass's dark palette, LAST because it redefines tokens the earlier dark
    block also declares and has to win over it. */
 ${DESIGN_DARK_CSS}

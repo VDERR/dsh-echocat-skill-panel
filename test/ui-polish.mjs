@@ -413,6 +413,47 @@ ok('the palette is the WARM scale, not the old cool one',
   String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas']))
 ok('...and the frosted wash that gives the blur something to work on is present',
   String(designRecords.find((r) => r.id === 'wash-backdrop')?.props?.backgroundImage ?? '').includes('radial-gradient'))
+
+/* ---- motion: every name resolves, and every breakpoint record is inside a query ---------- */
+
+console.log('\n[10] motion and breakpoints are generated, not referenced into the void')
+{
+  const generated = design.designCSS(ROOTS)
+  const frames = design.KEYFRAMES
+  ok('the sheet emits keyframe blocks at all', /@keyframes sr-card-in\{/u.test(generated), 'no keyframes emitted')
+
+  // Every animation name a record references must exist. A name pointing at nothing is SILENT:
+  // the declaration parses and the animation simply never runs.
+  const referenced = new Set()
+  for (const record of designRecords) {
+    for (const [key, raw] of Object.entries(record.props)) {
+      if (!/^animation(Name)?$/u.test(key)) continue
+      for (const name of String(raw).split(/[\s,]+/u)) if (name.startsWith('sr-')) referenced.add(name)
+    }
+  }
+  ok('records reference animation names', referenced.size >= 3, String(referenced.size))
+  const missingFrames = [...referenced].filter((name) => !Object.hasOwn(frames, name))
+  ok('...and every referenced name has a keyframe block', missingFrames.length === 0, missingFrames.join(', '))
+  for (const name of referenced) ok(`@keyframes ${name} is emitted`, generated.includes(`@keyframes ${name}{`))
+
+  // A responsive record emitted as a BARE rule would apply at every width — the exact shape of the
+  // bug that once made the catalogue a single column everywhere.
+  const responsive = design.designResponsiveCSS(ROOTS)
+  const bpIds = designRecords.filter((record) => record.id.startsWith('r-bp-')).map((record) => record.id)
+  ok('the pass contributed responsive records', bpIds.length >= 10, String(bpIds.length))
+  const leaked = bpIds.filter((id) => {
+    const rule = design.designRuleFor(designRecords.find((record) => record.id === id), ROOTS)
+    return generated.includes(rule)
+  })
+  ok('...none of them is emitted outside a media query', leaked.length === 0, leaked.join(', '))
+  ok('...and each breakpoint has its own query',
+    (responsive.match(/@media/gu) ?? []).length === design.BREAKPOINTS.length,
+    `${(responsive.match(/@media/gu) ?? []).length} queries for ${design.BREAKPOINTS.length} breakpoints`)
+  ok('...with the narrowest query last, so it wins',
+    responsive.lastIndexOf('max-width: 560px') > responsive.lastIndexOf('max-width: 900px'),
+    'a narrower breakpoint must be able to override a wider one')
+}
+
 const dIds = designRecords.map((record) => record.id)
 ok('every design record has a unique id', new Set(dIds).size === dIds.length, JSON.stringify(dIds.filter((id, i) => dIds.indexOf(id) !== i)))
 ok('every design record states why it exists',
@@ -431,8 +472,14 @@ console.log(`        groups: ${Object.entries(design.designCounts()).map(([g, n]
 // Every record must actually reach the sheet. The design block is generated separately
 // from the polish block, so a generator regression here would silently drop the whole
 // redesign while leaving the count intact.
+//
+// The responsive records are deliberately NOT in `designCSS` — they live inside media queries in
+// `designResponsiveCSS`, because a bare responsive rule would apply at every width. So the scan
+// covers both blocks; scanning one reported all fourteen of them as unresolved, which is the check
+// doing its job on a real distinction rather than a bug.
 const DESIGN_GENERATED = design.designCSS(ROOTS)
-const designRules = [...DESIGN_GENERATED.matchAll(/([^{}]+)\{([^}]*)\}/gu)].map((m) => ({ selector: m[1].trim(), decls: m[2].trim() }))
+const RESPONSIVE_GENERATED = design.designResponsiveCSS(ROOTS)
+const designRules = [...`${DESIGN_GENERATED}\n${RESPONSIVE_GENERATED}`.matchAll(/([\s\S]*?)\{([^{}]*)\}/gu)].map((m) => ({ selector: m[1].trim(), decls: m[2].trim() }))
 const dUnresolved = []
 const dLeaked = []
 for (const record of designRecords) {
@@ -443,7 +490,14 @@ for (const record of designRecords) {
   })
   const owner = designRules.find((rule) => wanted.every((decl) => rule.decls.includes(decl)))
   if (owner === undefined) dUnresolved.push(record.id)
-  else if (!owner.selector.includes('.sr-')) dLeaked.push(`${record.id}: ${owner.selector}`)
+  else {
+    // Strip an at-rule wrapper before judging the selector. The responsive block wraps its rules in
+    // `@media (max-width: …){\n  <selector>{…}`, and the selector capture spans that newline — so
+    // this needs [\s\S], not `.`, or the at-rule is never removed and the leak guard reports the
+    // media query itself as a rule applying outside the plugin surfaces.
+    const bare = owner.selector.replace(/^@media[\s\S]*?\{/u, '').trim()
+    if (!bare.includes('.sr-')) dLeaked.push(`${record.id}: ${owner.selector}`)
+  }
 }
 ok('every design declaration reached the generated CSS', dUnresolved.length === 0, JSON.stringify(dUnresolved))
 ok('no design rule applies outside the plugin surfaces', dLeaked.length === 0, JSON.stringify(dLeaked))
@@ -481,6 +535,8 @@ const contrast = (a, b) => {
   const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1]
   return (hi + 0.05) / (lo + 0.05)
 }
+/** Alias, so the dark-palette checks near the top read the same way this section does. */
+const contrastOf = contrast
 /** The value a token is given by a record, or '' when that record is absent. */
 const tokenOf = (id) => {
   const record = designRecords.find((r) => r.id === id)
@@ -525,8 +581,30 @@ ok('the dark palette redefines the surfaces, not only the ink',
   ['--sr-card', '--sr-canvas', '--sr-raised', '--sr-sunken'].every((token) => DARK.includes(`${token}:`)), '')
 ok('...and the elevation, which must be stronger on a dark surface',
   ['--sr-e1', '--sr-e2', '--sr-e3'].every((token) => DARK.includes(`${token}:`)), '')
-ok('the dark accent differs from the light one, as it must to stay legible',
-  DARK.includes("'--sr-accent': '#7c74f2'") || DARK.includes("--sr-accent:#7c74f2"), '')
+// Was: a HARDCODED `#7c74f2`. That asserted the literal rather than the requirement, so it both
+// blocked the warm-dark palette and would have passed for any dark theme with that one value in
+// it — including an illegible one. Assert the PROPERTY: the dark accent must differ from the light
+// one (a dark theme needs a lighter accent) and must clear AA as text on the dark raised surface.
+{
+  const lightAccent = String(designRecords.find((record) => record.id === 'color-accent').props['--sr-accent'])
+  const darkAccent = /--sr-accent:(#[0-9a-f]{6})/u.exec(DARK)?.[1] ?? ''
+  ok('the dark palette declares an accent at all', /^#[0-9a-f]{6}$/u.test(darkAccent), darkAccent)
+  ok('...which differs from the light one, as a dark theme requires',
+    darkAccent !== lightAccent, `${lightAccent} vs ${darkAccent}`)
+  const onDark = contrastOf(darkAccent, '#211e1a')
+  ok('...and clears AA as text on the dark raised surface', onDark >= 4.5, `${onDark.toFixed(2)}:1`)
+  // The ink that sits ON a filled dark accent is ink, not white: white on #8b8bf0 is 2.98:1.
+  const inkOnAccent = /--sr-accent-ink:(#[0-9a-f]{6})/u.exec(DARK)?.[1] ?? ''
+  ok('...and the ink on top of it is legible too', contrastOf(inkOnAccent, darkAccent) >= 4.5,
+    `${inkOnAccent} on ${darkAccent} = ${contrastOf(inkOnAccent, darkAccent).toFixed(2)}:1`)
+}
+// The dark INKS, which nothing computed before this pass — the suite verified the block was
+// EMITTED and never that it was readable.
+for (const [token, label] of [['--sr-fg', 'primary'], ['--sr-fg2', 'secondary'], ['--sr-fg3', 'tertiary']]) {
+  const ink = new RegExp(`${token}:(#[0-9a-f]{6})`, 'u').exec(DARK)?.[1] ?? ''
+  const ratio = contrastOf(ink, '#211e1a')
+  ok(`dark ${label} text clears AA on the dark raised surface`, ratio >= 4.5, `${ink} = ${ratio.toFixed(2)}:1`)
+}
 ok('the dark palette is the LAST thing in the sheet, so it beats the earlier dark block',
   RENDERED.lastIndexOf('prefers-color-scheme: dark') > RENDERED.indexOf(firstDesignRule), '')
 

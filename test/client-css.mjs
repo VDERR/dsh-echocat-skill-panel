@@ -70,6 +70,9 @@ new Function('module', 'exports', 'require', theme)(themeModule, themeModule.exp
 const RENDERED = String(themeModule.exports.CSS ?? '')
 /** Rendered CSS with comments removed: prose must not satisfy or break a check. */
 const RULES = RENDERED.replace(/\/\*[\s\S]*?\*\//gu, '')
+// The record tables themselves, for the one thing a class inventory needs to know that the
+// stylesheet cannot tell it: which `sr-*` tokens are ANIMATION NAMES rather than classes.
+const design = loadGenerated('design.js')
 
 /** The selector list that owns the rule containing `marker`. */
 function selectorOf(marker) {
@@ -218,6 +221,12 @@ for (const [file, source] of Object.entries(sources)) {
     // class, which IS styled, and stops a phantom `sr-toast--` from being reported.
     const clean = token.replace(/-+$/u, '')
     if (clean === '') continue
+    // An ANIMATION NAME is not a class, and it has no `.name{…}` rule to find because it lives in
+    // an `@keyframes` at-rule. The old lookahead only rejected `name(` — a reference written
+    // `animationName: 'sr-card-in'` slipped past it and was reported as an unstyled class. The
+    // names are excluded here by identity, and ui-polish asserts each one HAS a keyframe block,
+    // so this exclusion cannot hide a name that points at nothing.
+    if (Object.hasOwn(design.KEYFRAMES, clean)) continue
     if (!usedByComponents.has(clean)) usedByComponents.set(clean, new Set())
     usedByComponents.get(clean).add(file)
   }
