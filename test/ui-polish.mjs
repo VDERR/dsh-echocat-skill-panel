@@ -398,6 +398,21 @@ console.log('\n[5] the design pass: 200+ records, contrast, and cascade order')
 const designRecords = design.DESIGN
 ok('the design pass is data, not a hand-written block', Array.isArray(designRecords), typeof designRecords)
 ok('at least 200 design records', designRecords.length >= 200, String(designRecords.length))
+// The refinement pass asked for "at least 100 adjustments", and a claim like that has to be
+// counted or it is just a sentence in a commit message. The `r-` prefix names the records that
+// pass contributed, so the number below cannot be met by renaming existing work.
+const refinementRecords = designRecords.filter((record) => record.id.startsWith('r-'))
+ok('the refinement pass contributed at least 100 records', refinementRecords.length >= 100, String(refinementRecords.length))
+ok('...and they are the pass with a reason each',
+  refinementRecords.every((record) => typeof record.why === 'string' && record.why.length > 20),
+  JSON.stringify(refinementRecords.filter((r) => typeof r.why !== 'string' || r.why.length <= 20).map((r) => r.id)))
+// A palette swap is the easiest way to break accessibility silently, so the warm scale is
+// asserted to have actually landed rather than assumed.
+ok('the palette is the WARM scale, not the old cool one',
+  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#faf8f5',
+  String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas']))
+ok('...and the frosted wash that gives the blur something to work on is present',
+  String(designRecords.find((r) => r.id === 'wash-backdrop')?.props?.backgroundImage ?? '').includes('radial-gradient'))
 const dIds = designRecords.map((record) => record.id)
 ok('every design record has a unique id', new Set(dIds).size === dIds.length, JSON.stringify(dIds.filter((id, i) => dIds.indexOf(id) !== i)))
 ok('every design record states why it exists',
