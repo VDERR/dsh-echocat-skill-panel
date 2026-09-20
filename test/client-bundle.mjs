@@ -51,6 +51,28 @@ ok('bundle registers through the loader envelope', source.includes('window.__Mod
 ok(`bundle names the package id (${PKG})`, source.includes(`id: "${PKG}"`))
 ok('no import.meta usage in the bundle', !source.includes('import.meta'))
 
+// The brand mark travels INSIDE the artifact as base64, which makes it the one asset that can break
+// silently: a truncated string, a non-ASCII byte, or a wrong theme key all still produce a bundle
+// that parses and a logo that simply does not appear. So this decodes the payloads and checks the
+// actual bytes, rather than checking that a string is present.
+console.log('\n[1b] the embedded brand mark')
+{
+  const uris = [...source.matchAll(/'(data:image\/png;base64,[A-Za-z0-9+/=]+)'/gu)].map((m) => m[1])
+  ok('both marks are embedded as data URIs', uris.length === 2, `${uris.length} found`)
+  ok('...and they are different images', new Set(uris).size === 2, 'open-eye and closed-eye must differ')
+  const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  for (const uri of uris) {
+    const bytes = Buffer.from(uri.slice('data:image/png;base64,'.length), 'base64')
+    ok(`a ${bytes.length}-byte PNG decodes from the artifact`, bytes.subarray(0, 8).equals(PNG_SIGNATURE), bytes.subarray(0, 8).toString('hex'))
+    // IHDR width/height are big-endian at offsets 16..24, right after the 8-byte signature and the
+    // 8-byte chunk header.
+    const width = bytes.readUInt32BE(16)
+    const height = bytes.readUInt32BE(20)
+    ok(`...which is square and non-trivial (${width}x${height})`, width === height && width >= 32, `${width}x${height}`)
+  }
+  ok('the theme keys are both present', source.includes('light:') && source.includes('dark:'), 'a missing theme key leaves one theme with no mark')
+}
+
 console.log('\n[2] the envelope')
 let captured
 /**
@@ -536,7 +558,12 @@ ok('the footer reports the version (item 38)', readyText.includes(`v${exports.__
 ok('the footer reports the skills root', readyText.includes('.dsh-beta'))
 
 const stripText = textOf(StripSurface({}))
-ok('the composer strip summarizes the latest turn', stripText.includes('\u6280\u80fd') && stripText.includes('gpt-image'), stripText)
+// The bar used to lead with the word 技能. The user replaced that with the INSTALL COUNT, which is
+// the one fact the bar was not stating anywhere — so this asserts the count is present rather than
+// asserting the old static label.
+ok('the composer strip summarizes the latest turn', stripText.includes('gpt-image'), stripText)
+ok('...and states how many skills are installed, where the word 技能 used to be',
+  /\d+ 个/u.test(stripText), stripText.slice(0, 90))
 
 console.log('\n[7] failure is survivable')
 const goodFetch = globalThis.fetch
@@ -1909,14 +1936,34 @@ await (async () => {
             return walk(child, 0)
           })
           ok('[27] ...and they are INSIDE the bar element, not on a row below it', insideBar)
-          ok('[27] ...and the bar keeps its single-line summary', view.text(bar).includes('\u6280\u80fd'), view.text(bar).slice(0, 120))
+          // Was asserting the literal 技能. The bar now leads with the install count instead, so the
+          // thing worth asserting is that the bar still carries ONE line of summary text plus that
+          // count — not the word that was deliberately removed.
+          ok('[27] ...and the bar keeps its single-line summary', view.text(bar).includes('gpt-image'), view.text(bar).slice(0, 120))
+          ok('[27] ...alongside the install count in place of the old label', /\d+ 个/u.test(view.text(bar)), view.text(bar).slice(0, 120))
           ok('[27] ...with nothing rendered between the bar and the report', view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-strip-stats').length === 0)
         })
 
-        // COLLAPSED: no chips at all. A one-line bar has to stay one line.
+        // COLLAPSED: the counters ARE present now, at the user's explicit request.
+        //
+        // This used to require zero counters here, on the reasoning that a one-line bar has to stay
+        // one line. The user asked for the four figures to be persistent instead — and the original
+        // reasoning was wrong for the same reason the row was moved onto the bar at all: these are
+        // the numbers this plugin exists to report, so gating them behind a click meant the plugin's
+        // DEFAULT state reported nothing. What still has to hold is that the bar is one line.
         await withMount(exports.__ui.SkillReportStrip, { state: stripState, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: false }, async (view) => {
-          ok('[27] a collapsed bar carries no counters', findCounters(view).length === 0, String(findCounters(view).length))
-          ok('[27] ...but still shows the turn count', view.text(findBar(view)).includes('37'), view.text(findBar(view)).slice(0, 120))
+          ok('[27] a collapsed bar carries the counters too', findCounters(view).length === 4, String(findCounters(view).length))
+          const collapsedBar = findBar(view)
+          ok('[27] ...and they are INSIDE the bar element, not on a row below it',
+            collapsedBar.children.some((child) => {
+              const walk = (node, depth) => {
+                if (depth > 8 || node === null || node === undefined) return false
+                if (String(node.props?.className ?? '') === 'sr-strip-stats') return true
+                return (node.children ?? []).some((kid) => walk(kid, depth + 1))
+              }
+              return walk(child, 0)
+            }))
+          ok('[27] ...but still shows the turn count', view.text(collapsedBar).includes('37'), view.text(collapsedBar).slice(0, 120))
         })
 
         // The report drops the cards when it is rendered inside the strip, so the same

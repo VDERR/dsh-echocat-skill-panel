@@ -323,12 +323,16 @@ function buildPage(state, exports) {
     ]),
   ]))
 
-  // 2. the composer strip open, above a stand-in composer, then the sheet and the rail.
+  // 2. the composer strip in BOTH states, above a stand-in composer, then the sheet and the rail.
   sections.push(h('div', { className: 'col', key: 'strip' }, [
-    h('h2', { key: 'h' }, 'composer strip / 输入框上方横栏（展开）'),
+    h('h2', { key: 'h' }, 'composer strip / 输入框上方横栏（折叠 + 展开）'),
+    h('div', { className: 'frame', key: 'closed', style: { padding: '16px', background: 'var(--dsw-alias-bg-base)' } }, [
+      // The COLLAPSED state has to be rendered too, and it was not until the counters became
+      // persistent: with only the expanded state on this page there was no way to see whether the
+      // folded bar still fits on one line, which is the one thing it must do.
+      h(strip, { key: 's0', state: { phase: 'ready', data: SNAPSHOT, error: null, fetchedAt: Date.now() }, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: false }),
+    ]),
     h('div', { className: 'frame', key: 'open', style: { padding: '16px', background: 'var(--dsw-alias-bg-base)' } }, [
-      // Expanded, because the counter chips live on the bar line only when it is open —
-      // the collapsed bar is a single line and must stay one.
       h(strip, { key: 's', state: { phase: 'ready', data: SNAPSHOT, error: null, fetchedAt: Date.now() }, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: true }),
     ]),
     h('div', { className: 'composer', key: 'c' }, '描述你想要构建的内容，/ 调用指令，@ 文件或对话'),
@@ -455,18 +459,25 @@ window.addEventListener('load', () => {
   const probes = ${JSON.stringify([
     '.sr-root', '.sr-head', '.sr-title', '.sr-hero', '.sr-hero-meta', '.sr-hero-line',
     '.sr-stats', '.sr-stat', '.sr-stat-v', '.sr-stat-l',
+    // The strip: both states are on the page, so these report whichever instance comes first.
+    '.sr-strip', '.sr-strip-shell', '.sr-strip-brand', '.sr-strip-count', '.sr-strip-text',
     '.sr-strip-stats', '.sr-statcard--inline', '.sr-statcard--inline .sr-stat-v',
-    '.sr-group-head', '.sr-group-title', '.sr-skill--off', '.sr-skill--off .sr-tag--off',
+    '.sr-strip-logo', '.sr-logo', '.sr-logo--light', '.sr-logo--dark',
+    '.sr-group-head', '.sr-group-title', '.sr-skill--off',
     '.sr-btn--toggle', '.sr-switch', '.sr-switch-knob',
     '.sr-card-foot', '.sr-card-foot .sr-row-actions',
     '.sr-sec-h', '.sr-sec-b', '.sr-pill',
-    '.sr-skill', '.sr-skill-head', '.sr-skill-headtext', '.sr-skill-tags', '.sr-skill-main',
+    // `.sr-skill-tags` is deliberately absent: the tag row was removed from the card, so listing it
+    // here made the measure tool print "not rendered" for every card and hid real regressions in
+    // the noise. The list is meant to name what SHOULD be on screen.
+    '.sr-skill', '.sr-skill-head', '.sr-skill-headtext', '.sr-skill-main',
     '.sr-avatar', '.sr-skill-name', '.sr-skill-slug', '.sr-blurb', '.sr-src',
-    '.sr-btn', '.sr-btn--primary', '.sr-btn--sm', '.sr-tag', '.sr-tag--used',
+    '.sr-btn', '.sr-btn--primary', '.sr-btn--sm',
     '.sr-share-track', '.sr-share-fill', '.sr-share-n',
     '.sr-turn-h', '.sr-age', '.sr-kbd',
+    '.sr-per-head', '.sr-per-row', '.sr-call',
     '.sr-sheet', '.sr-sheet-title', '.sr-tab', '.sr-input', '.sr-label', '.sr-sheet-foot',
-    '.sr-toast', '.sr-toast-msg', '.sr-strip-shell', '.sr-footer, .sr-foot',
+    '.sr-toast', '.sr-toast-msg', '.sr-foot',
   ])}
   const read = (sel) => {
     const el = document.querySelector(sel)

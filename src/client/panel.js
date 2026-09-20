@@ -86,6 +86,7 @@
 
 const React = require('react')
 const { Icon } = require('./icons.js')
+const logo = require('./logo.js')
 // Requiring the theme also injects it — the side effect is the point.
 const { VERSION } = require('./theme.js')
 const api = require('./api.js')
@@ -1676,6 +1677,32 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
   )
 }
 
+/* ------------------------------ the brand mark ------------------------------ */
+
+/**
+ * The EchoCat mark, centred in the composer strip.
+ *
+ * TWO MARKS, ONE BRAND. The open-eye art belongs to the light theme and the closed-eye art to
+ * dark — a brand decision, not a brightness one — so the choice is made by THEME and never by the
+ * caller.
+ *
+ * WHY BOTH ARE ALWAYS IN THE DOM, with one hidden by CSS rather than chosen in JavaScript: reading
+ * the active theme from JS means reading a class off `document.documentElement` or subscribing to
+ * `prefers-color-scheme`, and the plugin's own stylesheet already answers that question for the
+ * whole panel through the same two signals (`prefers-color-scheme` and an explicit theme class or
+ * attribute). Selecting in CSS keeps the answer in one place instead of two that can disagree.
+ *
+ * `aria-hidden` and `pointer-events:none`: it is a mark, not a control.
+ */
+function LogoMark() {
+  return h(
+    'span',
+    { className: 'sr-strip-logo', 'aria-hidden': 'true' },
+    h('img', { className: 'sr-logo sr-logo--light', src: logo.LOGO_BY_THEME.light, alt: '', draggable: 'false' }),
+    h('img', { className: 'sr-logo sr-logo--dark', src: logo.LOGO_BY_THEME.dark, alt: '', draggable: 'false' }),
+  )
+}
+
 /* ------------------------------ sidebar glyph ------------------------------ */
 
 /** Left-sidebar glyph. The owner hands over the size it allotted. */
@@ -1739,6 +1766,16 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
     sheetOpen,
   })
 
+  /**
+   * The install count, shown where the word 技能 used to be.
+   *
+   * The label was decoration: a user who has this strip on screen already knows it is about
+   * skills, and the number of INSTALLED skills is the one fact the bar was not stating anywhere.
+   * It counts enabled plus parked, because "installed" is what the user asked about — the parked
+   * ones are still on disk and still listed.
+   */
+  const installedCount = (Array.isArray(s.skills) ? s.skills.length : 0) + (Array.isArray(s.disabledSkills) ? s.disabledSkills.length : 0)
+
   const bar = h(
     'button',
     {
@@ -1748,21 +1785,32 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
       title: `${summarize(latest)}（点击${open ? '收起' : '展开'}）`,
       'aria-expanded': open,
     },
-    h('span', { className: 'sr-strip-dot', style: { background: dot } }),
-    h('span', { className: 'sr-strip-label' }, '技能'),
+    // Brand: a status dot, then the install count in place of a word that said nothing.
+    h(
+      'span',
+      { className: 'sr-strip-brand' },
+      h('span', { className: 'sr-strip-dot', style: { background: dot } }),
+      h('span', { className: 'sr-strip-count', title: `已安装 ${installedCount} 个 skill（含已停用）` }, `${installedCount} 个`),
+    ),
     h('span', { className: 'sr-strip-text' }, failed ? `主机侧不可达：${state?.error ?? '未知错误'}` : summarize(latest)),
+    // The EchoCat mark, as a REAL child of the bar, between the summary and the counters.
+    //
+    // It started as an absolutely positioned overlay at 50% of the row, and MEASURING the row said
+    // why that cannot work: the bar is only `flex:1` of a row that also holds four buttons, so the
+    // bar's centre is not the row's centre, and the logo landed at x=524 in a row that ends at 443
+    // — outside it — then drew on top of the counters once the offsets changed. A flex child cannot
+    // do either: it is inside the bar by construction, it takes its own space, and `margin-inline:
+    // auto` centres it in whatever room the summary and the counters leave.
+    h(LogoMark, { key: 'logo' }),
     /**
-     * The four counters, ON the bar line, between the summary and the turn count.
+     * The four counters, ALWAYS on the bar line — collapsed and expanded alike.
      *
-     * They are the numbers a user opens this panel for, and they used to be four 26px cards
-     * inside a report that lives behind a click and a 46vh expansion — the least visible
-     * place in the plugin for the most-read figures. A separate row under the bar wasted a
-     * whole line for four numbers; they belong on the line the user is already looking at.
-     *
-     * Only when the strip is EXPANDED: a collapsed bar is a single line, and crowding it
-     * would undo the point of collapsing it.
+     * They used to appear only when the strip was open, on the reasoning that a collapsed bar
+     * should stay one line. That reasoning was wrong for the same reason the row was moved onto
+     * the bar in the first place: these are the numbers the plugin exists to report, and hiding
+     * them behind a click means the default state of the plugin reports nothing.
      */
-    open && s.turns > 0 && !failed
+    s.turns > 0 && !failed
       ? h(
           'span',
           { className: 'sr-strip-stats' },
@@ -1772,7 +1820,13 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
           h(Stat, { label: '调用次数', value: s.invocations ?? 0, inline: true, compact: true }),
         )
       : null,
-    h('span', { className: 'sr-strip-n' }, String(s.turns ?? 0)),
+    // The turn count, shown ONLY when the counters are not.
+    //
+    // It duplicates the 回合 chip exactly, and it sat immediately to the right of it: "… 37 回合 …
+    // 37". Measured at a narrow bar, those 36px were the difference between the summary rendering
+    // and collapsing to nothing. The bare count still earns its place in the two states that have no
+    // counters to read it from — no turns yet, or the host unreachable.
+    s.turns > 0 && !failed ? null : h('span', { className: 'sr-strip-n' }, String(s.turns ?? 0)),
     h(Icon, { name: 'caret', size: 11, className: open ? 'sr-strip-caret sr-strip-caret--open' : 'sr-strip-caret' }),
   )
 

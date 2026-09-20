@@ -1181,6 +1181,436 @@ const DESIGN = Object.freeze([
   D('r-state-hover-none-touch', 'frame', '.sr-skill', { WebkitTapHighlightColor: 'transparent' },
     'and the mobile tap flash is suppressed on cards too, not only on buttons'),
 
+  /* ============================ 21e. the strip becomes two floats ==================
+   *
+   * Three requests from the user, and one of them exposed a structural mistake.
+   *
+   * `.sr-strip-shell--open` put a border, a background, a radius and `overflow:hidden` on the
+   * SHELL, which wraps BOTH the bar and the expanded report — so expanding merged the two into one
+   * card instead of floating the report beneath the bar. The shell is now a transparent layout
+   * column and each child carries its own surface. That `overflow:hidden` is also why the counters
+   * could not ride the bar in the open state.
+   */
+  D('r-strip-shell-transparent', 'frame', '.sr-strip-shell--open', {
+    border: 0,
+    background: 'transparent',
+    overflow: 'visible',
+    boxShadow: 'none',
+  }, 'the shell is a layout column, not a surface: each float owns its own edges'),
+  D('r-strip-shell-gap', 'frame', '.sr-strip-shell--open', { gap: 'calc(var(--sr-u) * 2)' },
+    'two floats need a gap; the old shell set gap 0 because it was one box'),
+  D('r-strip-bar-float', 'frame', '.sr-strip-shell--open .sr-strip-row', {
+    padding: 'calc(var(--sr-u) * 1.5) calc(var(--sr-u) * 2)',
+    border: '1px solid var(--sr-line)',
+    borderRadius: 12,
+    background: 'color-mix(in srgb, var(--sr-card) 72%, transparent)',
+    backdropFilter: 'saturate(1.7) blur(14px)',
+    WebkitBackdropFilter: 'saturate(1.7) blur(14px)',
+    boxShadow: 'var(--sr-e2)',
+    position: 'relative',
+  }, 'the bar becomes its own frosted float, so it stays visibly separate from the report below'),
+  D('r-strip-panel-float', 'frame', '.sr-strip-panel', {
+    border: '1px solid var(--sr-line)',
+    borderRadius: 14,
+    background: 'var(--sr-card)',
+    boxShadow: 'var(--sr-e3)',
+    overflow: 'hidden',
+  }, 'and the report is a SECOND float with its own edges — the request was explicit that they not merge'),
+  // ---- the counters ride the bar in BOTH states ------------------------------------------
+  //
+  // THE SELECTORS HERE ARE `.sr-strip .sr-strip-stats`, NOT `.sr-strip-stats`, AND THAT IS THE
+  // POINT. The older `statline` record — emitted LATER in this file — declares `flex:none` on the
+  // same element at the same specificity, so it won on source order and the counters stayed
+  // unshrinkable no matter what these records said. Measured: the summary sat at its 96px floor
+  // while the counter row held 305px and clipped nothing. One extra class settles it by
+  // specificity, which does not depend on where a record happens to sit in this array.
+  D('r-strip-stats-always', 'stat', '.sr-strip .sr-strip-stats', {
+    flex: 'none',
+    marginLeft: 'auto',
+    gap: 4,
+  }, 'the counters are never gated on the open state, and they hold their size: a shrunk counter is an unreadable one'),
+  D('r-strip-stats-one-line', 'stat', '.sr-strip .sr-strip-stats', { flexWrap: 'nowrap' },
+    'and they hold one line, because the bar has exactly one'),
+  // MEASURED, and three attempts were wrong in the same direction: the summary collapsed to 0px
+  // instead of anything else giving way. `flex:1 1 0%`, then `flex:1 1 auto`, then a large shrink
+  // factor — none held, because `min-width:auto` on a shrinkable flex item resolves to its
+  // MIN-CONTENT width and "调用次数 61" cannot shrink below its content. The answer is not to shrink
+  // the counters but to make them SMALLER: computed from the chip record, four chips need ~255px at
+  // the current settings and ~209px compact, and that 44px is the difference between a 31px and a
+  // 77px summary at a narrow bar. So the panel breakpoint below makes them compact, and the chips
+  // never shrink at all.
+  D('r-strip-text-shrink', 'frame', '.sr-strip-text', { flex: '1 1 auto', minWidth: 0 },
+    'the summary takes the leftover room; the counters hold their size and the summary truncates with an ellipsis'),
+  D('r-strip-text-clip', 'frame', '.sr-strip-text', { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    'and it truncates rather than overflowing its own box'),
+  D('r-strip-n-hold', 'frame', '.sr-strip-n', { flex: 'none' },
+    'the turn count holds its width'),
+  D('r-strip-chip-pad-tight', 'stat', '.sr-strip .sr-statcard--inline', { paddingInline: 6 },
+    'the chips take a 6px inline inset rather than the 8px the older statcard record sets — 16px across the row, hence the two-class selector'),
+  // ---- the action buttons sit BESIDE the bar, and must not be overlapped ------------------
+  D('r-strip-row-shrink', 'frame', '.sr-strip-row', { minWidth: 0, flexWrap: 'nowrap' },
+    'the row never wraps: one line is the whole point of the strip'),
+  D('r-strip-row-actions-gap', 'frame', '.sr-strip-row', { columnGap: 6 },
+    '6px between the bar and its buttons: the row is tight by design, but the buttons need to read as separate from the bar'),
+  D('r-strip-btn-hold', 'btn', '.sr-strip-row > .sr-btn', { flex: 'none' },
+    'the buttons never shrink, so the bar is what gives when the window narrows'),
+  // ---- the count replaces the word 技能 ---------------------------------------------------
+  D('r-strip-brand', 'frame', '.sr-strip-brand', { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none' },
+    'the dot and the count are one unit, so the dot reads as belonging to the number'),
+  D('r-strip-count', 'stat', '.sr-strip-count', {
+    fontSize: 11,
+    fontWeight: 620,
+    fontVariantNumeric: 'tabular-nums',
+    padding: '1px 7px',
+    borderRadius: 999,
+    background: 'var(--sr-sunken)',
+    color: 'var(--sr-fg2)',
+    flex: 'none',
+  }, 'the install count in a quiet pill where a static label used to be — it is a fact, so it is styled like one'),
+  D('r-strip-count-hover', 'stat', '.sr-strip:hover .sr-strip-count', { background: 'var(--sr-fill)', color: 'var(--sr-fg)' },
+    'and it responds with the bar, so the whole control moves as one surface'),
+  // ---- the brand mark, centred in the room the bar has left --------------------------------
+  //
+  // MEASURED, not assumed. The first version was an absolutely positioned overlay at 50% of the
+  // row, and measuring the row showed the logo at x=524..546 in a row ending at x=443 — outside it
+  // entirely — because the bar is only part of the row (the four buttons take the rest), so the
+  // bar's centre is not the row's centre and neither is the logo's. It then landed on top of the
+  // counters when the offsets moved. As a flex child of the BAR it cannot do either: the space it
+  // occupies is its own, and `margin-inline:auto` centres it between the summary and the numbers.
+  D('r-logo-layer', 'frame', '.sr-strip-logo', {
+    flex: 'none',
+    marginInline: 'auto',
+    width: 22,
+    height: 22,
+    display: 'grid',
+    placeItems: 'center',
+    pointerEvents: 'none',
+  }, 'a flex child of the bar, centred by auto margins in whatever room the summary and counters leave'),
+  D('r-logo-img', 'frame', '.sr-logo', { width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none' },
+    'the mark fills its 22px box without distortion'),
+  D('r-logo-light', 'frame', '.sr-logo--light', { display: 'block' },
+    'the open-eye mark is the light-theme one'),
+  D('r-logo-dark', 'frame', '.sr-logo--dark', { display: 'none' },
+    'the closed-eye mark is hidden until the theme says otherwise'),
+  D('r-logo-tone', 'frame', '.sr-strip-logo', { opacity: 0.92 },
+    'a hair under full opacity, so the mark sits in the bar rather than on top of it'),
+
+  /* ============================ 21f. the third refinement pass =====================
+   *
+   * The areas the first two passes left alone: the rail and its toasts, the install sheet, the
+   * loading and empty states, the footer, and the small typographic details that only show up when
+   * something changes at runtime. Same discipline: one decision per record, each with a reason.
+   */
+  // ---- the status rail and its toasts ----------------------------------------------------
+  D('r-rail-gap', 'toast', '.sr-rail', { gap: 8 },
+    'toasts stack at 8px: they are transient and should read as one column of notices'),
+  D('r-rail-width', 'toast', '.sr-rail', { width: '100%' },
+    'the rail fills its seat so a long message has the whole width'),
+  D('r-rail-float-pad', 'toast', '.sr-rail--float', { padding: '8px 12px' },
+    'the floating variant keeps its own inset so it does not touch the viewport edge'),
+  D('r-rail-empty', 'toast', '.sr-rail--float:empty', { display: 'none' },
+    'and an empty floating rail takes no space at all, rather than a padded gap'),
+  D('r-toast-enter', 'toast', '.sr-toast', { animationName: 'sr-toast-in' },
+    'a toast enters with a 6px rise: enough to notice, not enough to feel like a popup'),
+  D('r-toast-icon-align', 'toast', '.sr-toast .sr-ic', { marginTop: 2 },
+    'the icon aligns to the first line of the message, not to the box'),
+  D('r-toast-close-hit', 'toast', '.sr-toast-close', { width: 22, height: 22, marginTop: -2, marginRight: -2 },
+    'the close button is a 22px target that bleeds slightly out of the padding, so it does not push the text'),
+  D('r-toast-close-hover', 'toast', '.sr-toast-close:hover', { background: 'var(--sr-fill)', color: 'var(--sr-fg)' },
+    'and it responds, because a dismiss control that does not look pressable gets mis-clicked'),
+  D('r-toast-message-wrap', 'toast', '.sr-toast-msg', { overflowWrap: 'anywhere' },
+    'a message can contain a path or a URL with no break opportunity'),
+  D('r-toast-hint-mono', 'toast', '.sr-toast-hint', { fontFamily: 'var(--sr-mono)' },
+    'the hint is usually an address, so it is set in the mono face'),
+  D('r-toast-pending-pulse', 'toast', '.sr-toast--pending .sr-ic', { animationName: 'sr-spin', animationIterationCount: 'infinite' },
+    'a pending toast spins its icon: motion is the only honest signal that work is still running'),
+  D('r-toast-ok-rule', 'toast', '.sr-toast--ok', { borderLeftWidth: 3 },
+    'success and failure carry a 3px left rule, which reads at a glance in a stack'),
+  D('r-toast-error-rule', 'toast', '.sr-toast--error', { borderLeftWidth: 3 },
+    'the same rule on failure, so the two are distinguishable without reading the text'),
+  D('r-toast-rule-colour-less', 'toast', '.sr-toast--pending', { borderLeftWidth: 1 },
+    'a pending toast keeps the hairline: nothing has happened yet, so nothing is emphasised'),
+  // ---- the install sheet -----------------------------------------------------------------
+  D('r-sheet-width', 'sheet', '.sr-sheet', { width: 'min(560px, 100%)' },
+    'a 560px cap: the sheet is a form, and a full-width form on a 1400px window is unreadable'),
+  D('r-sheet-head-rule', 'sheet', '.sr-sheet-head', { borderBottom: '1px solid var(--sr-line)' },
+    'one rule under the title, separating chrome from form'),
+  D('r-sheet-body-gap', 'sheet', '.sr-sheet-body', { gap: 14 },
+    'fields sit 14px apart, the same tier the cards use'),
+  D('r-sheet-foot-rule', 'sheet', '.sr-sheet-foot', { borderTop: '1px solid var(--sr-line)', background: 'var(--sr-raised)' },
+    'the footer gets a rule AND a step down in surface, because it is outside the form'),
+  D('r-field-label-weight', 'sheet', '.sr-label', { fontWeight: 560 },
+    'a field label is a label: just above body weight, below a heading'),
+  D('r-field-help-size', 'sheet', '.sr-help', { fontSize: 10.5, lineHeight: 1.5, color: 'var(--sr-fg3)' },
+    'help text under a field is the smallest thing in the sheet, and it should be'),
+  D('r-field-help-align', 'sheet', '.sr-help', { textAlign: 'left' },
+    'left-aligned, because a centred helper under a left-aligned field reads as unrelated'),
+  D('r-input-pad', 'sheet', '.sr-input', { padding: '9px 12px' },
+    'a 9/12 inset: enough for a caret to breathe, tight enough to look like a field'),
+  D('r-input-mono-size', 'sheet', '.sr-input--mono', { fontSize: 12, letterSpacing: '-.01em' },
+    'mono runs visually wider, so it steps down a fraction and tightens'),
+  D('r-input-invalid', 'sheet', '.sr-input[aria-invalid="true"]', { borderColor: 'var(--sr-danger)' },
+    'an invalid field says so on its own edge, not only in the message below it'),
+  D('r-textarea-min', 'sheet', '.sr-textarea', { minHeight: 150 },
+    'a SKILL.md paste needs to show roughly ten lines, or the user cannot check what they pasted'),
+  D('r-textarea-mono', 'sheet', '.sr-textarea', { fontFamily: 'var(--sr-mono)', fontSize: 11.5, lineHeight: 1.6 },
+    'markdown in a proportional face hides frontmatter mistakes'),
+  D('r-check-hit', 'sheet', '.sr-check', { minHeight: 26 },
+    'a checkbox row is a target, so the whole row is clickable, not just the 16px box'),
+  D('r-check-gap', 'sheet', '.sr-check', { gap: 8 },
+    'and the box sits 8px from its label'),
+  D('r-tabs-track-rule', 'sheet', '.sr-tab-track', { borderBottom: '1px solid var(--sr-line)' },
+    'the tab row gets a rule that the selected indicator sits ON, which is what makes it read as a tab'),
+  D('r-seg-gap', 'sheet', '.sr-seg', { gap: 6 },
+    'segmented controls tighten to 6px so the group reads as one control'),
+  D('r-seg-radius', 'sheet', '.sr-seg', { borderRadius: 10 },
+    'and the group takes one radius around its members'),
+  D('r-preview-rule', 'sheet', '.sr-preview', { border: '1px solid var(--sr-line)' },
+    'the install preview is outlined rather than filled: it is a preview, not a result'),
+  D('r-preview-meta-size', 'sheet', '.sr-preview-meta', { fontSize: 10.5, color: 'var(--sr-fg3)' },
+    'the file count and type are metadata, so they recede behind the name and description'),
+  D('r-preview-name-mono', 'sheet', '.sr-preview-name', { fontFamily: 'var(--sr-mono)' },
+    'the previewed name is the slug that will land on disk, so it is shown as one'),
+  D('r-drop-height', 'sheet', '.sr-drop', { minHeight: 96 },
+    'a drop zone has to be big enough to aim at without precision'),
+  D('r-drop-title-weight', 'sheet', '.sr-drop-title', { fontWeight: 560 },
+    'and its instruction is a label, at the same weight as a field label'),
+  D('r-note-pad', 'sheet', '.sr-note', { padding: '9px 11px' },
+    'notes are 9/11 rather than the card 14: they are inline asides, not cards'),
+  D('r-note-hint-size', 'sheet', '.sr-note-hint', { fontSize: 10.5 },
+    'the second line of a note is the actionable part, so it steps down but stays legible'),
+  D('r-warn-rule', 'sheet', '.sr-note--warn', { borderLeftWidth: 3 },
+    'warnings carry the same 3px rule the toasts use, so "attention" looks the same everywhere'),
+  // ---- loading and empty states ----------------------------------------------------------
+  D('r-skel-radius', 'frame', '.sr-skel', { borderRadius: 10 },
+    'the skeleton takes the control radius: it is standing in for cards and rows'),
+  D('r-skel-track', 'frame', '.sr-skel', { background: 'linear-gradient(90deg, var(--sr-sunken), var(--sr-fill), var(--sr-sunken))', backgroundSize: '220% 100%' },
+    'the shimmer needs a track WIDER than the element, or the sweep is a hard edge'),
+  D('r-skel-name', 'frame', '.sr-skel-name', { height: 15, width: '42%' },
+    'the placeholder line lengths are deliberate: 42% reads as a title, 100% as a paragraph'),
+  D('r-skel-row', 'frame', '.sr-skel-row', { height: 11 },
+    'and body lines are 11px, matching the text they stand in for'),
+  D('r-empty-pad', 'sec', '.sr-empty', { padding: '18px 16px' },
+    'an empty state gets room, because it is the only thing on screen when it appears'),
+  D('r-empty-rule', 'sec', '.sr-empty', { border: '1px dashed var(--sr-line)', borderRadius: 12 },
+    'dashed, joining the drop zone and the guide: all three say "nothing here yet"'),
+  D('r-guide-pad', 'sec', '.sr-guide', { padding: '14px 16px', gap: 10 },
+    'the first-run guide matches the card inset and the row gap, so it belongs to the same system'),
+  D('r-guide-icon-size', 'sec', '.sr-guide .sr-ic', { width: 16, height: 16 },
+    'the leading icon is 16px: at 18 it outranked the sentence it introduces'),
+  D('r-guide-text-size', 'sec', '.sr-guide-text', { fontSize: 12, lineHeight: 1.6 },
+    'the guide is the one paragraph a new user reads, so it gets the loosest leading'),
+  // ---- panel chrome ----------------------------------------------------------------------
+  D('r-sec-head-pad', 'sec', '.sr-sec-h', { padding: '10px 16px' },
+    'section headers share the 16px inset with the header and the body, so the left edge is one line'),
+  D('r-sec-title-size', 'sec', '.sr-sec-t', { fontSize: 11.5, fontWeight: 620 },
+    'a section title is the third level, between the panel title and a card name'),
+  D('r-sec-count-quiet', 'sec', '.sr-sec-h .sr-count', { fontSize: 10.5, color: 'var(--sr-fg3)' },
+    'the count beside a section title is metadata, so it does not compete with the title'),
+  D('r-sec-caret-size', 'sec', '.sr-sec-caret .sr-ic', { width: 12, height: 12 },
+    'a 12px caret: big enough to aim at inside a 44px row, small enough not to dominate'),
+  D('r-sec-caret-colour', 'sec', '.sr-sec-caret', { color: 'var(--sr-fg3)' },
+    'and it stays tertiary even when the section is open, because the state is the rotation'),
+  D('r-toolbar-pad', 'sec', '.sr-toolbar', { padding: '8px 16px', gap: 8 },
+    'the toolbar is part of the header block, so it shares the inset and its own tight gap'),
+  D('r-filter-height', 'sec', '.sr-filter input', { height: 30 },
+    'the search field is 30px: one step above a control, because it holds a caret and a query'),
+  D('r-chips-gap', 'sec', '.sr-chips', { gap: 6 },
+    'filter chips sit 6px apart, tight enough to read as a set'),
+  D('r-chips-wrap', 'sec', '.sr-chips', { flexWrap: 'wrap', rowGap: 6 },
+    'and they wrap, because the tag list is as long as the user made it'),
+  D('r-sort-size', 'sec', '.sr-sort button', { fontSize: 10.5 },
+    'the sort control is a micro-label, matching the section count'),
+  D('r-group-count-pill', 'card', '.sr-group-head .sr-pill', { fontVariantNumeric: 'tabular-nums' },
+    'group counts change as skills are toggled, so they hold their width'),
+  D('r-group-title-size', 'card', '.sr-group-title', { fontSize: 11, letterSpacing: '.02em' },
+    'the group heading is a micro-caps label: the tracking keeps it legible at 11px'),
+  D('r-group-note-size', 'card', '.sr-group-note', { fontSize: 10.5 },
+    'and its explanation is one step below the heading it explains'),
+  D('r-hero-badge-mono', 'hero', '.sr-badge', { fontFamily: 'var(--sr-mono)', fontSize: 10.5 },
+    'the hero badges name skills, and a skill name is an identifier'),
+  D('r-hero-empty-size', 'hero', '.sr-hero-empty', { fontSize: 12.5, lineHeight: 1.5 },
+    'the first-run sentence in the hero matches body size rather than the meta size around it'),
+  D('r-share-name-mono', 'stat', '.sr-share-name', { fontFamily: 'var(--sr-mono)' },
+    'the per-skill bar list names skills, so they align in the mono face'),
+  D('r-share-bar-height', 'stat', '.sr-share-track', { height: 7 },
+    'a 7px bar: visible at a glance, not a chart'),
+  D('r-share-value-width', 'stat', '.sr-share-n', { minWidth: 34, textAlign: 'right' },
+    'the value column is fixed-width and right-aligned, so the bars share one baseline'),
+  D('r-stat-value-width', 'stat', '.sr-stat-v', { minWidth: 22 },
+    'counter digits hold a 22px floor, so the label does not shift as the number grows'),
+  // ---- micro-typography ------------------------------------------------------------------
+  D('r-cjk-line-break', 'type', '{root}', { lineBreak: 'strict' },
+    'strict line breaking keeps CJK punctuation off the start of a line, which is a correctness rule in Chinese typesetting, not a preference'),
+  D('r-word-break-headings', 'type', '.sr-title', { wordBreak: 'keep-all' },
+    'a title breaks between words, never inside one'),
+  D('r-hyphens-off', 'type', '.sr-blurb', { hyphens: 'none' },
+    'no automatic hyphenation: it needs a language hint and produces wrong breaks in mixed CJK/Latin text'),
+  D('r-text-rendering', 'type', '{root}', { textRendering: 'optimizeLegibility' },
+    'kerning and ligatures on, which matters for the mono face in slugs and hashes'),
+  D('r-font-synthesis', 'type', '{root}', { fontSynthesis: 'none' },
+    'never fake a bold or italic: a synthesised weight in a CJK face is visibly smeared'),
+  D('r-tab-size-code', 'type', '.sr-input--mono, .sr-textarea', { tabSize: 2 },
+    'pasted YAML is indented with two spaces, so a tab stop of 2 keeps it aligned'),
+  D('r-uppercase-off-cjk', 'type', '.sr-group-note', { textTransform: 'none' },
+    'explicitly no uppercase on a string that is Chinese: it is a no-op at best and a hint at worst'),
+  D('r-numeral-context', 'type', '.sr-stat-l', { fontVariantNumeric: 'normal' },
+    'labels are words, not numbers: tabular figures make Latin labels look loose'),
+  // ---- depth and material, second pass ---------------------------------------------------
+  D('r-sheet-shadow', 'sheet', '.sr-sheet', { boxShadow: 'var(--sr-e3)' },
+    'the dialog is the highest object on screen, so it takes the top elevation'),
+  D('r-strip-shadow', 'frame', '.sr-strip', { boxShadow: 'var(--sr-e1)' },
+    'the collapsed bar floats a little, so it reads as a layer over the composer'),
+  D('r-strip-hover', 'frame', '.sr-strip:hover', { boxShadow: 'var(--sr-e2)', borderColor: 'var(--sr-line2)' },
+    'and rises one step on hover, like every other surface'),
+  D('r-dot-ring', 'frame', '.sr-strip-dot', { boxShadow: '0 0 0 3px var(--sr-fill)' },
+    'the status dot gets a 3px halo, which is what makes a 7px dot readable'),
+  D('r-statcard-ring', 'stat', '.sr-statcard--inline', { borderColor: 'color-mix(in srgb, var(--sr-line) 55%, transparent)' },
+    'the counter chips get a faint edge: they sit on the bar, which is itself a translucent surface'),
+  D('r-btn-icon-colour', 'btn', '.sr-btn--icon', { color: 'var(--sr-fg2)' },
+    'icon buttons are secondary ink at rest, because a row of full-ink icons shouts'),
+  D('r-btn-icon-hover-colour', 'btn', '.sr-btn--icon:hover:not(:disabled)', { color: 'var(--sr-fg)' },
+    'and come to full ink on hover'),
+  D('r-btn-danger-quiet', 'btn', '.sr-btn--danger', { background: 'transparent', borderColor: 'color-mix(in srgb, var(--sr-danger) 30%, transparent)', color: 'var(--sr-danger)' },
+    'delete is an outline in the danger hue: available, not advertised'),
+  D('r-btn-danger-filled', 'btn', '.sr-btn--danger.sr-btn--armed', { background: 'var(--sr-danger)', color: '#fff', borderColor: 'var(--sr-danger)' },
+    'and it FILLS when armed, so the second click cannot be mistaken for the first'),
+  D('r-btn-primary-weight', 'btn', '.sr-btn--primary', { fontWeight: 580 },
+    'the primary action carries a touch more weight than its neighbours'),
+  D('r-btn-sm-radius', 'btn', '.sr-btn--sm', { borderRadius: 8 },
+    'small controls take a smaller radius: 9px on a 24px-tall button looks like a bubble'),
+  D('r-toggle-on-colour', 'btn', '.sr-btn--on', { borderColor: 'color-mix(in srgb, var(--sr-ok) 34%, transparent)' },
+    'the ON switch keeps the hairline but tints it green, so the outline agrees with the track'),
+  D('r-swatch-size-phone', 'card', '.sr-swatch', { minWidth: 20, minHeight: 20 },
+    'a floor on the swatch size, so a flex row cannot squeeze them into slivers'),
+
+  /* ============================ 21g. the per-turn and per-skill views =============
+   *
+   * The two report sections the earlier passes never reached: the turn list (what happened, in
+   * order) and the per-skill table (which skills the work went to). These are the surfaces a user
+   * reads when something went wrong, so alignment matters more here than anywhere else.
+   */
+  D('r-turn-row-grid', 'time', '.sr-turn', { display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', alignItems: 'baseline', columnGap: 10, rowGap: 4 },
+    'a three-column row: time, what happened, and the age. A grid rather than flex because the monospace time column must not shift between rows'),
+  D('r-turn-time-width', 'time', '.sr-turn-t', { minWidth: 46, fontVariantNumeric: 'tabular-nums' },
+    'the time column is fixed and tabular, so consecutive turns line up down the page'),
+  D('r-turn-time-mono', 'time', '.sr-turn-t', { fontFamily: 'var(--sr-mono)', fontSize: 10.5 },
+    'and set in mono at the meta size, because it is a figure rather than prose'),
+  D('r-turn-time-colour', 'time', '.sr-turn-t', { color: 'var(--sr-fg3)' },
+    'the timestamp recedes: it is an index, not the content'),
+  D('r-turn-body-colour', 'time', '.sr-turn-body', { color: 'var(--sr-fg2)' },
+    'the body is secondary ink, leaving full ink for the skill names that matter'),
+  D('r-turn-sep', 'time', '.sr-turn + .sr-turn', { borderTop: '1px solid color-mix(in srgb, var(--sr-line) 50%, transparent)' },
+    'a hairline between turns, lighter than a section rule: turns are the finest division here'),
+  D('r-turn-pad-y', 'time', '.sr-turn', { paddingBlock: 7 },
+    '7px above and below each turn: enough to separate, tight enough to scan a long list'),
+  D('r-call-chip', 'time', '.sr-call', { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '1px 7px', borderRadius: 999 },
+    'a called skill is a small pill, so several fit one line without wrapping'),
+  D('r-call-chip-auto', 'time', '.sr-call--auto', { background: 'var(--sr-accent-weak)', color: 'var(--sr-fg)' },
+    'an automatic call is accent-tinted: it is the case the user is usually looking for'),
+  D('r-call-chip-manual', 'time', '.sr-call--manual', { background: 'var(--sr-sunken)', color: 'var(--sr-fg2)' },
+    'a manual call is neutral, because the user already knows they typed it'),
+  D('r-call-chip-none', 'time', '.sr-call--none', { background: 'var(--sr-warn-weak)', color: 'var(--sr-warn)' },
+    'the amber case is the one this plugin exists for: a turn where no skill was used'),
+  D('r-call-name-tight', 'time', '.sr-call-name', { letterSpacing: '-.01em' },
+    'mono runs wide at 11px, so the chip name tightens a fraction to fit more per line'),
+  D('r-skill-table-head', 'stat', '.sr-per-head', { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 10, padding: '6px 0' },
+    'the per-skill table has a header row, so the columns are named rather than inferred'),
+  D('r-skill-table-head-size', 'stat', '.sr-per-head', { fontSize: 10, letterSpacing: '.045em', textTransform: 'uppercase', color: 'var(--sr-fg3)' },
+    'a micro-caps header: the one place uppercase earns its keep, because it labels numbers'),
+  D('r-skill-table-row', 'stat', '.sr-per-row', { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 10, alignItems: 'center', padding: '5px 0' },
+    'body rows share the header grid exactly, so the columns cannot drift apart'),
+  D('r-skill-table-num', 'stat', '.sr-per-n', { minWidth: 30, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+    'both figures are right-aligned and tabular, so they form a readable column'),
+  D('r-skill-table-bar', 'stat', '.sr-per-bar', { height: 5, borderRadius: 999, background: 'var(--sr-sunken)', overflow: 'hidden' },
+    'a 5px bar inside the skill row: subordinate to the share chart, which is 7px'),
+  D('r-skill-table-fill', 'stat', '.sr-per-fill', { height: '100%', borderRadius: 999, background: 'var(--sr-accent)' },
+    'and its fill takes the accent, tying the table to the chart above it'),
+  D('r-skill-table-zero', 'stat', '.sr-per-row--zero', { color: 'var(--sr-fg3)' },
+    'a skill with no calls is dimmed: it is the interesting absence, not an error'),
+  // ---- the footer ------------------------------------------------------------------------
+  D('r-foot-grid', 'frame', '.sr-foot', { display: 'flex', alignItems: 'center', gap: 10 },
+    'the footer is one row of small facts, evenly spaced'),
+  D('r-foot-size', 'frame', '.sr-foot', { fontSize: 10.5 },
+    'footer text is the smallest tier: it is reference information, not content'),
+  D('r-foot-version-mono', 'frame', '.sr-foot-v', { fontFamily: 'var(--sr-mono)', fontVariantNumeric: 'tabular-nums' },
+    'the version and the fetched-at stamp are both figures, so both are mono and tabular'),
+  D('r-foot-root', 'frame', '.sr-foot-root', { fontFamily: 'var(--sr-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, direction: 'rtl', textAlign: 'left' },
+    'the skills root is a PATH, so it is mono, it truncates, and rtl direction keeps the END of the path visible — the beginning of every path here is the same home directory'),
+  D('r-foot-sep', 'frame', '.sr-foot-sep', { color: 'var(--sr-fg3)', opacity: 0.6 },
+    'the separators between footer facts are dimmer than the facts, or they read as content'),
+  D('r-foot-kbd-gap', 'frame', '.sr-foot', { rowGap: 0 },
+    'no row gap: the footer is one line and must never grow into two'),
+  // ---- the sidebar glyph and host integration --------------------------------------------
+  D('r-glyph-current', 'a11y', '.sr-glyph', { color: 'currentColor' },
+    'the sidebar glyph inherits the host colour, so it matches the neighbouring icons in both themes'),
+  D('r-glyph-opacity', 'a11y', '.sr-glyph', { opacity: 0.85 },
+    'and sits at 85%, which is where the host draws its own inactive icons'),
+  D('r-glyph-active', 'a11y', '.sr-glyph--on', { opacity: 1 },
+    'the active state is full opacity, matching the host sidebar'),
+  D('r-glyph-transition', 'a11y', '.sr-glyph', { transition: 'opacity var(--sr-speed-fade) var(--sr-ease)' },
+    'and it fades between states rather than snapping'),
+  // ---- the last typographic details ------------------------------------------------------
+  D('r-quote-mark', 'type', '.sr-quote', { fontFamily: 'var(--sr-sans)', fontStyle: 'normal' },
+    'quoted user text is NOT italic: an oblique synthesised in a CJK face is visibly wrong'),
+  D('r-mono-optical', 'type', '{root}', { '--sr-mono-size-adjust': '.96' },
+    'a named optical correction: mono faces set about 4% larger than sans at the same nominal size'),
+  D('r-list-marker', 'type', '.sr-guide-list', { paddingInlineStart: 18 },
+    'list markers get 18px, which is what keeps a two-line item aligned under its own text'),
+  D('r-code-inline', 'type', '.sr-code', { fontFamily: 'var(--sr-mono)', fontSize: '.94em', padding: '1px 4px', borderRadius: 5, background: 'var(--sr-sunken)' },
+    'inline code steps DOWN to .94em, because mono at the same nominal size looks larger'),
+  D('r-time-now', 'time', '.sr-age--now', { color: 'var(--sr-ok)' },
+    'the age column turns green under a minute, which is the one moment the reader cares about it'),
+  D('r-empty-icon', 'sec', '.sr-empty .sr-ic', { opacity: 0.5 },
+    'the empty-state icon is half strength: it decorates a sentence rather than leading it'),
+  D('r-badge-dot-size', 'hero', '.sr-badge-dot', { width: 5, height: 5 },
+    'a 5px dot inside a 20px badge: any larger and it competes with the label'),
+  D('r-src-dot-align', 'meta', '.sr-src-dot', { alignSelf: 'center' },
+    'the provenance dot centres on its line rather than sitting on the baseline'),
+  D('r-stat-label-caps', 'stat', '.sr-stat-l', { textTransform: 'none' },
+    'counter labels stay in sentence case: four uppercase labels in a row is a wall of capitals'),
+  D('r-share-row-pad', 'stat', '.sr-share-row', { paddingBlock: 4 },
+    'the share rows are 4px apart: they are a ranked list, so density is the point'),
+  D('r-hist-row-gap', 'time', '.sr-hist-row', { gap: 8 },
+    'history rows take the toast gap, so the two transient lists look related'),
+  D('r-sheet-tab-count', 'sheet', '.sr-tab .sr-count', { fontSize: 10, opacity: 0.8 },
+    'a count inside a tab steps down and dims, because the tab label is the target'),
+  D('r-opt-size', 'sheet', '.sr-opt', { fontSize: 10, fontWeight: 400, textTransform: 'none' },
+    'the 可选 marker is a quiet suffix: no case change, no weight, no colour of its own'),
+  D('r-path-mono', 'sheet', '.sr-path', { fontFamily: 'var(--sr-mono)', fontSize: 10.5 },
+    'any path the sheet shows is mono at the meta size'),
+  D('r-counter-unit', 'meta', '.sr-unit', { fontSize: 10, color: 'var(--sr-fg3)' },
+    'units like 次 and 个 step down from their number, so the figure stays the subject'),
+  D('r-hint-kbd-inline', 'sec', '.sr-hint .sr-kbd', { marginInline: 2 },
+    'a key cap inside a sentence needs 2px either side, or it touches the words'),
+  D('r-toast-counter-mono', 'toast', '.sr-toast-n', { fontFamily: 'var(--sr-mono)', fontVariantNumeric: 'tabular-nums' },
+    'the toast countdown is a figure that ticks every second, so it must not reflow'),
+  D('r-drop-icon-size', 'sheet', '.sr-drop .sr-ic', { width: 20, height: 20, opacity: 0.7 },
+    'the drop-zone icon at 20px and 70%: present enough to find, quiet enough not to be a button'),
+  D('r-toggle-label-gap', 'btn', '.sr-btn--toggle', { gap: 6 },
+    'the switch and its label sit 6px apart, the same gap the avatar uses for its initial'),
+  D('r-toggle-track-size', 'btn', '.sr-switch', { width: 26, height: 15 },
+    'a 26x15 track: legible as a switch at a glance, still smaller than the button that holds it'),
+  D('r-toggle-knob-size', 'btn', '.sr-switch-knob', { width: 11, height: 11 },
+    'an 11px knob in a 15px track leaves the 2px inset that makes a switch look mechanical'),
+  D('r-per-section-gap', 'stat', '.sr-per-list', { rowGap: 1 },
+    'one pixel between table rows: the grid alignment already separates them, so a gap would only add height'),
+  D('r-recent-gap', 'time', '.sr-recent-list', { rowGap: 2 },
+    'the recent list gets 2px, one step more than the table, because its rows are prose rather than figures'),
+  D('r-capability-note', 'sheet', '.sr-cap-note', { fontSize: 10.5, lineHeight: 1.5, color: 'var(--sr-fg3)' },
+    'the read-only explanation is a footnote, so it is set as one'),
+
+  D('r-bp-chip-compact-tablet', 'stat', '.sr-statcard--inline', { paddingInline: 5, gap: 4, borderRadius: 7 },
+    'the counter chips go compact below 900px: computed from the chip geometry that is 44px across four of them, which is what buys the summary a readable width instead of shrinking the numbers themselves'),
+  D('r-bp-chip-label-tablet', 'stat', '.sr-stat-l', { fontSize: 9.5 },
+    'and the chip label steps to 9.5px, the smallest size that still holds CJK shapes'),
+  D('r-bp-chip-value-tablet', 'stat', '.sr-stat-v', { fontSize: 13 },
+    'the value steps with its label rather than staying large over small caps'),
+  D('r-bp-strip-count-tablet', 'stat', '.sr-strip-count', { paddingInline: 5, fontSize: 10.5 },
+    'the install count chip tightens too, so the bar has one compact rhythm rather than two'),
+  D('r-bp-mark-tablet', 'frame', '.sr-strip-logo', { width: 18, height: 18 },
+    'and the brand mark steps down to 18px, freeing 4px and matching the smaller chips around it'),
+
   /* ============================ 22. enable / disable + catalogue groups ============ */
   D('group-head', 'card', '.sr-group-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', padding: 'calc(var(--sr-u) * 2.5) 0 calc(var(--sr-u) * 1.5)' },
     'a group header is a row: label, count, and the sentence that explains the state'),
@@ -1292,12 +1722,25 @@ function descendantSelector(list, roots) {
     .join(',')
 }
 
-function designRuleFor(record, roots) {
+/**
+ * The declarations a record produces, in the sheet's exact spelling.
+ *
+ * EXPORTED so the test can compare against the generator instead of re-deriving it. The test used
+ * to rebuild these two rules itself (camelCase to kebab-case, and "numbers under 100 get px unless
+ * the key is unitless") and the copy drifted: it did not know about UNITLESS_KEYS, so a `tabSize: 2`
+ * record was expected as `tab-size:2px` while the generator correctly emitted `tab-size:2` — and the
+ * assertion reported a missing declaration that was present. One implementation, used twice.
+ */
+function designDeclarations(record) {
   const camel = (key) => key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
   const value = (key, v) => (typeof v === 'number' && v < 100 && !UNITLESS_KEYS.has(key) ? `${v}px` : String(v))
-  const decls = Object.entries(record.props)
+  return Object.entries(record.props)
     .map(([key, raw]) => `${camel(key)}:${value(key, raw)}`)
     .join(';')
+}
+
+function designRuleFor(record, roots) {
+  const decls = designDeclarations(record)
   const at = record.at
   // `rooted: false` emits the selector EXACTLY as written, for a rule that must match an
   // element which is not a descendant of a surface — the portal host on `document.body` is
@@ -1328,7 +1771,10 @@ const KEYFRAMES = Object.freeze({
   'sr-card-in': 'from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}',
   'sr-sheet-in': 'from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}',
   'sr-toast-in': 'from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}',
-  'sr-guide-in': 'from{opacity:0}to{opacity:1}',
+  // Referenced by the pending toast, whose icon spins while work is in flight. It was missing when
+  // the assertion that checks for it was added — a name with no keyframes is silent, so the toast
+  // simply never span and nothing reported it.
+  'sr-spin': 'to{transform:rotate(360deg)}',
 })
 
 /**
@@ -1442,7 +1888,32 @@ function designDarkCSS(roots) {
   const explicit = ['.dark', '[data-theme="dark"]', '[data-dsw-theme="dark"]']
     .map((sel) => `${sel} :is(${roots.join(',')})`)
     .join(',')
-  return `@media (prefers-color-scheme: dark){\n${block}\n}\n${explicit}{${decls}}`
+
+  /**
+   * The brand mark swaps with the theme.
+   *
+   * The two marks are one brand in two states — open eye for light, closed eye for dark — so the
+   * swap has to follow the SAME two signals the palette does, or a user who picks Dark in the app
+   * while the OS is light would get the dark palette with the light logo. It is emitted here rather
+   * than as parent-scoped records because it needs both a media query and ancestor-scoped
+   * selectors, and a record can only be one of those.
+   *
+   * The `.sr-logo` classes appear in exactly one component, so the ancestor-scoped selectors need no
+   * class prefix of their own — and a bare `.dark .sr-logo--light{display:none}` cannot accidentally
+   * hide an icon in the host's own UI, because no other element carries that class.
+   */
+  const darkSignals = ['.dark', '[data-theme="dark"]', '[data-dsw-theme="dark"]']
+  const darkLogos = [
+    ...darkSignals.map((sel) => `${sel} .sr-logo--light{display:none}`),
+    ...darkSignals.map((sel) => `${sel} .sr-logo--dark{display:block}`),
+  ].join('\n')
+  const osLogos = [
+    '@media (prefers-color-scheme: dark){',
+    '.sr-logo--light{display:none}',
+    '.sr-logo--dark{display:block}',
+    '}',
+  ].join('\n')
+  return `${osLogos}\n@media (prefers-color-scheme: dark){\n${block}\n}\n${explicit}{${decls}}\n/* the brand mark follows the same two signals */\n${darkLogos}`
 }
 
 /** Counts per group, for the tally a reviewer reads. */
@@ -1452,4 +1923,4 @@ function designCounts() {
   return out
 }
 
-module.exports = { DESIGN, DESIGN_GROUPS, KEYFRAMES, BREAKPOINTS, designCSS, designResponsiveCSS, designDarkCSS, designCounts, designRuleFor }
+module.exports = { DESIGN, DESIGN_GROUPS, KEYFRAMES, BREAKPOINTS, designCSS, designResponsiveCSS, designDarkCSS, designCounts, designRuleFor, designDeclarations }

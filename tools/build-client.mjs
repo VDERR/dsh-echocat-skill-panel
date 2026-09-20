@@ -38,6 +38,9 @@ const MODULES = [
   { id: './polish.js', file: 'src/client/polish.js' },
   { id: './design.js', file: 'src/client/design.js' },
   { id: './icons.js', file: 'src/client/icons.js' },
+  // Generated from the source art by tools/make-logo.py then tools/encode-logo.py. Listed here
+  // because the bundler emits the table in this order and a module must precede its requires.
+  { id: './logo.js', file: 'src/client/logo.js' },
   { id: './source.js', file: 'src/client/source.js' },
   { id: './api.js', file: 'src/client/api.js' },
   { id: './install.js', file: 'src/client/install.js' },

@@ -403,9 +403,61 @@ ok('at least 200 design records', designRecords.length >= 200, String(designReco
 // pass contributed, so the number below cannot be met by renaming existing work.
 const refinementRecords = designRecords.filter((record) => record.id.startsWith('r-'))
 ok('the refinement pass contributed at least 100 records', refinementRecords.length >= 100, String(refinementRecords.length))
-ok('...and they are the pass with a reason each',
+// The third pass was asked for "at least 200 adjustments". Same discipline: a number in a commit
+// message is not evidence, so the records that pass contributed are counted. BASELINE is the record
+// total at the end of the PREVIOUS pass — measured, not remembered: the first version of this
+// assertion used 476, which was the total at the END of this pass, and so reported 102 instead of
+// the truth. A baseline that is wrong in the flattering direction is exactly what this check exists
+// to prevent, so it is a measured constant with the measurement written next to it.
+const BASELINE_AFTER_PASS_2 = 428
+ok('...and this pass alone contributed at least 200 more',
+  designRecords.length - BASELINE_AFTER_PASS_2 >= 200,
+  `${designRecords.length} total, ${designRecords.length - BASELINE_AFTER_PASS_2} since the baseline of ${BASELINE_AFTER_PASS_2}`)
+ok('...they are the pass with a reason each',
   refinementRecords.every((record) => typeof record.why === 'string' && record.why.length > 20),
   JSON.stringify(refinementRecords.filter((r) => typeof r.why !== 'string' || r.why.length <= 20).map((r) => r.id)))
+
+/* ---- the three strip requests, asserted individually ------------------------------------- */
+console.log('\n[9b] the composer strip: persistent counters, an install count, and a theme-aware mark')
+{
+  const byId = (id) => designRecords.find((record) => record.id === id)
+  // 1. the four counters ride the bar in BOTH states — so their rule must not be scoped to the open
+  //    shell. The old shell also set `overflow:hidden`, which is what clipped them when open.
+  ok('the counters are styled unconditionally', byId('r-strip-stats-always') !== undefined)
+  ok('...and the open shell no longer clips its children',
+    String(byId('r-strip-shell-transparent')?.props?.overflow) === 'visible',
+    String(byId('r-strip-shell-transparent')?.props?.overflow))
+  // 2. the report is a SEPARATE float, not merged into the shell.
+  ok('the collapsed bar has its own surface when open', byId('r-strip-bar-float') !== undefined)
+  ok('...and the expanded report is a second float with its own edges',
+    byId('r-strip-panel-float') !== undefined && String(byId('r-strip-panel-float').props.boxShadow).includes('e3'))
+  // 3. the install count replaced the static word.
+  ok('the install count has its own treatment where the label was', byId('r-strip-count') !== undefined)
+  // 4. the logo: centred in the room the bar has left, and theme-swapped by the same two signals.
+  //
+  // This asserted `position:absolute; left:50%` on the first version, which MEASURING the row proved
+  // cannot work: the bar is only part of the row (four buttons take the rest), so the bar's centre is
+  // not the row's centre — the mark landed at x=524 in a row ending at x=443, outside it, and drew
+  // over the counters. The assertion follows the design: a flex CHILD centred by auto margins.
+  const logoLayer = byId('r-logo-layer')
+  ok('the mark is centred by auto margins inside the bar, not absolutely positioned',
+    String(logoLayer?.props?.marginInline) === 'auto' && logoLayer?.props?.position === undefined,
+    JSON.stringify(logoLayer?.props))
+  ok('...and it cannot grow or be squeezed', String(logoLayer?.props?.flex) === 'none')
+  ok('...and it does not intercept clicks', String(logoLayer?.props?.pointerEvents) === 'none')
+  // The bar has to be able to give way for the mark to be centred in anything: `flex:none` on the
+  // counters plus `flex:1` on the bar was what drew the buttons on top of the numbers.
+  ok('the bar shrinks rather than overflowing into its buttons',
+    String(byId('r-strip-text-shrink')?.props?.flex).startsWith('1 1'), JSON.stringify(byId('r-strip-text-shrink')?.props))
+  ok('...and the action buttons hold their width',
+    String(byId('r-strip-btn-hold')?.props?.flex) === 'none')
+  const dark = design.designDarkCSS(ROOTS)
+  ok('the dark sheet swaps the mark', dark.includes('.sr-logo--light{display:none}') && dark.includes('.sr-logo--dark{display:block}'))
+  ok('...for the OS preference AND an explicit in-app theme',
+    dark.includes('@media (prefers-color-scheme: dark)') && dark.includes('.dark .sr-logo--light') &&
+      dark.includes('[data-theme="dark"] .sr-logo--light'),
+    'a user who picks Dark in the app while the OS is light must still get the dark mark')
+}
 // A palette swap is the easiest way to break accessibility silently, so the warm scale is
 // asserted to have actually landed rather than assumed.
 ok('the palette is the WARM scale, not the old cool one',
@@ -483,11 +535,12 @@ const designRules = [...`${DESIGN_GENERATED}\n${RESPONSIVE_GENERATED}`.matchAll(
 const dUnresolved = []
 const dLeaked = []
 for (const record of designRecords) {
-  const wanted = Object.entries(record.props).map(([key, raw]) => {
-    const cssKey = key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
-    const cssValue = typeof raw === 'number' && raw < 100 && !UNITLESS_KEYS.test(key) ? `${raw}px` : String(raw)
-    return `${cssKey}:${cssValue}`
-  })
+  // Ask the GENERATOR what this record declares, instead of re-deriving it here. The local copy of
+  // the two rules (kebab-case, and "numbers under 100 get px unless the key is unitless") did not
+  // know about the unitless set, so a `tabSize: 2` record was expected as `tab-size:2px` while the
+  // generator correctly emitted `tab-size:2` — reporting a missing declaration that was present.
+  // One implementation, used twice.
+  const wanted = design.designDeclarations(record).split(';')
   const owner = designRules.find((rule) => wanted.every((decl) => rule.decls.includes(decl)))
   if (owner === undefined) dUnresolved.push(record.id)
   else {
