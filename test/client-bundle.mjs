@@ -593,7 +593,13 @@ console.log('\n[9] installed skills and one-click reference')
   ok('a skill without a Chinese blurb falls back to its English description', panelText.includes('\u51fa\u56fe/\u6539\u56fe'))
   ok('a Chinese blurb wins over the English one',
     panelText.includes('H3 \u4e2d\u6587\u7b80\u4ecb') && !panelText.includes('H3 English blurb'))
-  ok('the skill tag renders', panelText.includes('\u89c6\u9891'))
+  // Tags no longer appear anywhere on screen: the tag row was removed from the card, and the
+  // category chips were replaced by the colour filter. The tag survives on the RECORD and drives the
+  // search index, which is what this asserts — asserting the rendered chip would now be asserting
+  // something the user asked to have removed.
+  ok('a skill tag still drives the search index',
+    exports.__ui.filterSkills(HOST_SNAPSHOT.skills, { query: '\u89c6\u9891' }).length > 0,
+    'the query box searches tag text')
   ok('a manual-only skill is marked', panelText.includes('manual-only-skill') && panelText.includes('\u4ec5 /'))
   ok('a deterministic avatar renders (item 33)', panelText.includes('G') && panelText.includes('M'))
   ok('the usage count reaches the card', panelText.includes('\u7528\u8fc7 3 \u6b21'))
@@ -1473,17 +1479,30 @@ await (async () => {
       ok('[20] ...and it never borrows the error colour', !String(hero?.props?.className ?? '').includes('danger'))
       const chip = findAllHost(tree, (n) => String(n.props?.className ?? '').includes('sr-age--none'))
       ok('[20] the turn rail marks it the same way', chip.length > 0, String(chip.length))
-      // The strip's dot is the third home, and the three states must differ.
+      // The strip's dot. It used to have THREE states — warn when a turn used no skill, accent when it
+      // did, neutral when there was nothing to report — and the user asked for green instead.
+      //
+      // Both "used nothing" and "used something" are now GREEN, because that distinction is already
+      // made by the four counter chips sitting on the same bar, and the dot was repeating it in a
+      // colour that reads as a warning. What the dot still distinguishes is HEALTH: whether the host
+      // answered at all. So the assertion changed from "three colours" to "green when the host
+      // answered, red when it did not, neutral when there is nothing yet" — which is the signal that
+      // is left, and the only one worth a colour.
       const stripTree = exports.__ui.SkillReportStrip({ state: { phase: 'ready', data: noSkill, error: null, fetchedAt: Date.now() } })
       const dot = findAllHost(stripTree, (n) => String(n.props?.className ?? '') === 'sr-strip-dot')[0]
-      ok('[20] the strip dot uses the muted warn token', dot?.props?.style?.background === 'var(--sr-warn)', String(dot?.props?.style?.background))
+      ok('[20] a healthy host gets the green dot', dot?.props?.style?.background === 'var(--sr-ok)', String(dot?.props?.style?.background))
       const usedTree = exports.__ui.SkillReportStrip({ state: { phase: 'ready', data: HOST_SNAPSHOT, error: null, fetchedAt: Date.now() } })
       const usedDot = findAllHost(usedTree, (n) => String(n.props?.className ?? '') === 'sr-strip-dot')[0]
-      ok('[20] a turn that DID use a skill keeps the accent dot', usedDot?.props?.style?.background === 'var(--sr-accent)', String(usedDot?.props?.style?.background))
+      ok('[20] ...the same green whether or not a skill was used', usedDot?.props?.style?.background === 'var(--sr-ok)', String(usedDot?.props?.style?.background))
       // No finished turn at all is a third, neutral state — not the same signal.
       const noneTree = exports.__ui.SkillReportStrip({ state: { phase: 'ready', data: { ...HOST_SNAPSHOT, recent: [] }, error: null, fetchedAt: Date.now() } })
       const noneDot = findAllHost(noneTree, (n) => String(n.props?.className ?? '') === 'sr-strip-dot')[0]
       ok('[20] nothing reported yet stays neutral', noneDot?.props?.style?.background === 'var(--sr-fg3)', String(noneDot?.props?.style?.background))
+      // And the one case that MUST stay red: an unreachable host. Turning that green would remove the
+      // only signal that the numbers on screen are stale.
+      const failTree = exports.__ui.SkillReportStrip({ state: { phase: 'error', data: HOST_SNAPSHOT, error: 'boom', fetchedAt: Date.now() } })
+      const failDot = findAllHost(failTree, (n) => String(n.props?.className ?? '') === 'sr-strip-dot')[0]
+      ok('[20] an unreachable host is still red', failDot?.props?.style?.background === 'var(--sr-danger)', String(failDot?.props?.style?.background))
     }
 
     /* -- [21] usage counts on the cards, and the 用过的 filter -- */

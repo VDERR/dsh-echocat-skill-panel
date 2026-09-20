@@ -187,6 +187,7 @@ function sortSkills(skills, key = 'name', dir, counts) {
 function filterSkills(skills, options = {}) {
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
   const tag = typeof options.tag === 'string' ? options.tag : ''
+  const color = typeof options.color === 'string' ? options.color : ''
   const onlySlash = options.onlySlash === true
   // "用过的" (item 44) is driven by the per-skill totals the host already sends.
   const onlyUsed = options.onlyUsed === true
@@ -195,6 +196,14 @@ function filterSkills(skills, options = {}) {
     if (onlySlash && skill.modelInvocable === false) return false
     if (onlyUsed && !(typeof counts[skill.name] === 'number' && counts[skill.name] > 0)) return false
     if (tag !== '' && skill.tag !== tag) return false
+    // The colour filter replaced the tag/category row at the user's request: the tags were the
+    // author's words, while a colour is the user's own marking, so filtering by colour filters by
+    // something they chose. `none` is a real option — the skills they have NOT marked yet, which is
+    // the set they most often want to work through.
+    if (color !== '') {
+      const assigned = typeof skill?.provenance?.color === 'string' ? skill.provenance.color : ''
+      if (color === 'none' ? assigned !== '' : assigned !== color) return false
+    }
     if (query === '') return true
     const hay = `${skill.name} ${skill.descriptionZh ?? ''} ${skill.description ?? ''} ${skill.tag ?? ''}`.toLowerCase()
     return hay.includes(query)
@@ -981,11 +990,26 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
   const [onlySlash, setOnlySlash] = React.useState(false)
   const [onlyUsed, setOnlyUsed] = React.useState(false)
   const [tag, setTag] = React.useState('')
+  // Which colour the catalogue is filtered to, or '' for all. `none` selects the unmarked skills.
+  const [color, setColor] = React.useState('')
   const [sortKey, setSortKey] = usePref('sort', 'name')
   const [sortDir, setSortDir] = usePref('sortDir', '')
   const tags = tagsOf(skills)
+  // How many skills carry each colour, plus the unmarked count. Computed from the same arrays the
+  // list renders, so a swatch's number always agrees with what clicking it shows.
+  const colorCounts = React.useMemo(() => {
+    const out = new Map()
+    let none = 0
+    for (const skill of Array.isArray(skills) ? skills : []) {
+      const assigned = typeof skill?.provenance?.color === 'string' ? skill.provenance.color : ''
+      if (assigned === '') none += 1
+      else out.set(assigned, (out.get(assigned) ?? 0) + 1)
+    }
+    out.set('none', none)
+    return out
+  }, [skills])
   const direction = sortDir === '' ? DEFAULT_DIR[sortKey] ?? 'asc' : sortDir
-  const shown = sortSkills(filterSkills(skills, { query, onlySlash, onlyUsed, counts, tag }), sortKey, direction, counts)
+  const shown = sortSkills(filterSkills(skills, { query, onlySlash, onlyUsed, counts, tag, color }), sortKey, direction, counts)
   /**
    * The DISABLED half of the catalogue.
    *
@@ -1074,18 +1098,51 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
                 h(Icon, { name: 'check', size: 10 }),
                 '仅可 / 调用',
               ),
-              ...tags.map((entry) =>
+              /**
+               * The COLOUR FILTER, which replaced the tag/category chips at the user's request
+               * ("右边就不要这些分类了，直接改成颜色分类的颜色块儿").
+               *
+               * Every swatch in the palette is always shown, not only the assigned ones: with an
+               * empty marking the assigned set is empty, and a filter row that renders nothing looks
+               * broken. A swatch with no skills behind it is disabled rather than hidden, so the row
+               * keeps a stable width and the user can see the palette they have to work with.
+               *
+               * The unmarked case gets its own trailing swatch: "还没标记的" is a set people work
+               * through, and it is the one entry that is not a colour.
+               */
+              h(
+                'div',
+                { className: 'sr-swatches-filter', role: 'group', 'aria-label': '按颜色筛选' },
+                ...api.SKILL_COLORS.map((entry) => {
+                  const count = colorCounts.get(entry.key) ?? 0
+                  const on = color === entry.key
+                  return h(
+                    'button',
+                    {
+                      key: entry.key,
+                      type: 'button',
+                      className: on ? 'sr-cf sr-cf--on' : 'sr-cf',
+                      style: { '--sr-cf': entry.hex },
+                      'aria-pressed': on,
+                      disabled: count === 0,
+                      onClick: () => setColor((value) => (value === entry.key ? '' : entry.key)),
+                      title: `${entry.label} · ${count} 个`,
+                    },
+                    h('span', { className: 'sr-cf-dot' }),
+                    count > 0 ? h('span', { className: 'sr-cf-n' }, String(count)) : null,
+                  )
+                }),
                 h(
                   'button',
                   {
-                    key: entry.tag,
                     type: 'button',
-                    className: tag === entry.tag ? 'sr-chip sr-chip--on' : 'sr-chip',
-                    'aria-pressed': tag === entry.tag,
-                    onClick: () => setTag((value) => (value === entry.tag ? '' : entry.tag)),
+                    className: color === 'none' ? 'sr-cf sr-cf--none sr-cf--on' : 'sr-cf sr-cf--none',
+                    'aria-pressed': color === 'none',
+                    disabled: (colorCounts.get('none') ?? 0) === 0,
+                    onClick: () => setColor((value) => (value === 'none' ? '' : 'none')),
+                    title: `还没标记颜色 · ${colorCounts.get('none') ?? 0} 个`,
                   },
-                  entry.tag,
-                  h('span', { className: 'sr-count' }, String(entry.count)),
+                  h('span', { className: 'sr-cf-n' }, String(colorCounts.get('none') ?? 0)),
                 ),
               ),
             ),
@@ -1202,7 +1259,17 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
                         { className: 'sr-group-head' },
                         h('span', { className: 'sr-group-title' }, '已启用'),
                         h('span', { className: 'sr-pill' }, String(shown.length)),
-                        h('span', { className: 'sr-group-note' }, '模型与 / 手势都能用'),
+                        // The explanation says what the user can DO here, at their request: the group
+                        // heading sits on the left of the row that now also carries the colour
+                        // swatches on the right, so it is the natural place to say that a skill's tile
+                        // is the control for marking it.
+                        h(
+                          'span',
+                          { className: 'sr-group-note' },
+                          capability !== undefined && api.canInstall(capability)
+                            ? '点头像框选颜色标签 · 模型与 / 手势都能用'
+                            : '模型与 / 手势都能用',
+                        ),
                       ),
                       h(
                         'div',
@@ -1742,16 +1809,19 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
   const used = latest !== undefined && latest.calls.length > 0
   const failed = state?.phase === 'error'
   const capability = s.capability
-  // Item 43, first of its three homes: the strip's dot. Our own tokens, not the
-  // host's label colours — and a separate amber state so "used nothing" is
-  // distinguishable from "nothing to report yet" at a glance.
+  // The strip's dot. Our own tokens, not the host's label colours.
+  //
+  // GREEN FOR HEALTHY, at the user's request — but the error state stays red. Their note said the dot
+  // should not be red and should be green, and the only red this dot ever takes is the host being
+  // unreachable; turning THAT green would remove the single signal that says the panel is showing
+  // stale data. So: green when the host answered, which now covers both "used skills this turn" and
+  // "answered fine, used nothing" — that distinction is already made by the counter chips, and the dot
+  // does not need to repeat it in a colour that reads as a warning.
   const dot = failed
     ? 'var(--sr-danger)'
     : latest === undefined
       ? 'var(--sr-fg3)'
-      : used
-        ? 'var(--sr-accent)'
-        : 'var(--sr-warn)'
+      : 'var(--sr-ok)'
   const installable = api.canInstall(capability)
   const openInstall = React.useCallback(() => setSheetOpen(true), [])
   const closeInstall = React.useCallback(() => setSheetOpen(false), [])
@@ -1773,8 +1843,12 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
    * skills, and the number of INSTALLED skills is the one fact the bar was not stating anywhere.
    * It counts enabled plus parked, because "installed" is what the user asked about — the parked
    * ones are still on disk and still listed.
+   *
+   * The unit is spelled out at the user's request: the chip used to read a bare "9 个", and "9 个
+   * skill 已准备就绪" says what the number is FOR rather than only how many there are.
    */
   const installedCount = (Array.isArray(s.skills) ? s.skills.length : 0) + (Array.isArray(s.disabledSkills) ? s.disabledSkills.length : 0)
+  const readyLabel = `${installedCount} 个 skill 已准备就绪`
 
   const bar = h(
     'button',
@@ -1800,7 +1874,7 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
         'span',
         { className: 'sr-strip-brand' },
         h('span', { className: 'sr-strip-dot', style: { background: dot } }),
-        h('span', { className: 'sr-strip-count', title: `已安装 ${installedCount} 个 skill（含已停用）` }, `${installedCount} 个`),
+        h('span', { className: 'sr-strip-count', title: `已安装 ${installedCount} 个 skill（含已停用）` }, readyLabel),
       ),
       h('span', { className: 'sr-strip-text' }, failed ? `主机侧不可达：${state?.error ?? '未知错误'}` : summarize(latest)),
     ),

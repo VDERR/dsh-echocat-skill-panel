@@ -478,11 +478,20 @@ console.log('\n[9b] the composer strip: persistent counters, an install count, a
       dark.includes('[data-theme="dark"] .sr-logo--light'),
     'a user who picks Dark in the app while the OS is light must still get the dark mark')
 }
-// A palette swap is the easiest way to break accessibility silently, so the warm scale is
-// asserted to have actually landed rather than assumed.
-ok('the palette is the WARM scale, not the old cool one',
-  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#faf8f5',
-  String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas']))
+// A palette swap is the easiest way to break accessibility silently, so the scale in use is asserted
+// rather than assumed. This check tracks whichever palette is current — it has asserted the cool
+// neutral, the warm stone and now the Bondi Blue card, and each time the VALUE changed while the
+// reason for asserting it did not.
+ok('the palette is the Bondi Blue scale from the reference card',
+  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#f2f8f8' &&
+    String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display']) === '#0f97a8',
+  `${String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas'])} / ${String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display'])}`)
+// The card's own Bondi Blue is a DISPLAY weight: 3.3:1 as text on white. It is kept for fills and
+// graphics, and the ACCENT must be a deeper value that clears AA both ways — asserted here so a future
+// change cannot quietly promote the display tone into body text.
+ok('the display tone is kept separate from the text-safe accent',
+  String(designRecords.find((r) => r.id === 'color-accent').props['--sr-accent']) !== '#0f97a8',
+  'the accent must not be the untinted card value')
 ok('...and the frosted wash that gives the blur something to work on is present',
   String(designRecords.find((r) => r.id === 'wash-backdrop')?.props?.backgroundImage ?? '').includes('radial-gradient'))
 
