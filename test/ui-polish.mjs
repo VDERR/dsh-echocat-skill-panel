@@ -479,12 +479,12 @@ console.log('\n[9b] the composer strip: persistent counters, an install count, a
     'a user who picks Dark in the app while the OS is light must still get the dark mark')
 }
 // A palette swap is the easiest way to break accessibility silently, so the scale in use is asserted
-// rather than assumed. This check tracks whichever palette is current — it has asserted the cool
-// neutral, the warm stone and now the Bondi Blue card, and each time the VALUE changed while the
-// reason for asserting it did not.
-ok('the palette is the Bondi Blue scale from the reference card',
-  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#f2f8f8' &&
-    String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display']) === '#0f97a8',
+// rather than assumed. This check has now tracked four palettes — cool neutral, warm stone, Bondi Blue
+// and the Vapor Chrome card — and each time the VALUE changed while the reason for asserting it did not:
+// a reference card's own tones are DISPLAY weights, and the accent has to be solved to clear AA.
+ok('the palette is the Vapor Chrome scale from the reference card',
+  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#f6f7fe' &&
+    String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display']) === '#818cf8',
   `${String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas'])} / ${String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display'])}`)
 // The card's own Bondi Blue is a DISPLAY weight: 3.3:1 as text on white. It is kept for fills and
 // graphics, and the ACCENT must be a deeper value that clears AA both ways — asserted here so a future

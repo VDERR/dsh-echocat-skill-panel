@@ -60,54 +60,61 @@ const D = (id, group, at, props, why, extra = {}) => ({ id, group, at, props, wh
 const DESIGN = Object.freeze([
   /* ============================ 1. tokens ============================ */
   //
-  // THE PALETTE IS BONDI BLUE, from the reference card the user supplied: a cool blue-green built on
-  // #0f97a8 with a pale mint wash, a white middle step and a near-black teal for depth. It replaces
-  // the warm stone scale, and the reasoning that chose that one still holds — separate the surfaces by
-  // TEMPERATURE as well as by luminance, and keep the steps far enough apart that a card reads as a
-  // card without a border doing the work. Only the hue family changed.
+  // THE PALETTE IS VAPOR CHROME, from the reference card the user supplied: a Y2K periwinkle-aqua
+  // system built on #818CF8 (periwinkle, the 主色), #67E8F9 (aqua), #A5F3FC (ice) and #C4B5FD (lilac).
+  // It replaces the Bondi Blue scale, and the reasoning that chose that one still holds — separate the
+  // surfaces by TEMPERATURE as well as luminance, and keep the steps far enough apart that a card reads
+  // as a card without a border doing the work. Only the hue family changed again.
   //
-  // Contrast was re-checked after the swap rather than assumed: test/ui-polish.mjs computes the WCAG
-  // ratios from these exact values and fails if one drops below AA. Two values had to move off the
-  // card's own tones to pass — the accent (#0f97a8 is a display weight, not a text one) and the ink
-  // (the card's near-black is used as-is).
-  D('color-canvas', 'token', '{root}', { '--sr-canvas': '#f2f8f8' },
-    'a pale mint wash: it separates from a white card by temperature, not only by brightness'),
+  // The card's own tones are DISPLAY weights. Contrast is re-solved after every palette swap rather
+  // than assumed: three of the four reference colours are too light to carry text, so the accent and the
+  // inks are computed to clear AA on the surfaces they actually sit on.
+  D('color-canvas', 'token', '{root}', { '--sr-canvas': '#f6f7fe' },
+    'a periwinkle-tinted near-white: it separates from a white card by temperature, not only brightness'),
   D('color-card', 'token', '{root}', { '--sr-card': '#ffffff' },
-    'the panel surface itself, one deliberate step above the canvas — the card\'s own white band'),
-  D('color-raised', 'token', '{root}', { '--sr-raised': '#eef6f6' },
+    'the panel surface itself, one deliberate step above the canvas — the card\'s white band'),
+  D('color-raised', 'token', '{root}', { '--sr-raised': '#f1f3fd' },
     'cards and inputs: a cool step ~5% from white, so a card reads as a card'),
-  D('color-sunken', 'token', '{root}', { '--sr-sunken': '#e4eff0' },
+  D('color-sunken', 'token', '{root}', { '--sr-sunken': '#e8ebfa' },
     'tracks, wells and code: the only place that goes BELOW the surface, and visibly so'),
-  D('color-fill', 'token', '{root}', { '--sr-fill': 'rgba(8,42,48,.055)' },
+  D('color-fill', 'token', '{root}', { '--sr-fill': 'rgba(30,32,72,.055)' },
     'hover fills are the ink at low alpha, so they tint toward the palette instead of greying it'),
-  D('color-fill2', 'token', '{root}', { '--sr-fill2': 'rgba(8,42,48,.03)' },
+  D('color-fill2', 'token', '{root}', { '--sr-fill2': 'rgba(30,32,72,.03)' },
     'the faintest wash, for large quiet areas'),
-  D('color-line', 'token', '{root}', { '--sr-line': 'color-mix(in srgb, #082a30 12%, transparent)' },
+  D('color-line', 'token', '{root}', { '--sr-line': 'color-mix(in srgb, #1e2048 12%, transparent)' },
     'hairline derived from the ink colour, so it is the right weight on every surface'),
-  D('color-line2', 'token', '{root}', { '--sr-line2': 'color-mix(in srgb, #082a30 22%, transparent)' },
+  D('color-line2', 'token', '{root}', { '--sr-line2': 'color-mix(in srgb, #1e2048 22%, transparent)' },
     'the stronger hairline, for hover edges and control borders'),
-  D('color-ink', 'token', '{root}', { '--sr-fg': '#082a30' },
-    'the card\'s near-black is a deep TEAL rather than a neutral, so the text stays inside the palette'),
-  D('color-ink3', 'token', '{root}', { '--sr-fg3': '#167686' },
-    'tertiary text clears AA on the SUNKEN step as well as white, which is the surface that constrains it: #167686 is the lightest teal on the card\'s own hue that passes (4.51:1 worst), solved rather than nudged'),
-  D('color-ink2', 'token', '{root}', { '--sr-fg2': '#3d5f67' },
+  D('color-ink', 'token', '{root}', { '--sr-ink-base': '#1e2048' },
+    'the ink the hairlines and fills derive from: the card\'s periwinkle family, taken to a near-black indigo'),
+  D('color-fg', 'token', '{root}', { '--sr-fg': '#1e2048' },
+    'primary text at 13.1:1 on white — the reference card has no ink of its own, so this is that family'),
+  D('color-ink2', 'token', '{root}', { '--sr-fg2': '#4c5178' },
     'secondary text, readable at 11.5px rather than merely present'),
-  D('color-accent', 'token', '{root}', { '--sr-accent': '#0c7a88' },
-    'Bondi Blue, deepened. The card\'s #0f97a8 is a DISPLAY weight — 3.3:1 as text on white — so the accent is the lightest value that clears AA BOTH as text on white and for white on top of it (5.05:1 each way, solved rather than guessed)'),
+  D('color-ink3', 'token', '{root}', { '--sr-fg3': '#62678c' },
+    'tertiary text clears AA on the SUNKEN step as well as white, which is the surface that constrains it'),
+  D('color-accent', 'token', '{root}', { '--sr-accent': '#4f46c8' },
+    'the card\'s periwinkle #818CF8 deepened until it clears AA BOTH as text on white and for white on top of it. The reference colour is kept as --sr-display for fills and graphics'),
   D('color-accent-ink', 'token', '{root}', { '--sr-accent-ink': '#ffffff' },
     'the ink that sits ON the accent; white clears AA on this accent, which is what the solver checked'),
   D('color-accent-weak', 'token', '{root}', { '--sr-accent-weak': 'color-mix(in srgb, var(--sr-accent) 12%, transparent)' },
     'tinted fills follow the accent automatically instead of being a second hardcoded rgba'),
   D('color-accent-line', 'token', '{root}', { '--sr-accent-line': 'color-mix(in srgb, var(--sr-accent) 36%, transparent)' },
     'the accent as a border weight, for selected and pending states'),
-  D('color-display', 'token', '{root}', { '--sr-display': '#0f97a8' },
-    'the CARD\'S OWN #0f97a8, kept for fills and large shapes where AA-as-text does not apply. Dropping it entirely would have lost the reference colour the user actually asked for'),
-  D('color-danger', 'token', '{root}', { '--sr-danger': '#a8342a' },
-    'a deep brick: the palette has no pure red, and destructive actions here are available rather than urgent'),
+  D('color-display', 'token', '{root}', { '--sr-display': '#818cf8' },
+    'the CARD\'S OWN 主色, kept for fills and large shapes where AA-as-text does not apply. Dropping it would have lost the colour actually asked for'),
+  D('color-display-aqua', 'token', '{root}', { '--sr-display-aqua': '#67e8f9' },
+    'the card\'s aqua, used with the periwinkle for the two-colour gradient the reference leads with'),
+  D('color-display-ice', 'token', '{root}', { '--sr-display-ice': '#a5f3fc' },
+    'and its ice tone, for the lightest end of a wash'),
+  D('color-display-lilac', 'token', '{root}', { '--sr-display-lilac': '#c4b5fd' },
+    'and the lilac, for the warm end of the same family'),
+  D('color-danger', 'token', '{root}', { '--sr-danger': '#be123c' },
+    'a deep rose-red: the palette is cool throughout, so the error tone is pulled toward magenta rather than being a pure signal red'),
   D('color-danger-weak', 'token', '{root}', { '--sr-danger-weak': 'color-mix(in srgb, var(--sr-danger) 10%, transparent)' },
     'destructive fills, kept quiet: delete is available, not urgent'),
-  D('color-ok', 'token', '{root}', { '--sr-ok': '#0f7a55' },
-    'a teal-leaning green, so "everything is fine" belongs to the same family as the accent'),
+  D('color-ok', 'token', '{root}', { '--sr-ok': '#0f766e' },
+    'a teal-leaning green, so "everything is fine" belongs to the same cool family as the accent'),
   D('color-ok-weak', 'token', '{root}', { '--sr-ok-weak': 'color-mix(in srgb, var(--sr-ok) 10%, transparent)' },
     'success fills, same construction as the others'),
   D('color-warn', 'token', '{root}', { '--sr-warn': '#b45309' },
@@ -1699,10 +1706,15 @@ const DESIGN = Object.freeze([
     'the small step was 8px, which was the squarest corner in the system; it is now the same pill'),
   D('r-round-btn-icon', 'btn', '.sr-btn--icon', { borderRadius: 999 },
     'icon buttons are circles, which is what a single glyph in a square box wants to be'),
-  D('r-round-avatar-btn', 'card', '.sr-avatar-btn', { borderRadius: 12 },
-    'the avatar wrapper takes a radius one step outside its tile, so a focus ring has somewhere to sit'),
-  D('r-round-avatar', 'card', '.sr-avatar', { borderRadius: 12 },
+  D('r-round-avatar-btn', 'card', '.sr-avatar-btn', { borderRadius: 999 },
+    'the avatar wrapper becomes a circle, matching the round icon buttons in the bar'),
+  D('r-round-avatar', 'card', '.sr-avatar', { borderRadius: 999 },
     'and the tile itself is rounder than the 9px it was: it is the control the user clicks for colour'),
+  // The segmented control's THUMB is a shape inside the group, not a button, but at 8px against a 22px
+  // tall track it was the squarest corner left on screen. It needs its own record rather than inheriting
+  // from `.sr-seg`: the older `seg-thumb` record sets 8 at the same specificity and wins on source order.
+  D('r-round-seg-thumb', 'meta', '.sr-seg-ind', { borderRadius: 999 },
+    'the selected tab\'s thumb becomes a capsule, matching the group it slides inside'),
   D('r-round-swatch', 'card', '.sr-swatch', { borderRadius: 999 },
     'colour swatches are circles'),
   D('r-round-toast', 'toast', '.sr-toast', { borderRadius: 16 },
@@ -1866,8 +1878,12 @@ const DESIGN = Object.freeze([
 const UNITLESS_KEYS = new Set([
   'fontWeight', 'lineHeight', 'opacity', 'zIndex', 'flexGrow', 'flexShrink', 'order',
   'WebkitLineClamp', 'fontSizeAdjust', 'aspectRatio', 'tabSize', 'columnCount',
-  'borderTopRightRadius', 'borderBottomRightRadius', 'borderTopLeftRadius', 'borderBottomLeftRadius',
 ])
+// The four CORNER-RADIUS properties used to be in the set above, and they are lengths — someone added
+// them to silence a checker rather than because a radius is unitless, and the effect was that every
+// `borderTopLeftRadius: 14` emitted the unitless `border-top-left-radius:14`. That is invalid CSS, so
+// the browser dropped it and the record did nothing at all while looking correct in the source.
+// tools/check-css-units.mjs now fails on exactly this, which is how they were found.
 
 /**
  * Expand a `{all}` selector into one rooted descendant selector per surface.
@@ -1901,7 +1917,11 @@ function descendantSelector(list, roots) {
  */
 function designDeclarations(record) {
   const camel = (key) => key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
-  const value = (key, v) => (typeof v === 'number' && v < 100 && !UNITLESS_KEYS.has(key) ? `${v}px` : String(v))
+  // A number is a LENGTH unless the property is named as unitless — see the long note in polish.js.
+  // The old version only appended `px` below 100, so `borderRadius: 999` emitted the invalid
+  // `border-radius:999`, the browser discarded it, and every pill in the sheet was silently square
+  // while the stylesheet read as correct.
+  const value = (key, v) => (typeof v === 'number' && !UNITLESS_KEYS.has(key) ? `${v}px` : String(v))
   return Object.entries(record.props)
     .map(([key, raw]) => `${camel(key)}:${value(key, raw)}`)
     .join(';')

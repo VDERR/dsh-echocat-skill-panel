@@ -573,8 +573,12 @@ const UNITLESS = new Set([
   // Sub-properties whose names merely CONTAIN a unitless one. Without these the guard
   // in `test/ui-polish.mjs` reports them as "a unitless property with a px suffix",
   // which is a false alarm that would train the next reader to ignore the check.
-  'borderTopRightRadius', 'borderBottomRightRadius', 'borderTopLeftRadius', 'borderBottomLeftRadius',
 ])
+// NOTE: the four corner-radius properties USED to be listed above, and they are LENGTHS. They were
+// added to silence a checker rather than because a radius is unitless, and the cost was that every
+// `borderTopLeftRadius: 14` emitted the unitless `border-top-left-radius:14` — invalid CSS, dropped by
+// the browser, so those records did nothing while reading as correct. tools/check-css-units.mjs fails
+// on exactly that shape now, which is how they were found.
 
 /**
  * Expand a `{all}` selector into one rooted descendant selector per surface.
@@ -607,7 +611,20 @@ function descendantSelector(list, roots) {
 
 function ruleFor(record, roots) {
   const camel = (key) => key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
-  const value = (key, v) => (typeof v === 'number' && v < 100 && !UNITLESS.has(key) ? px(v) : String(v))
+  /**
+   * The unit rule, and the bug it used to have.
+   *
+   * It read `v < 100`, on the assumption recorded above that "a number at or above 100 is always a
+   * length here". 999 is the counter-example: `border-radius: 999` was emitted with NO unit, which is
+   * invalid CSS, so the browser DISCARDED the declaration and fell back to whatever radius an earlier
+   * rule had set. Every pill in the stylesheet was therefore silently a rounded rectangle, and the
+   * sheet looked completely correct while it was being read.
+   *
+   * The rule is now the right way round: a number is a length UNLESS the property is named as
+   * unitless. The threshold was the mistake — it tried to infer the unit from the magnitude, and no
+   * magnitude can tell you whether 999 is a radius or an opacity.
+   */
+  const value = (key, v) => (typeof v === 'number' && !UNITLESS.has(key) ? px(v) : String(v))
   const decls = Object.entries(record.props)
     .map(([key, raw]) => `${camel(key)}:${value(key, raw)}`)
     .join(';')

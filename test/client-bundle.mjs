@@ -747,7 +747,16 @@ console.log('\n[12] capability model and validation (api)')
   ok('palette keys are unique', new Set(api.SKILL_COLORS.map((c) => c.key)).size === 8)
   ok('an absent colour resolves to null, not to a colour', api.skillColor('') === null && api.skillColor(undefined) === null)
   ok('an unknown key resolves to null rather than falling back to a colour', api.skillColor('chartreuse') === null)
-  ok('a known key resolves to its entry', api.skillColor('teal')?.hex === '#0d9488')
+  // The VALUE is retuned with every palette swap (warm stone, Bondi Blue, now Vapor Chrome) while the
+  // KEY is the thing that must never change: it is what each skill's .echocat.json stores, so renaming
+  // one would silently drop every marking a user had already made. So this asserts that the key
+  // resolves to a valid colour and that the key SET is stable — not the literal hex of the moment.
+  ok('a known key resolves to its entry',
+    /^#[0-9a-f]{6}$/iu.test(api.skillColor('teal')?.hex ?? '') && api.skillColor('teal')?.key === 'teal',
+    JSON.stringify(api.skillColor('teal')))
+  ok('...and the key set is the STABLE one that is written to disk',
+    api.SKILL_COLORS.map((c) => c.key).join(',') === 'indigo,teal,green,amber,red,pink,violet,slate',
+    api.SKILL_COLORS.map((c) => c.key).join(','))
   ok('hueOf is gone from the API', typeof api.hueOf === 'undefined', 'the hash-colour path was removed with the palette')
 
   ok('canInstall is true only when api:1 and writable', api.canInstall(CAP_FULL) === true)

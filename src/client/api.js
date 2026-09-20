@@ -75,14 +75,17 @@ function slugify(name) {
  * the light and the dark sheet. Keys are stable strings; they are what gets written to disk.
  */
 const SKILL_COLORS = [
-  { key: 'indigo', hex: '#5b5bd6', label: '靛蓝' },
-  { key: 'teal', hex: '#0d9488', label: '青' },
-  { key: 'green', hex: '#16a34a', label: '绿' },
-  { key: 'amber', hex: '#d97706', label: '琥珀' },
-  { key: 'red', hex: '#dc2626', label: '红' },
-  { key: 'pink', hex: '#db2777', label: '品红' },
-  { key: 'violet', hex: '#7c3aed', label: '紫' },
-  { key: 'slate', hex: '#475569', label: '石板' },
+  // Retuned to the Vapor Chrome reference card. The KEYS are unchanged and must stay that way: they
+  // are what is written to disk in each skill's `.echocat.json`, so renaming one would silently drop
+  // every marking a user had already made. Only the hex values and the labels moved.
+  { key: 'indigo', hex: '#818cf8', label: '长春花' },
+  { key: 'teal', hex: '#22c3d6', label: '水绿' },
+  { key: 'green', hex: '#34d399', label: '薄荷' },
+  { key: 'amber', hex: '#fbbf24', label: '琥珀' },
+  { key: 'red', hex: '#fb7185', label: '珊瑚' },
+  { key: 'pink', hex: '#e879f9', label: '品红' },
+  { key: 'violet', hex: '#a78bfa', label: '丁香紫' },
+  { key: 'slate', hex: '#64748b', label: '石板' },
 ]
 
 /** The palette entry for a stored key, or `null` for "no colour" (the neutral default). */
