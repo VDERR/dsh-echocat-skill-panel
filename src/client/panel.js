@@ -1785,49 +1785,58 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
       title: `${summarize(latest)}（点击${open ? '收起' : '展开'}）`,
       'aria-expanded': open,
     },
-    // Brand: a status dot, then the install count in place of a word that said nothing.
+    // LEFT FLANK. Wrapped, and the wrapper is what centres the mark.
+    //
+    // The mark cannot be centred while its two neighbours are sized by their CONTENT: the fixed
+    // counter block is ~302px against a summary capped at 38%, so an auto margin, `flex-grow`, and an
+    // absolute overlay were each measured and each landed 18–47px off centre. Two wrappers with
+    // `flex:1` make the flanks equal BY CONSTRUCTION, so the mark between them is on the centre line
+    // at any width, with any labels, without a magic offset.
     h(
       'span',
-      { className: 'sr-strip-brand' },
-      h('span', { className: 'sr-strip-dot', style: { background: dot } }),
-      h('span', { className: 'sr-strip-count', title: `已安装 ${installedCount} 个 skill（含已停用）` }, `${installedCount} 个`),
+      { className: 'sr-strip-left', key: 'left' },
+      // Brand: a status dot, then the install count in place of a word that said nothing.
+      h(
+        'span',
+        { className: 'sr-strip-brand' },
+        h('span', { className: 'sr-strip-dot', style: { background: dot } }),
+        h('span', { className: 'sr-strip-count', title: `已安装 ${installedCount} 个 skill（含已停用）` }, `${installedCount} 个`),
+      ),
+      h('span', { className: 'sr-strip-text' }, failed ? `主机侧不可达：${state?.error ?? '未知错误'}` : summarize(latest)),
     ),
-    h('span', { className: 'sr-strip-text' }, failed ? `主机侧不可达：${state?.error ?? '未知错误'}` : summarize(latest)),
-    // The EchoCat mark, as a REAL child of the bar, between the summary and the counters.
-    //
-    // It started as an absolutely positioned overlay at 50% of the row, and MEASURING the row said
-    // why that cannot work: the bar is only `flex:1` of a row that also holds four buttons, so the
-    // bar's centre is not the row's centre, and the logo landed at x=524 in a row that ends at 443
-    // — outside it — then drew on top of the counters once the offsets changed. A flex child cannot
-    // do either: it is inside the bar by construction, it takes its own space, and `margin-inline:
-    // auto` centres it in whatever room the summary and the counters leave.
+    // The EchoCat mark, in the middle column.
     h(LogoMark, { key: 'logo' }),
-    /**
-     * The four counters, ALWAYS on the bar line — collapsed and expanded alike.
-     *
-     * They used to appear only when the strip was open, on the reasoning that a collapsed bar
-     * should stay one line. That reasoning was wrong for the same reason the row was moved onto
-     * the bar in the first place: these are the numbers the plugin exists to report, and hiding
-     * them behind a click means the default state of the plugin reports nothing.
-     */
-    s.turns > 0 && !failed
-      ? h(
-          'span',
-          { className: 'sr-strip-stats' },
-          h(Stat, { label: '回合', value: s.turns ?? 0, inline: true, compact: true }),
-          h(Stat, { label: '用到 skill', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
-          h(Stat, { label: '未用', value: s.turnsWithoutSkills ?? 0, inline: true, compact: true }),
-          h(Stat, { label: '调用次数', value: s.invocations ?? 0, inline: true, compact: true }),
-        )
-      : null,
-    // The turn count, shown ONLY when the counters are not.
-    //
-    // It duplicates the 回合 chip exactly, and it sat immediately to the right of it: "… 37 回合 …
-    // 37". Measured at a narrow bar, those 36px were the difference between the summary rendering
-    // and collapsing to nothing. The bare count still earns its place in the two states that have no
-    // counters to read it from — no turns yet, or the host unreachable.
-    s.turns > 0 && !failed ? null : h('span', { className: 'sr-strip-n' }, String(s.turns ?? 0)),
-    h(Icon, { name: 'caret', size: 11, className: open ? 'sr-strip-caret sr-strip-caret--open' : 'sr-strip-caret' }),
+    // RIGHT FLANK, equally weighted, so the mark is centred rather than merely in between.
+    h(
+      'span',
+      { className: 'sr-strip-right', key: 'right' },
+      /**
+       * The four counters, ALWAYS on the bar line — collapsed and expanded alike.
+       *
+       * They used to appear only when the strip was open, on the reasoning that a collapsed bar
+       * should stay one line. That reasoning was wrong for the same reason the row was moved onto
+       * the bar in the first place: these are the numbers the plugin exists to report, and hiding
+       * them behind a click means the default state of the plugin reports nothing.
+       */
+      s.turns > 0 && !failed
+        ? h(
+            'span',
+            { className: 'sr-strip-stats' },
+            h(Stat, { label: '回合', value: s.turns ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '用到 skill', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '未用', value: s.turnsWithoutSkills ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '调用次数', value: s.invocations ?? 0, inline: true, compact: true }),
+          )
+        : null,
+      // The turn count, shown ONLY when the counters are not.
+      //
+      // It duplicates the 回合 chip exactly, and it sat immediately to the right of it: "… 37 回合 …
+      // 37". Measured at a narrow bar, those 36px were the difference between the summary rendering
+      // and collapsing to nothing. The bare count still earns its place in the two states that have
+      // no counters to read it from — no turns yet, or the host unreachable.
+      s.turns > 0 && !failed ? null : h('span', { className: 'sr-strip-n' }, String(s.turns ?? 0)),
+      h(Icon, { name: 'caret', size: 11, className: open ? 'sr-strip-caret sr-strip-caret--open' : 'sr-strip-caret' }),
+    ),
   )
 
   const shell = [

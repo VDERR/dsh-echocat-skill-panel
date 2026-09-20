@@ -79,6 +79,67 @@ try {
             }
           }
         }
+        // IS THE MARK CENTRED? Saying so is not evidence, and two earlier arrangements were wrong
+        // precisely because "centred" was assumed rather than measured. Both references are
+        // reported, because which one is right depends on the design: the ROW is the whole floating
+        // box including the action buttons, the BAR is the clickable strip the mark sits in.
+        const mark = row.querySelector('.sr-strip-logo')
+        if (mark !== null) {
+          const mr = mark.getBoundingClientRect()
+          const markMid = mr.left + mr.width / 2
+          const bar = row.querySelector('.sr-strip')
+          for (const [what, box] of [['row', rr], ['bar', bar === null ? null : bar.getBoundingClientRect()]]) {
+            if (box === null) continue
+            const mid = box.left + box.width / 2
+            const offset = markMid - mid
+            rows.push('   MARK vs ' + what + ': centre ' + markMid.toFixed(1) + ' vs ' + mid.toFixed(1) +
+              '  offset ' + offset.toFixed(1) + 'px  ' + (Math.abs(offset) <= 1.5 ? 'CENTRED' : 'not centred'))
+          }
+        } else {
+          rows.push('   *** NO MARK IN THE ROW ***')
+        }
+        // Print the BAR's own children with their boxes and computed flex properties. Guessing at
+        // why an auto margin lands where it does has failed three times; this shows the geometry
+        // that produced the offset instead of a theory about it.
+        const barEl = row.querySelector('.sr-strip')
+        if (barEl !== null) {
+          rows.push('   --- children of .sr-strip, left to right ---')
+          for (const kid of barEl.children) {
+            const kr = kid.getBoundingClientRect()
+            const cs = getComputedStyle(kid)
+            rows.push('   ' + (kid.getAttribute('class') ?? '').split(' ')[0].padEnd(20) +
+              String(Math.round(kr.width)).padStart(5) + 'px  @' + Math.round(kr.left) + '..' + Math.round(kr.right) +
+              '   flex=' + cs.flexGrow + '/' + cs.flexShrink + '/' + cs.flexBasis +
+              '  ml=' + cs.marginLeft + '  mr=' + cs.marginRight)
+          }
+        }
+        if (mark !== null) {
+          const mr = mark.getBoundingClientRect()
+          const barBox = row.querySelector('.sr-strip')
+          if (barBox !== null) {
+            for (const kid of barBox.children) {
+            const kr = kid.getBoundingClientRect()
+            if (kr.width === 0) continue
+            const cls = (kid.getAttribute('class') ?? '').split(' ')[0]
+            if (cls === 'sr-strip-logo') continue // the mark cannot sit on itself
+            if (kr.left < mr.right - 0.5 && kr.right > mr.left + 0.5) {
+              rows.push('   MARK sits over: ' + cls)
+            }
+          }
+          // The decisive question for a centred overlay: is the ROW's centre line inside anything?
+          const rowMid = rr.left + rr.width / 2
+          const occupants = []
+          for (const box of [barBox, ...row.children]) {
+            const br = box.getBoundingClientRect()
+            if (br.width === 0) continue
+            if (br.left <= rowMid && br.right >= rowMid) {
+              occupants.push((box.getAttribute('class') ?? '').split(' ')[0])
+            }
+          }
+          rows.push('   at the row centre line (' + rowMid.toFixed(0) + '): ' +
+            (occupants.length === 0 ? 'CLEAR' : occupants.join(', ')))
+          }
+        }
       }
       const box = document.createElement('pre')
       box.id = 'boxes'

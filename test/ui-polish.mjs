@@ -433,24 +433,33 @@ console.log('\n[9b] the composer strip: persistent counters, an install count, a
     byId('r-strip-panel-float') !== undefined && String(byId('r-strip-panel-float').props.boxShadow).includes('e3'))
   // 3. the install count replaced the static word.
   ok('the install count has its own treatment where the label was', byId('r-strip-count') !== undefined)
-  // 4. the logo: centred in the room the bar has left, and theme-swapped by the same two signals.
+  // 4. the logo: centred in the bar by two EQUAL flanks, and theme-swapped by the same two signals.
   //
-  // This asserted `position:absolute; left:50%` on the first version, which MEASURING the row proved
-  // cannot work: the bar is only part of the row (four buttons take the rest), so the bar's centre is
-  // not the row's centre — the mark landed at x=524 in a row ending at x=443, outside it, and drew
-  // over the counters. The assertion follows the design: a flex CHILD centred by auto margins.
+  // Five arrangements were tried and each was measured, and this assertion changed with every one of
+  // them — which is the point: it asserts the MECHANISM that makes the centring true, not merely that
+  // a rule exists. Auto margins cannot centre the mark (they resolve to 0px once `flex-grow` has taken
+  // the space), an absolute overlay at 50% of the ROW lands inside the bar because the bar is only
+  // part of the row, and no flex weight works because the counters are a fixed 302px with no slack.
+  // Two wrappers at `flex:1` are equal width by construction, and that is what puts the mark's centre
+  // on the bar's centre line — measured at 0.0px offset in tools/shot-strip.mjs.
   const logoLayer = byId('r-logo-layer')
-  ok('the mark is centred by auto margins inside the bar, not absolutely positioned',
-    String(logoLayer?.props?.marginInline) === 'auto' && logoLayer?.props?.position === undefined,
+  ok('the mark is a fixed-width slot in the middle of the bar',
+    String(logoLayer?.props?.flex) === '0 0 22px' && String(logoLayer?.props?.width) === '22',
     JSON.stringify(logoLayer?.props))
-  ok('...and it cannot grow or be squeezed', String(logoLayer?.props?.flex) === 'none')
-  ok('...and it does not intercept clicks', String(logoLayer?.props?.pointerEvents) === 'none')
-  // The bar has to be able to give way for the mark to be centred in anything: `flex:none` on the
-  // counters plus `flex:1` on the bar was what drew the buttons on top of the numbers.
-  ok('the bar shrinks rather than overflowing into its buttons',
-    String(byId('r-strip-text-shrink')?.props?.flex).startsWith('1 1'), JSON.stringify(byId('r-strip-text-shrink')?.props))
-  ok('...and the action buttons hold their width',
-    String(byId('r-strip-btn-hold')?.props?.flex) === 'none')
+  const flankLeft = byId('r-strip-flank-left')
+  const flankRight = byId('r-strip-flank-right')
+  ok('...between two flanks declared at the same weight',
+    String(flankLeft?.props?.flex) === String(flankRight?.props?.flex) && String(flankLeft?.props?.flex).startsWith('1 1'),
+    `${String(flankLeft?.props?.flex)} vs ${String(flankRight?.props?.flex)}`)
+  ok('...which is what makes the centring structural rather than an offset',
+    !Object.hasOwn(logoLayer?.props ?? {}, 'transform') && !Object.hasOwn(logoLayer?.props ?? {}, 'marginInline'),
+    'a transform or an auto margin here would be a magic number that breaks when a label changes width')
+  // The summary must NOT grow, or it eats its flank and the mark drifts off centre.
+  ok('the summary does not grow inside its flank',
+    String(byId('r-strip-flank-text')?.props?.flex).startsWith('0 1'),
+    JSON.stringify(byId('r-strip-flank-text')?.props))
+  ok('...and the counters stay at their natural width, so the flanks keep their share',
+    String(byId('r-strip-flank-stats')?.props?.flex) === 'none')
   const dark = design.designDarkCSS(ROOTS)
   ok('the dark sheet swaps the mark', dark.includes('.sr-logo--light{display:none}') && dark.includes('.sr-logo--dark{display:block}'))
   ok('...for the OS preference AND an explicit in-app theme',

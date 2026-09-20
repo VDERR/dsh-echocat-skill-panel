@@ -1226,7 +1226,6 @@ const DESIGN = Object.freeze([
   // specificity, which does not depend on where a record happens to sit in this array.
   D('r-strip-stats-always', 'stat', '.sr-strip .sr-strip-stats', {
     flex: 'none',
-    marginLeft: 'auto',
     gap: 4,
   }, 'the counters are never gated on the open state, and they hold their size: a shrunk counter is an unreadable one'),
   D('r-strip-stats-one-line', 'stat', '.sr-strip .sr-strip-stats', { flexWrap: 'nowrap' },
@@ -1239,8 +1238,14 @@ const DESIGN = Object.freeze([
   // the current settings and ~209px compact, and that 44px is the difference between a 31px and a
   // 77px summary at a narrow bar. So the panel breakpoint below makes them compact, and the chips
   // never shrink at all.
-  D('r-strip-text-shrink', 'frame', '.sr-strip-text', { flex: '1 1 auto', minWidth: 0 },
-    'the summary takes the leftover room; the counters hold their size and the summary truncates with an ellipsis'),
+  // `flex-grow: 0` here, NOT 1, and it is what makes the mark's `margin-inline: auto` mean anything:
+  // an auto margin can only centre in space that is actually free, and a growing summary consumes
+  // all of it. With the summary at its natural width, the free space collects around the mark and
+  // pushes the counters to the right edge — measured, the mark's centre then sits on the bar's centre.
+  // `flex-shrink` stays 1 with a `min-width: 0`, so a narrow bar still truncates the summary rather
+  // than overflowing.
+  D('r-strip-text-shrink', 'frame', '.sr-strip-text', { flex: '0 1 auto', minWidth: 0 },
+    'the summary takes its natural width and truncates when cramped; it does NOT grow, or the mark has no free space to be centred in'),
   D('r-strip-text-clip', 'frame', '.sr-strip-text', { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
     'and it truncates rather than overflowing its own box'),
   D('r-strip-n-hold', 'frame', '.sr-strip-n', { flex: 'none' },
@@ -1269,23 +1274,71 @@ const DESIGN = Object.freeze([
   }, 'the install count in a quiet pill where a static label used to be — it is a fact, so it is styled like one'),
   D('r-strip-count-hover', 'stat', '.sr-strip:hover .sr-strip-count', { background: 'var(--sr-fill)', color: 'var(--sr-fg)' },
     'and it responds with the bar, so the whole control moves as one surface'),
-  // ---- the brand mark, centred in the room the bar has left --------------------------------
+  // ---- the brand mark, centred on the ROW ---------------------------------------------------
   //
-  // MEASURED, not assumed. The first version was an absolutely positioned overlay at 50% of the
-  // row, and measuring the row showed the logo at x=524..546 in a row ending at x=443 — outside it
-  // entirely — because the bar is only part of the row (the four buttons take the rest), so the
-  // bar's centre is not the row's centre and neither is the logo's. It then landed on top of the
-  // counters when the offsets moved. As a flex child of the BAR it cannot do either: the space it
-  // occupies is its own, and `margin-inline:auto` centres it between the summary and the numbers.
+  // WHY NOT INSIDE THE BAR, which is where it was: `margin-inline: auto` centres an element in the
+  // space left over BESIDE it. Inside the bar the mark therefore sat midway between the summary text
+  // and the four counters — and the user's report was exactly right, "why is the cat not centred?".
+  // Nor is the bar's own 50% the answer: the bar is `flex:1` of a row that also holds four action
+  // buttons, so the bar's centre sits well left of the row's. The ROW is the floating box, so the
+  // row is what the mark is centred on.
+  //
+  // `pointer-events:none` is load-bearing here: this overlay sits ON TOP of a button (the bar), so
+  // without it the mark would swallow clicks aimed at the middle of the bar.
+  // ---- the brand mark: between two EQUAL flanks -------------------------------------------
+  //
+  // Five arrangements were tried and each was MEASURED, and the geometry below is what explains all
+  // of them (dumped by tools/shot-strip.mjs):
+  //
+  //   sr-strip-brand   47px  @73..120
+  //   sr-strip-text   294px  @128..422     (capped)
+  //   sr-strip-logo    22px                <- landed at 393 / 460 / 478 / 507 / 553 depending on rule
+  //   sr-strip-stats  302px  @526..828
+  //   sr-strip-caret   11px  @836..847
+  //
+  //   * `margin-inline: auto` is satisfied AFTER `flex-grow` takes the free space, so with growable
+  //     siblings the margin computes to 0px and the mark is just the next item in the row.
+  //   * an absolute overlay at 50% of the ROW was genuinely centred (0.0px offset, measured) but the
+  //     bar is `flex:1` of a row that also holds four action buttons, so the row's centre lands INSIDE
+  //     the bar — on the summary or on the first chip, and that thing moved with the content.
+  //   * no flex weight can fix it either: the counter block is a fixed 302px with no slack, so grow
+  //     values of 1, 3 and 6 all measured identically.
+  //   * an optical `translateX` nudge is a magic number that breaks the moment a label changes width.
+  //
+  // The answer is neither a weight nor an offset but EQUAL FLANKS: two wrappers at `flex:1` are the
+  // same width by construction, so the mark between them is on the centre line at every width, with
+  // any labels, and with no number to keep in sync.
+  D('r-strip-flank-left', 'frame', '.sr-strip-left', {
+    flex: '1 1 0%',
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  }, 'the left flank: equal to the right one by construction, and its contents sit against the mark rather than against the far edge'),
+  D('r-strip-flank-right', 'frame', '.sr-strip-right', {
+    flex: '1 1 0%',
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 6,
+  }, 'the right flank at the same weight, its contents against the middle too, so the mark sits between two blocks of equal WIDTH'),
+  D('r-strip-flank-text', 'frame', '.sr-strip-left .sr-strip-text', { flex: '0 1 auto', minWidth: 0, textAlign: 'right' },
+    'the summary takes its natural width and truncates; it does NOT grow, or it would eat the flank and push the mark off centre'),
+  D('r-strip-flank-stats', 'stat', '.sr-strip-right .sr-strip-stats', { flex: 'none', minWidth: 0 },
+    'and the counters keep their natural size, so the flank around them absorbs the slack'),
   D('r-logo-layer', 'frame', '.sr-strip-logo', {
-    flex: 'none',
-    marginInline: 'auto',
+    flex: '0 0 22px',
     width: 22,
     height: 22,
     display: 'grid',
     placeItems: 'center',
-    pointerEvents: 'none',
-  }, 'a flex child of the bar, centred by auto margins in whatever room the summary and counters leave'),
+  }, 'the middle column: a fixed 22px slot between two equal flanks, so it is centred rather than nudged'),
+  D('r-strip-brand-hold', 'frame', '.sr-strip-brand', { flex: 'none' },
+    'the brand block holds its width, so the summary is the only thing that gives'),
+  D('r-strip-caret-hold', 'frame', '.sr-strip-caret', { flex: 'none' },
+    'and so does the caret'),
   D('r-logo-img', 'frame', '.sr-logo', { width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none' },
     'the mark fills its 22px box without distortion'),
   D('r-logo-light', 'frame', '.sr-logo--light', { display: 'block' },
