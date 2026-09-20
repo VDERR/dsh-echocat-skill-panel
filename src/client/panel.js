@@ -90,7 +90,7 @@ const { Icon } = require('./icons.js')
 const { VERSION } = require('./theme.js')
 const api = require('./api.js')
 const { InstallSheet, SkillRowActions, LiveRail, copyText } = require('./install.js')
-const { checkForUpdates, useUpdates } = require('./source.js')
+const { checkForUpdates, useUpdates, useRelease, checkPluginRelease, openExternal } = require('./source.js')
 
 const h = React.createElement
 
@@ -500,6 +500,96 @@ function Stat({ label, value, inline = false, compact = false }) {
     )
   }
   return h('div', { className: 'sr-stat' }, h('span', { className: 'sr-stat-v' }, String(shown)), h('span', { className: 'sr-stat-l' }, label))
+}
+
+/* ------------------------- the plugin's own version controls ------------------------- */
+
+/**
+ * 「检查更新」 and 「GitHub 发布页」 — the two things a user can do about a stale plugin.
+ *
+ * WHY THESE EXIST AT ALL. This plugin installs and updates OTHER people's skills, and until
+ * now it had no answer to the obvious follow-up question about itself: is the thing doing
+ * the installing current? The author's release page was reachable only by leaving the app
+ * and remembering a URL.
+ *
+ * The two are ONE component rendered in two places (the report header and the strip) rather
+ * than two nearly-identical blocks, so the labels, the busy state and the version logic
+ * cannot drift apart between the surfaces.
+ *
+ * @param release - `{ current, latest, hasUpdate, checked, checkable, reason }` from the
+ *   state feed. `current` is present before any check has run, which is what lets the link
+ *   button be useful on first paint.
+ * @param repo - the release page URL, from the payload, with a compiled-in fallback.
+ */
+function ReleaseButtons({ release, repo, view = 'header' }) {
+  const state = useRelease()
+  const checking = state.checking === true
+  const result = state.result ?? release ?? {}
+  const current = typeof result.current === 'string' ? result.current : ''
+  const latest = typeof result.latest === 'string' && result.latest !== '' ? result.latest : ''
+  const hasUpdate = result.hasUpdate === true
+  // `checkable: false` means the host has no fetch or config turned it off. The button is
+  // then not disabled-but-present: it is replaced by nothing, and the reason travels in the
+  // link button's tooltip, because a disabled control that never explains itself is noise.
+  const checkable = result.checkable !== false
+  const error = state.error !== '' ? state.error : typeof result.reason === 'string' ? result.reason : ''
+  const url = typeof result.releases === 'string' && result.releases !== '' ? result.releases : repo
+
+  const checkTitle = (() => {
+    if (checking) return '正在查询 npm 与 GitHub…'
+    if (hasUpdate) return `有新版本 ${latest}（当前 ${current}）—— 点这里再查一次`
+    if (latest !== '') return `已是最新版本 ${current}（源上最新 ${latest}）`
+    if (error !== '') return `检查失败：${error}`
+    if (checkable !== true) return `主机侧关闭了联网检查（当前 ${current}）—— 用右边的按钮去发布页看`
+    return `检查这个插件自己有没有新版本（当前 ${current}）`
+  })()
+
+  return h(
+    'div',
+    { className: view === 'strip' ? 'sr-release sr-release--strip' : 'sr-release' },
+    checkable === true
+      ? h(
+          'button',
+          {
+            type: 'button',
+            className: hasUpdate ? 'sr-btn sr-btn--icon sr-btn--accent' : 'sr-btn sr-btn--icon',
+            onClick: () => void checkPluginRelease({ force: latest !== '' || error !== '' }),
+            disabled: checking,
+            title: checkTitle,
+            'aria-label': '检查插件更新',
+            'aria-busy': checking,
+          },
+          h(Icon, { name: checking ? 'refresh' : 'download', size: 13, className: checking ? 'sr-spin' : undefined }),
+          // The badge is the whole point: without it the button gives no sign that anything
+          // was found, and the user has to hover to learn there is an update waiting.
+          hasUpdate ? h('span', { className: 'sr-release-dot', 'aria-hidden': 'true' }) : null,
+        )
+      : null,
+    h(
+      'button',
+      {
+        type: 'button',
+        className: 'sr-btn sr-btn--icon',
+        onClick: () => {
+          // Opening can fail when there is no window to open into (a test harness, a
+          // locked-down webview). Say so, and say WHERE, instead of looking like a dead
+          // button — the URL itself is the useful fallback.
+          if (openExternal(url) !== true) api.pushToast({ kind: 'warn', message: '打不开浏览器', hint: url })
+        },
+        title: hasUpdate ? `去发布页拿 ${latest}（当前 ${current}）` : `打开 GitHub 发布页（当前 ${current}）`,
+        'aria-label': '打开 GitHub 发布页',
+      },
+      h(Icon, { name: 'github', size: 13 }),
+    ),
+    // On the report header there is room to SHOW the state, so the user does not have to
+    // hover a button to find out whether an update exists.
+    view === 'header' && hasUpdate
+      ? h('span', { className: 'sr-release-note' }, `可更新 ${latest}`)
+      : null,
+    view === 'header' && hasUpdate !== true && latest !== '' && !checking
+      ? h('span', { className: 'sr-release-note sr-release-note--ok' }, '已是最新')
+      : null,
+  )
 }
 
 function Empty({ children }) {
@@ -1248,6 +1338,11 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
   // user switches back to the conversation.
   const updateState = useUpdates()
   const updates = updateState.results
+  // Where the plugin itself lives, from the polled payload. No request is made for this:
+  // the host puts its own version and URLs on every state response, so the header can show
+  // them on first paint. A CHECK is a different thing and only happens when asked.
+  const pluginRelease = s.release ?? undefined
+  const releaseRepo = typeof pluginRelease?.releases === 'string' ? pluginRelease.releases : undefined
 
   /**
    * Ask the host, once per mounted panel, whether any skill's recorded source has
@@ -1320,6 +1415,10 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
             h(Icon, { name: 'plus', size: 13 }),
           )
         : null,
+      // The plugin's own version controls. They sit in the header alongside install and
+      // rescan because that is where "about this tool" belongs — and because the one thing
+      // a user does about a stale plugin is go and get the new one.
+      h(ReleaseButtons, { release: pluginRelease, repo: releaseRepo, view: 'header' }),
       onRefresh
         ? h('button', { type: 'button', className: 'sr-btn sr-btn--icon', onClick: onRefresh, title: '重新读取最新状态（快捷键 r）', 'aria-label': '刷新' }, h(Icon, { name: 'refresh', size: 13 }))
         : null,
@@ -1589,6 +1688,10 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
             h(Icon, { name: 'refresh', size: 13 }),
           )
         : null,
+      // The plugin's own version controls, in the seat that is mounted while the user is in
+      // the conversation — the report panel is not, so without this row the only way to ask
+      // about the plugin's own version would be to leave the conversation first.
+      h(ReleaseButtons, { key: 'release', release: s.release ?? undefined, repo: s.release?.releases ?? undefined, view: 'strip' }),
     ),
     h(LiveRail, { key: 'rail', className: 'sr-rail' }),
   ]

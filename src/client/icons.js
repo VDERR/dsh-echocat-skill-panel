@@ -84,6 +84,15 @@ const PATHS = {
     ['path', { d: 'M4.2 5.3v5.4' }],
     ['path', { d: 'M10.1 6.2H7.4a3.2 3.2 0 0 0-3.2 3.2v1.3' }],
   ],
+  // The GitHub mark, FILLED rather than stroked: it is a brand glyph, and its stroked
+  // form reads as a generic blob at 13px. Setting `fill` here makes the renderer pick
+  // SOLID for this path (see the `props.fill === undefined ? STROKE : SOLID` rule below).
+  github: [
+    ['path', {
+      fill: 'currentColor',
+      d: 'M8 .8a7.2 7.2 0 0 0-2.3 14c.36.07.5-.16.5-.35v-1.2c-2 .43-2.43-.97-2.43-.97-.33-.83-.8-1.06-.8-1.06-.66-.45.05-.44.05-.44.72.05 1.1.74 1.1.74.64 1.1 1.7.79 2.1.6.07-.47.25-.79.46-.97-1.6-.18-3.3-.8-3.3-3.57 0-.79.28-1.43.74-1.94-.07-.18-.32-.92.07-1.9 0 0 .6-.2 1.98.73a6.9 6.9 0 0 1 3.6 0c1.38-.94 1.98-.74 1.98-.74.4.99.15 1.73.07 1.91.46.5.74 1.15.74 1.94 0 2.78-1.7 3.39-3.32 3.57.26.23.5.67.5 1.35v2c0 .2.13.43.5.35A7.2 7.2 0 0 0 8 .8Z',
+    }],
+  ],
   copy: [
     ['rect', { x: 3.3, y: 3.3, width: 6.4, height: 6.4, rx: 1.7 }],
     ['path', { d: 'M6.4 12.7h4.6a1.7 1.7 0 0 0 1.7-1.7V6.4' }],

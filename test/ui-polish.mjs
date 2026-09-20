@@ -563,6 +563,9 @@ for (const [cls, why] of [
   ['sr-strip-stats', 'the counter row in the strip'],
   ['sr-statcard--inline', 'one counter chip'],
   ['sr-portal-host', 'the modal portal host'],
+  ['sr-release', 'the version-controls wrapper'],
+  ['sr-release-dot', 'the "an update exists" marker'],
+  ['sr-release-note', 'the header line stating the version state'],
 ]) {
   ok(`.${cls} has a rule (${why})`, new RegExp(`\\.${cls}[{,. :]`, 'u').test(RENDERED), cls)
 }

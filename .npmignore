@@ -1,0 +1,12 @@
+# npm does NOT read .gitignore for a file that a `files` entry pulled in, so the preview
+# output has to be excluded a second time here.
+#
+# `package.json` ships the whole `tools/` directory on purpose: `preview.mjs`,
+# `build-client.mjs` and `check-width-live.mjs` are the reason a contributor can SEE the
+# panel and re-measure it, and they are a few KB. What must not ship is their OUTPUT —
+# `preview.html` and two ~300KB PNGs, regenerated per machine and per Chrome build.
+tools/preview.html
+tools/preview-*.png
+
+# The width harness writes its screenshot next to itself when run by hand.
+tools/width-*.png

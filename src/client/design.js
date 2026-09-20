@@ -579,7 +579,24 @@ const DESIGN = Object.freeze([
   D('card-foot-row', 'card', '.sr-card-foot', { alignItems: 'stretch' },
     'the action column spans the card now that it is a row of its own'),
 
-  /* ============================ 18. enable / disable + catalogue groups ============ */
+  /* ============================ 19. the plugin's own version controls ============== */
+  // `display:contents` so the wrapper adds NO box: the two buttons must sit in the header's
+  // existing tool row exactly as if they were its own children, or the header's spacing
+  // changes the moment they appear.
+  D('release-wrap', 'frame', '.sr-release', { display: 'contents' },
+    'the version-controls wrapper must not introduce a box into the header tool row'),
+  D('release-wrap-strip', 'frame', '.sr-release--strip', { display: 'contents' },
+    'same in the strip row, so its two buttons keep the row\'s own gap'),
+  // The dot is the only sign that a check FOUND something without hovering: a version
+  // number in a tooltip is not discoverable.
+  D('release-dot', 'btn', '.sr-release-dot', { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 999, background: 'var(--sr-accent)', boxShadow: '0 0 0 1.5px var(--sr-card)' },
+    'a 6px accent dot on the check button, ringed in the card colour so it reads on any surface'),
+  D('release-note', 'frame', '.sr-release-note', { fontSize: 10.5, fontWeight: 600, letterSpacing: '.02em', color: 'var(--sr-accent)', whiteSpace: 'nowrap' },
+    'the header has room to SAY "可更新 4.1.0" instead of making the user hover to find out'),
+  D('release-note-ok', 'frame', '.sr-release-note--ok', { color: 'var(--sr-ok)' },
+    '"已是最新" is good news and wears the success colour, not the accent'),
+
+  /* ============================ 20. enable / disable + catalogue groups ============ */
   D('group-head', 'card', '.sr-group-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', padding: 'calc(var(--sr-u) * 2.5) 0 calc(var(--sr-u) * 1.5)' },
     'a group header is a row: label, count, and the sentence that explains the state'),
   D('group-gap', 'card', '.sr-group', { marginTop: 'calc(var(--sr-u) * 2)' },

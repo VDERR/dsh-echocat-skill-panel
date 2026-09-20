@@ -241,6 +241,135 @@ function useSkillReport({ path: overridePath, poll = POLL_MS } = {}) {
   return snapshot
 }
 
+/* ------------------------- the plugin's own release state ------------------------- */
+
+/**
+ * A tiny external store for "is there a newer version of this plugin".
+ *
+ * Module-level rather than component state for the same reason `useUpdates` is: the check
+ * resolves AFTER an await and the panel is unmounted whenever the user switches back to
+ * the conversation, so a result kept in component state would be thrown away and the
+ * answer would have to be fetched again on every reopen.
+ *
+ * `reason` is carried alongside the result on purpose: "I could not reach the registry" and
+ * "you are up to date" look identical if all you keep is a boolean, and only one of them
+ * means the user can stop thinking about it.
+ */
+const releaseStore = {
+  checking: false,
+  /** `null` until a check has run in this page. */
+  result: null,
+  error: '',
+}
+
+const releaseListeners = new Set()
+
+function emitRelease() {
+  for (const listener of [...releaseListeners]) {
+    try {
+      listener()
+    } catch {
+      // A listener that throws must not stop the others.
+    }
+  }
+}
+
+function subscribeRelease(listener) {
+  releaseListeners.add(listener)
+  return () => releaseListeners.delete(listener)
+}
+
+function releaseSnapshot() {
+  return releaseStore
+}
+
+/** Current release state, bound to React. */
+function useRelease() {
+  return React.useSyncExternalStore(subscribeRelease, releaseSnapshot, releaseSnapshot)
+}
+
+/**
+ * Run the check. Concurrent presses share one request, and the flag is always cleared —
+ * a button stuck on "checking" is worse than one that reports a failure.
+ */
+let releaseInflight = null
+function checkPluginRelease(options = {}) {
+  if (releaseInflight !== null) return releaseInflight
+  releaseStore.checking = true
+  releaseStore.error = ''
+  emitRelease()
+  // Lazy for the same reason as the update check above: api.js requires this module.
+  const api = require('./api.js')
+  releaseInflight = api
+    .checkPluginRelease({ force: options.force === true })
+    .then((envelope) => {
+      if (envelope.ok !== true) {
+        releaseStore.error = envelope.error?.message ?? '检查失败'
+        releaseStore.result = null
+        return
+      }
+      const value = envelope.data?.release ?? envelope.data ?? {}
+      releaseStore.result = value
+      // Reaching the host is not the same as reaching the outside world: the host phrases
+      // that case as a `reason` with no `latest`, and it is worth showing.
+      releaseStore.error = typeof value.reason === 'string' && value.latest === null ? value.reason : ''
+    })
+    .catch((error) => {
+      releaseStore.error = String(error?.message ?? error)
+      releaseStore.result = null
+    })
+    .then(() => {
+      releaseStore.checking = false
+      releaseInflight = null
+      emitRelease()
+    })
+  return releaseInflight
+}
+
+/** Replace the release state outright — the seam the bundle test drives. */
+function applyRelease(result) {
+  releaseStore.result = result ?? null
+  releaseStore.error = ''
+  emitRelease()
+}
+
+/** Forget everything; used between mounts so one test cannot leak into the next. */
+function clearRelease() {
+  releaseStore.result = null
+  releaseStore.error = ''
+  releaseStore.checking = false
+  releaseInflight = null
+  emitRelease()
+}
+
+/** The release page from the last payload, with a compiled-in fallback. */
+const FALLBACK_RELEASES = 'https://github.com/VDERR/echocat-skill-panel-3.0/releases'
+function releaseUrl(fallback = FALLBACK_RELEASES) {
+  const fromResult = releaseStore.result?.releases ?? releaseStore.result?.htmlUrl
+  if (typeof fromResult === 'string' && fromResult !== '') return fromResult
+  return fallback
+}
+
+/**
+ * Open a URL in the user's browser.
+ *
+ * `window.open` with `noopener,noreferrer` is what the app's own client plugins use, and it
+ * is the only mechanism available: the browser half has no shell API. Opens asynchronously
+ * so a popup blocker's verdict never lands in the middle of a React event handler.
+ *
+ * @returns true when a window was asked for, false when there is none to open.
+ */
+function openExternal(url) {
+  if (typeof url !== 'string' || url === '') return false
+  if (typeof window === 'undefined' || typeof window.open !== 'function') return false
+  try {
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return true
+  } catch {
+    return false
+  }
+}
+
 module.exports = {
   DEFAULT_PATH,
   POLL_MS,
@@ -256,4 +385,10 @@ module.exports = {
   subscribeUpdates,
   checkForUpdates,
   clearUpdates,
+  useRelease,
+  checkPluginRelease,
+  releaseUrl,
+  openExternal,
+  applyRelease,
+  clearRelease,
 }

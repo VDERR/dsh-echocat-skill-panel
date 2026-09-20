@@ -90,11 +90,13 @@ import { dirname, join } from 'node:path'
 import { createTurnTracker, describeTurn, sessionIdOf } from './detect.js'
 import { createSkillReportStore, MAX_RECENT_TURNS } from './store.js'
 import { createInstaller, resolveSkillsRoot, toInstallError } from './install.js'
+import { createReleaseChecker, RELEASES_URL, REPO_URL } from './release.js'
+import { VERSION as pluginVersion } from './version.js'
 
 export const name = 'echocat-skill-panel-3.0'
 
 /** Reported to the browser half so the panel can show what it is talking to. */
-export const VERSION = '4.0.0'
+export const VERSION = pluginVersion
 
 /**
  * Default path the browser half fetches its snapshot from.
@@ -118,6 +120,16 @@ export const DEFAULT_HTTP_PATH = '/api/skill-report/state'
  * into the user's skills directory.
  */
 export const DEFAULT_INSTALL_PATH = '/api/skill-report/skills'
+
+/**
+ * Default path of the plugin's own release-check endpoint.
+ *
+ * A separate route rather than a field on the state feed on purpose: the state feed is
+ * polled every few seconds, and a check that reached the network on that cadence would
+ * hammer the registry for a panel that is merely open. This one only ever runs because a
+ * human pressed a button, and it caches its answer for ten minutes after that.
+ */
+export const DEFAULT_RELEASE_PATH = '/api/skill-report/release'
 
 /** HTTP status per install error code, so the browser half can be simple. */
 const INSTALL_STATUS = {
@@ -182,6 +194,16 @@ export const Config = Schema.object({
   backupRoot: Schema.string().default(''),
   /** Permit installing from `localhost` / RFC1918 URLs (off: the app is local). */
   allowPrivateHosts: Schema.boolean().default(false),
+  /**
+   * Let the panel ask the npm registry / GitHub for the newest published version.
+   *
+   * On by default because it is the plugin's own release state, not the user's data — and
+   * it only runs when the button is pressed, never on a timer. Off means the button is
+   * replaced by a link to the release page, which needs no request at all.
+   */
+  checkForUpdates: Schema.boolean().default(true),
+  /** Path of that endpoint. */
+  releasePath: Schema.string().default(DEFAULT_RELEASE_PATH),
 })
 
 /** Resolve a flag that may arrive as a boolean, a schemastery default fn, or a descriptor. */
@@ -617,12 +639,24 @@ function mount(ctx, config) {
   const translateMissing = flag(config.translateMissing, true)
   const allowInstall = flag(config.allowInstall, true)
   const allowPrivateHosts = flag(config.allowPrivateHosts, false)
+  const checkForUpdates = flag(config.checkForUpdates, true)
   // `assertFetchRoute` rejects anything outside `/api/`, so an override that
   // does not look like one is ignored rather than allowed to throw later.
   const path =
     typeof config.httpPath === 'string' && config.httpPath.startsWith('/api/') ? config.httpPath : DEFAULT_HTTP_PATH
   const installPath =
     typeof config.installPath === 'string' && config.installPath.startsWith('/api/') ? config.installPath : DEFAULT_INSTALL_PATH
+  const releasePath =
+    typeof config.releasePath === 'string' && config.releasePath.startsWith('/api/') ? config.releasePath : DEFAULT_RELEASE_PATH
+
+  // The plugin's own release state. `fetch` comes from `ctx.get` so the host's own
+  // instrumented fetch is used when the app provides one.
+  const releases = createReleaseChecker({
+    version: VERSION,
+    fetchImpl: globalThis.fetch,
+    allowNetwork: checkForUpdates,
+    logger: ctx.logger,
+  })
 
   if (enabled !== true) {
     ctx.logger?.info?.('skill-report disabled by config')
@@ -898,6 +932,11 @@ function mount(ctx, config) {
                       ? { ...installer().capability(), git: installer().gitKnown() }
                       : { api: 0, install: false, reason: 'disabled by config' },
                   installHistory: allowInstall === true ? installer().history() : [],
+                  // Where this plugin itself lives, plus the last release answer if one has
+                  // been asked for. Only the cheap half is in the polled payload: the panel
+                  // needs the repo link on first paint, but it must never make a request on
+                  // a timer.
+                  release: { ...releases.base, cached: releases.peek() },
                   ...store.snapshot(),
                 })
               } catch (error) {
@@ -920,6 +959,33 @@ function mount(ctx, config) {
           disposers.push(dispose)
         } catch (error) {
           ctx.logger?.warn?.(`skill-report: could not register the panel feed at ${path}: ${error?.message ?? error}`)
+        }
+
+        // The plugin's own release check. GET only — there is nothing to write — and it
+        // rides the same authenticated prefix as everything else, so a local process
+        // cannot use this app as an outbound-request proxy.
+        try {
+          disposers.push(
+            connectionCtx.connection.fetch.register({
+              path: releasePath,
+              methods: ['GET', 'HEAD'],
+              requestBody: 'buffered',
+              fetch: async (request) => {
+                // `?force=1` is what the button sends when the user presses it a second
+                // time inside the ten-minute cache window: an explicit request for a fresh
+                // answer, not a silent cache hit.
+                const force = new URL(request.url, 'http://dsh.internal').searchParams.get('force') === '1'
+                const value = await releases.check({ force })
+                const response = jsonResponse(value)
+                if (request.method === 'GET') return response
+                await response.body?.cancel()
+                return new Response(null, { status: response.status, headers: response.headers })
+              },
+            }),
+          )
+          ctx.logger?.info?.(`skill-report: release check at ${releasePath}`)
+        } catch (error) {
+          ctx.logger?.warn?.(`skill-report: could not register the release route at ${releasePath}: ${error?.message ?? error}`)
         }
 
         // The write endpoint. Same authenticated prefix, same failure policy: a

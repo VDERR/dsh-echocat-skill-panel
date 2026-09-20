@@ -17,6 +17,11 @@ pnpm-debug.log*
 # Output of `node tools/preview.mjs`, which renders the real panel and screenshots it in
 # light and dark. Regenerable in seconds and specific to this machine's Chrome, so the
 # TOOL is committed and its output is not.
+#
+# `.npmignore` mirrors this, AND `package.json`'s `files` lists `tools/*.mjs` instead of the
+# whole `tools/` directory: npm ignores `.npmignore` for anything a `files` entry pulled in,
+# so a generated `tools/preview.html` was shipping in the tarball (with the two PNGs, 500KB
+# of screenshots) until both were fixed. The tarball went 908KB -> 367KB.
 tools/preview.html
 tools/preview-*.png
 

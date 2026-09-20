@@ -53,11 +53,26 @@ ok('no import.meta usage in the bundle', !source.includes('import.meta'))
 
 console.log('\n[2] the envelope')
 let captured
+/**
+ * Every `window.open` the plugin asks for, in order.
+ *
+ * Declared before the envelope runs because the envelope's argument IS the plugin's
+ * `window` (see `[2]`): the external-link button records here.
+ */
+const openedExternal = []
 new Function('window', source)({
   __ModuleLoader__: {
     load(entry) {
       captured = entry
     },
+  },
+  // The bundle's `window` IS this object — the envelope is evaluated with it as a
+  // parameter, so `typeof window` inside the factory sees this and not the test's
+  // `globalThis`. The external-link button therefore needs its seam HERE, and
+  // `openedExternal` is what the assertions read.
+  open: (url, target, features) => {
+    openedExternal.push({ url, target, features })
+    return {}
   },
 })
 ok('load() was called exactly once', captured !== undefined)
@@ -351,6 +366,24 @@ let behindOnce = ''
 
 globalThis.fetch = async (url, init) => {
   const target = String(url)
+  // The plugin's own release endpoint. A GET with no body — recorded so a test can prove
+  // the version check does not touch the skills catalogue and writes nothing.
+  if (target.includes('/skill-report/release')) {
+    calls.push({ target, body: init?.body, headers: init?.headers })
+    return json({
+      current: '4.0.0',
+      name: 'echocat-skill-panel-3.0',
+      repo: 'https://github.com/VDERR/echocat-skill-panel-3.0',
+      releases: 'https://github.com/VDERR/echocat-skill-panel-3.0/releases',
+      checkable: true,
+      checked: true,
+      latest: '4.0.0',
+      hasUpdate: false,
+      npm: '4.0.0',
+      tag: 'v4.0.0',
+      reason: '',
+    })
+  }
   if (target.includes('/skills') && init?.method === 'POST') {
     const body = JSON.parse(init.body)
     calls.push({ target, body, headers: init.headers })
@@ -1873,6 +1906,112 @@ await (async () => {
             view.findAll((n) => String(n.props?.className ?? '') === 'sr-stats').length === 1)
         })
       } finally {
+        if (realDocument === undefined) delete globalThis.document
+        else globalThis.document = realDocument
+        if (realLocalStorage === undefined) delete globalThis.localStorage
+        else globalThis.localStorage = realLocalStorage
+      }
+    }
+
+    /* -- 49: the plugin's own version controls -- */
+    console.log('\n[28] the panel can check its OWN version and reach its release page')
+    {
+      const RELEASE = {
+        current: '4.0.0',
+        name: 'echocat-skill-panel-3.0',
+        repo: 'https://github.com/VDERR/echocat-skill-panel-3.0',
+        releases: 'https://github.com/VDERR/echocat-skill-panel-3.0/releases',
+        checkable: true,
+      }
+      const snapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: HOST_SKILLS, disabledSkills: [], release: RELEASE }
+      const realDocument = globalThis.document
+      const realLocalStorage = globalThis.localStorage
+      const store = new Map()
+      globalThis.document = { addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, body: { style: {} } }
+      globalThis.localStorage = {
+        getItem: (key) => (store.has(key) ? store.get(key) : null),
+        setItem: (key, value) => store.set(key, value),
+      }
+      // `openedExternal` is filled by the envelope's own `window.open` (see `[2]`), which is
+      // the `window` the bundle actually sees.
+      openedExternal.length = 0
+      try {
+        store.set('echocat-skill-panel-3.0/sections', JSON.stringify({ skills: true }))
+        exports.__source.clearRelease()
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
+          const checkBtn = view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u68c0\u67e5\u63d2\u4ef6\u66f4\u65b0')
+          ok('[28] the header offers a version check', checkBtn.length === 1, String(checkBtn.length))
+          ok('[28] ...and it is not disabled before anything is known', checkBtn[0]?.props?.disabled !== true)
+          ok('[28] ...with the running version in its tooltip',
+            String(checkBtn[0]?.props?.title ?? '').includes('4.0.0'), String(checkBtn[0]?.props?.title))
+
+          const githubBtn = view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u6253\u5f00 GitHub \u53d1\u5e03\u9875')
+          ok('[28] ...and a button to the release page', githubBtn.length === 1, String(githubBtn.length))
+
+          // Clicking the link opens EXACTLY the payload's URL, in a new tab, with the
+          // opener severed — `noopener,noreferrer` is what the app's own plugins use.
+          view.click(githubBtn[0])
+          await tick()
+          ok('[28] clicking it opens the release page',
+            openedExternal.length === 1 && openedExternal[0].url === RELEASE.releases,
+            JSON.stringify(openedExternal))
+          ok('[28] ...in a new tab', openedExternal[0]?.target === '_blank', String(openedExternal[0]?.target))
+          ok('[28] ...with the opener severed', String(openedExternal[0]?.features ?? '').includes('noopener'), String(openedExternal[0]?.features))
+
+          // A check posts nothing and reads one path; the store then carries the verdict.
+          const before = calls.length
+          view.click(checkBtn[0])
+          await tick()
+          const checkCall = calls.slice(before).find((call) => String(call.target).includes('/release'))
+          ok('[28] the check reads the release route', checkCall !== undefined, JSON.stringify(calls.slice(before).map((c) => c.target)))
+          ok('[28] ...and writes nothing', calls.slice(before).every((call) => call.body === undefined), JSON.stringify(calls.slice(before).map((c) => c.body)))
+          ok('[28] ...and never touches the skills catalogue', calls.slice(before).every((call) => !String(call.target).includes('/skills')), JSON.stringify(calls.slice(before).map((c) => c.target)))
+        })
+
+        // With an update available the header SAYS so, and the check button is marked —
+        // a version number hidden in a tooltip is not discoverable.
+        exports.__source.applyRelease({ ...RELEASE, latest: '4.1.0', hasUpdate: true, npm: '4.1.0', tag: 'v4.1.0' })
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
+          const text = view.text()
+          ok('[28] an available update is stated, not just hinted', text.includes('\u53ef\u66f4\u65b0') && text.includes('4.1.0'), text.slice(0, 200))
+          const marked = view.findAll((n) => String(n.props?.className ?? '').includes('sr-btn--accent') && n.props?.['aria-label'] === '\u68c0\u67e5\u63d2\u4ef6\u66f4\u65b0')
+          ok('[28] ...and the check button carries the accent', marked.length === 1, String(marked.length))
+          ok('[28] ...with a dot so it is visible without hovering',
+            view.findAll((n) => String(n.props?.className ?? '') === 'sr-release-dot').length >= 1)
+          const dot = view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u68c0\u67e5\u63d2\u4ef6\u66f4\u65b0')[0]
+          ok('[28] ...and a tooltip naming both versions',
+            String(dot?.props?.title ?? '').includes('4.1.0') && String(dot?.props?.title ?? '').includes('4.0.0'),
+            String(dot?.props?.title))
+        })
+
+        // Up to date is a DIFFERENT message from "could not tell".
+        exports.__source.applyRelease({ ...RELEASE, latest: '4.0.0', hasUpdate: false, npm: '4.0.0', tag: 'v4.0.0' })
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
+          ok('[28] being current says so', view.text().includes('\u5df2\u662f\u6700\u65b0'), view.text().slice(0, 200))
+        })
+
+        // A host that cannot check does not render a dead button.
+        exports.__source.clearRelease()
+        const offline = { ...snapshot, release: { ...RELEASE, checkable: false } }
+        await withMount(exports.__ui.SkillReportPanel, { snapshot: offline, onRefresh: () => {}, onUse: () => {}, onInstall: () => {} }, async (view) => {
+          ok('[28] an uncheckable host shows no check button',
+            view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u68c0\u67e5\u63d2\u4ef6\u66f4\u65b0').length === 0)
+          ok('[28] ...but still offers the release page',
+            view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u6253\u5f00 GitHub \u53d1\u5e03\u9875').length === 1)
+        })
+
+        // The strip carries them too: the report panel is not mounted while the user is in
+        // the conversation, so without this row the buttons would be unreachable there.
+        exports.__source.clearRelease()
+        await withMount(exports.__ui.SkillReportStrip, { state: { phase: 'ready', data: snapshot, error: null, fetchedAt: Date.now() }, onRefresh: () => {}, onUse: () => {}, now: Date.now() }, async (view) => {
+          ok('[28] the strip offers the version check as well',
+            view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u68c0\u67e5\u63d2\u4ef6\u66f4\u65b0').length === 1)
+          ok('[28] ...and the release-page link',
+            view.findAll((n) => n.type === 'button' && n.props?.['aria-label'] === '\u6253\u5f00 GitHub \u53d1\u5e03\u9875').length === 1)
+        })
+      } finally {
+        exports.__source.clearRelease()
+        openedExternal.length = 0
         if (realDocument === undefined) delete globalThis.document
         else globalThis.document = realDocument
         if (realLocalStorage === undefined) delete globalThis.localStorage

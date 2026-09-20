@@ -217,6 +217,16 @@ const SNAPSHOT = {
   ],
   skills: SKILLS,
   disabledSkills: DISABLED_SKILLS,
+  // The plugin's own release state, as the host serves it on the polled payload.
+  release: {
+    current: '4.0.0',
+    name: 'echocat-skill-panel-3.0',
+    repo: 'https://github.com/VDERR/echocat-skill-panel-3.0',
+    releases: 'https://github.com/VDERR/echocat-skill-panel-3.0/releases',
+    checkable: true,
+    // A page-load state: nothing checked yet, which is what most users see first.
+    cached: null,
+  },
   capability: {
     api: 1,
     root: 'C:\\Users\\Administrator\\.dsh-beta\\skills',

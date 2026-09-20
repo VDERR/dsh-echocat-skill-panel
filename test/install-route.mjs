@@ -427,6 +427,59 @@ console.log('\n[8c] enable / disable over the route, and the parked half of the 
   rmSync(feed.sandbox, { recursive: true, force: true })
 }
 
+console.log('\n[8d] the plugin reports its own release state over the route')
+{
+  const host = await mountPlugin()
+  const releaseRoute = host.byPath.get(plugin.DEFAULT_RELEASE_PATH)
+  ok('the release route is mounted', releaseRoute !== undefined, JSON.stringify([...host.byPath.keys()]))
+  ok('...under the authenticated /api prefix', releaseRoute.path.startsWith('/api/'), releaseRoute?.path)
+  ok('...read-only: GET and HEAD only', JSON.stringify([...releaseRoute.methods]) === JSON.stringify(['GET', 'HEAD']), JSON.stringify([...releaseRoute.methods]))
+  ok('mounting it raised no warning', host.warns.length === 0, host.warns.join(' | '))
+
+  const state = await (await host.byPath.get(plugin.DEFAULT_HTTP_PATH).fetch(new Request('http://dsh.internal/api/skill-report/state'))).json()
+  ok('the polled payload carries the plugin identity', state.release?.current === plugin.VERSION, JSON.stringify(state.release))
+  ok('...including the repo and release URLs', String(state.release.repo).includes('github.com') && String(state.release.releases).endsWith('/releases'), JSON.stringify(state.release))
+  ok('...and no cached check on a fresh mount', state.release.cached === null, JSON.stringify(state.release.cached))
+
+  // The route really runs a check. Its answer depends on the network, so assert the SHAPE
+  // — and that whatever happens it is a 200 with a value, never a 500.
+  const checked = await releaseRoute.fetch(new Request(`http://dsh.internal${releaseRoute.path}`))
+  const body = await checked.json()
+  ok('a check answers 200', checked.status === 200, String(checked.status))
+  ok('...and reports that it ran', body.checked === true, JSON.stringify(body))
+  ok('...with the running version', body.current === plugin.VERSION, String(body.current))
+  ok('...and a hasUpdate boolean rather than a guess', typeof body.hasUpdate === 'boolean', JSON.stringify(body.hasUpdate))
+  // "no latest" must come with a REASON, or the panel cannot tell the user why.
+  if (body.latest === null) ok('...and a reason when nothing was found', typeof body.reason === 'string' && body.reason !== '', JSON.stringify(body.reason))
+  else ok('...and a version when something was found', /^\d+\.\d+\.\d+/u.test(body.latest), String(body.latest))
+
+  const head = await releaseRoute.fetch(new Request(`http://dsh.internal${releaseRoute.path}`, { method: 'HEAD' }))
+  ok('HEAD answers 200 with no body', head.status === 200, String(head.status))
+
+  // The check caches, so a second GET inside the window must not hit the network again.
+  const again = await (await releaseRoute.fetch(new Request(`http://dsh.internal${releaseRoute.path}`))).json()
+  ok('a second check is served from the cache', again.cached === true, JSON.stringify(again.cached))
+  const forced = await (await releaseRoute.fetch(new Request(`http://dsh.internal${releaseRoute.path}?force=1`))).json()
+  ok('...unless it is forced', forced.cached === false, JSON.stringify(forced.cached))
+
+  rmSync(host.sandbox, { recursive: true, force: true })
+}
+
+console.log('\n[8e] config can make the release check offline-only')
+{
+  const offline = await mountPlugin({ checkForUpdates: false })
+  const route = offline.byPath.get(plugin.DEFAULT_RELEASE_PATH)
+  ok('the route is still mounted when the network is off', route !== undefined)
+  const body = await (await route.fetch(new Request(`http://dsh.internal${route.path}`))).json()
+  ok('...but reports itself as uncheckable', body.checkable === false, JSON.stringify(body))
+  ok('...and claims no version', body.latest === null, JSON.stringify(body.latest))
+  ok('...and says so', String(body.reason).includes('配置'), String(body.reason))
+  // The identity block is still there: the panel's link button must keep working with the
+  // network switched off, which is the whole reason the two are separate controls.
+  ok('...while still publishing the repo and release URLs', String(body.releases).endsWith('/releases'), String(body.releases))
+  rmSync(offline.sandbox, { recursive: true, force: true })
+}
+
 console.log('\n[9] the write surface can be removed, and the read surface says so')
 const readOnly = await mountPlugin({ allowInstall: false })
 ok('no install route is registered', readOnly.byPath.get(plugin.DEFAULT_INSTALL_PATH) === undefined, JSON.stringify([...readOnly.byPath.keys()]))

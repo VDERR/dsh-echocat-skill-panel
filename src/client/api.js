@@ -21,6 +21,9 @@ const { applySkills, refresh } = require('./source.js')
 /** The write endpoint. Same-origin, so the `/api` prefix supplies auth. */
 const SKILLS_PATH = '/api/skill-report/skills'
 
+/** The plugin's own release-check endpoint. Read-only, and only called on demand. */
+const RELEASE_PATH = '/api/skill-report/release'
+
 /**
  * Longest accepted Chinese display name. Mirrors `DISPLAY_NAME_ZH_MAX` in the host
  * engine (`src/install.js`) — the sheet refuses an over-long value locally rather
@@ -255,6 +258,30 @@ async function loadSkills(options = {}) {
   let response
   try {
     response = await fetch(path, { headers: { accept: 'application/json' }, cache: 'no-store' })
+  } catch (error) {
+    return fail('NETWORK', `无法连接主机侧：${String(error?.message ?? error)}`)
+  }
+  return readEnvelope(response)
+}
+
+/**
+ * Ask the host whether a newer version of THIS PLUGIN has been published.
+ *
+ * `force` is the difference between the button's first press and its second inside the
+ * host's ten-minute cache window: a user pressing again is explicitly asking for a fresh
+ * answer, and silently returning the cached one would look like the button did nothing.
+ *
+ * Never throws, for the same reason `loadSkills` does not: this runs from an event handler
+ * inside a page the app did not write, and a rejected promise there reaches the error
+ * boundary.
+ */
+async function checkPluginRelease(options = {}) {
+  const path = typeof options.path === 'string' ? options.path : RELEASE_PATH
+  if (typeof fetch !== 'function') return fail('NETWORK', '当前外壳没有暴露 fetch()')
+  const url = options.force === true ? `${path}?force=1` : path
+  let response
+  try {
+    response = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' })
   } catch (error) {
     return fail('NETWORK', `无法连接主机侧：${String(error?.message ?? error)}`)
   }
@@ -650,6 +677,8 @@ function performSetEnabled(name, enabled, labels = {}) {
 
 module.exports = {
   SKILLS_PATH,
+  RELEASE_PATH,
+  checkPluginRelease,
   formatBytes,
   slugify,  hueOf,
   initial,
