@@ -1792,6 +1792,13 @@ await (async () => {
             row.length === 1 && !row.some((n) => n.children.some((child) => String(child.props?.className ?? '').includes('sr-row-actions'))),
             'a 100%-basis child of an inline-flex box overflows the card')
           ok('[26] ...inside the card footer', view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-card-foot').length === 3)
+
+          // The three-row card: name row, text, actions. The name used to share a row with
+          // six buttons and rendered as `h3-prompt-writi…`; it now has the card's full width.
+          const heads = view.findAll((n) => n.type === 'div' && String(n.props?.className ?? '') === 'sr-skill-head')
+          ok('[26] every card has a name row of its own', heads.length === 3, String(heads.length))
+          ok('[26] ...and no card keeps the old side-by-side row, where the name shared a line with six buttons',
+            view.findAll((n) => String(n.props?.className ?? '').includes('sr-skill-top')).length === 0)
         })
       } finally {
         if (realDocument === undefined) delete globalThis.document

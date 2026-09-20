@@ -553,7 +553,33 @@ const DESIGN = Object.freeze([
   D('panel-title-weight', 'frame', '.sr-title', { textWrap: 'balance' },
     'a long panel title wraps evenly instead of leaving one word on the second line'),
 
-  /* ============================ 17. enable / disable + catalogue groups ============ */
+  /* ============================ 17. the card is three rows, not two columns ======== */
+  // The card used to put the name and six actions in ONE flex row. The name lost: it
+  // wrapped to two lines and then ellipsised ("h3-prompt-writi…"). These records make the
+  // card a column — name row, text, actions — so the name has the full card width.
+  D('card-column', 'card', '.sr-skill', { flexDirection: 'column', alignItems: 'stretch', gap: 'calc(var(--sr-u) * 2.5)' },
+    'the card is a COLUMN of three rows; one row holding six buttons leaves no width for the name'),
+  D('card-head', 'card', '.sr-skill-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2.5)', minWidth: 0 },
+    'name row: avatar, the name block, then the tags'),
+  D('card-headtext', 'card', '.sr-skill-headtext', { flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'calc(var(--sr-u) * .5)' },
+    'the name block takes whatever width the tags do not need'),
+  D('card-tags', 'card', '.sr-skill-tags', { flex: 'none', display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 1.25)', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '55%' },
+    'tags sit at the end of the name row and wrap rather than squeeze the name'),
+  // THE fix for the truncation. A skill name must not be cut off, so it wraps; and
+  // `overflow-wrap:anywhere` matters because a slug is one unbroken token —
+  // `paper-collage-explainer-generator` has no space to wrap at and would overflow instead.
+  D('card-name-wrap', 'card', '.sr-skill-name', { overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35, maxWidth: '100%' },
+    'the name shows IN FULL and wraps: cutting off the one identifier a user needs is worse than a taller card'),
+  D('card-slug-wrap', 'card', '.sr-skill-slug', { overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal', overflowWrap: 'anywhere', maxWidth: '100%' },
+    'and the slug under it, for the same reason'),
+  D('card-main-full', 'card', '.sr-skill-main', { flex: '0 0 auto', minWidth: 0 },
+    'the text block no longer shares a row with the actions, so it must not stretch'),
+  D('card-actions-row', 'card', '.sr-card-foot .sr-row-actions', { width: '100%', justifyContent: 'flex-start', flexWrap: 'wrap', rowGap: 'calc(var(--sr-u) * 1.5)' },
+    'the actions own the last row and start at the card edge, which is what makes it read as a footer'),
+  D('card-foot-row', 'card', '.sr-card-foot', { alignItems: 'stretch' },
+    'the action column spans the card now that it is a row of its own'),
+
+  /* ============================ 18. enable / disable + catalogue groups ============ */
   D('group-head', 'card', '.sr-group-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', padding: 'calc(var(--sr-u) * 2.5) 0 calc(var(--sr-u) * 1.5)' },
     'a group header is a row: label, count, and the sentence that explains the state'),
   D('group-gap', 'card', '.sr-group', { marginTop: 'calc(var(--sr-u) * 2)' },

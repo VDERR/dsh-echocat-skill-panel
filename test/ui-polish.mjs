@@ -582,5 +582,91 @@ ok('the claim field is no longer a child of the button row',
   (/\.sr-claim-row\{[^}]*\}/u.exec(RENDERED) ?? [''])[0].slice(0, 140))
 ok('the portal host adds no box of its own', /\.sr-portal-host\{[^}]*display:contents/u.test(RENDERED))
 
+/* ---- the card is three rows, so the name is never truncated --------------------- */
+
+console.log('\n[9] the skill name gets its own full-width row')
+/**
+ * The declarations the sheet ends up applying to `selector` — folded the way the cascade
+ * does it: matching rules in SOURCE ORDER, property by property.
+ *
+ * Written as a character scan rather than one regex, because the sheet is minified and
+ * several hundred rules share lines with comments and `@media` blocks between them; a
+ * single pass with `[^{}]+` mis-parses as soon as a comment contains a brace, and the
+ * resulting table silently drops rules (it lost `.sr-skill{flex-direction:column}` and
+ * reported the replaced value instead — the exact class of wrong answer these assertions
+ * exist to prevent).
+ */
+function rulesOf(sheet) {
+  const out = []
+  let depth = 0
+  let start = 0
+  let selector = ''
+  let buffer = ''
+  for (let i = 0; i < sheet.length; i += 1) {
+    const ch = sheet[i]
+    if (ch === '{') {
+      if (depth === 0) {
+        selector = buffer.trim()
+        buffer = ''
+      }
+      depth += 1
+      continue
+    }
+    if (ch === '}') {
+      depth -= 1
+      if (depth === 0) {
+        if (selector !== '' && !selector.startsWith('@')) out.push({ selector, decls: buffer })
+        selector = ''
+        buffer = ''
+      }
+      continue
+    }
+    if (depth === 0) {
+      if (ch === '}') buffer = ''
+      buffer += ch
+      continue
+    }
+    // Inside a rule body: keep characters, but a nested block (a keyframe step) is not a
+    // declaration list, so anything at depth > 1 is dropped.
+    if (depth === 1) buffer += ch
+  }
+  return out
+}
+const SHEET_RULES = rulesOf(RENDERED)
+/** `sel` plus the rooted and doubled forms the two generated blocks emit. */
+function ruleFor(selector) {
+  const forms = new Set([selector, `${selector}${selector}`, ...ROOTS.map((root) => `${root} ${selector}`)])
+  const merged = new Map()
+  for (const rule of SHEET_RULES) {
+    const members = rule.selector.split(',').map((part) => part.trim())
+    if (!members.some((member) => forms.has(member))) continue
+    for (const decl of rule.decls.split(';')) {
+      const at = decl.indexOf(':')
+      if (at > 0) merged.set(decl.slice(0, at).trim(), decl.slice(at + 1).trim())
+    }
+  }
+  return [...merged].map(([key, value]) => `${key}:${value}`).join(';')
+}
+ok('the card stacks its rows instead of putting the name beside the buttons',
+  /flex-direction:column/u.test(ruleFor('.sr-skill')), ruleFor('.sr-skill').slice(0, 140))
+ok('...with a head row holding the name and the tags',
+  /display:flex/u.test(ruleFor('.sr-skill-head')) && /display:flex/u.test(ruleFor('.sr-skill-tags')),
+  ruleFor('.sr-skill-head').slice(0, 100))
+// THE assertion for the reported bug: the name was `white-space:nowrap` +
+// `text-overflow:ellipsis` in a row that six buttons also competed for, so
+// `h3-prompt-writing` rendered as `h3-prompt-writi…`.
+const nameRule = ruleFor('.sr-skill-name')
+ok('the name is NOT truncated', /white-space:normal/u.test(nameRule) && /text-overflow:clip/u.test(nameRule), nameRule)
+ok('...and it can break inside a long slug', /overflow-wrap:anywhere/u.test(nameRule), nameRule)
+ok('the slug is not truncated either',
+  /white-space:normal/u.test(ruleFor('.sr-skill-slug')) && /overflow-wrap:anywhere/u.test(ruleFor('.sr-skill-slug')),
+  ruleFor('.sr-skill-slug'))
+ok('the actions own their own full-width row',
+  /width:100%/u.test(ruleFor('.sr-card-foot .sr-row-actions')), ruleFor('.sr-card-foot .sr-row-actions').slice(0, 140))
+ok('...starting at the card edge rather than right-aligned under the text',
+  /justify-content:flex-start/u.test(ruleFor('.sr-card-foot .sr-row-actions')))
+ok('the old side-by-side row is gone from the sheet', !/\.sr-skill-top[{,]/u.test(RENDERED),
+  'the name must not share a row with the actions')
+
 console.log(`\nRESULT: ${pass}/${pass + fail} passed`)
 if (fail > 0) process.exitCode = 1

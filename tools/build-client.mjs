@@ -162,6 +162,34 @@ try {
   )
 }
 
+// Catch the ONE source mistake this build cannot survive, and which `new Function` below
+// provably does NOT catch.
+//
+// The stylesheets in theme.js / design.js / polish.js are template literals holding CSS.
+// A backtick in a CSS COMMENT closes that literal early, and the rest of the CSS is then
+// parsed as JavaScript. Whether that throws depends on what the leftover text happens to
+// look like: `font-size:12px` is a valid label statement, so the artifact can parse
+// cleanly and still be a plugin that renders unstyled — or one that throws
+// `ReferenceError: skill is not defined` at load, because some leftover fragment was read
+// as an identifier. Both of those happened while building this release, and the parse
+// check below passed both times.
+//
+// `${…}` is NOT checked: theme.js interpolates the generated polish and design blocks by
+// design. The reliable signal for truncation is the end marker each sheet now carries.
+const SHEET_END = 'end of stylesheet'
+for (const mod of MODULES) {
+  const text = readFileSync(mod.file, 'utf8')
+  if (!text.includes('= `') || !text.includes(SHEET_END)) continue
+  const assignment = /const\s+[A-Z_]*CSS\s*=\s*`([\s\S]*?)`\s*\n/u.exec(text)
+  if (assignment === null) continue
+  if (!assignment[1].includes(SHEET_END)) {
+    throw new Error(
+      `${mod.file}: the stylesheet is TRUNCATED — its end marker never made it into the template literal.\n` +
+        '  Usual cause: a backtick inside a CSS comment closed the literal early.',
+    )
+  }
+}
+
 console.log(`${manifest.name}@${manifest.version}: wrote lib/client.js`)
 console.log(`  ${MODULES.length + 1} internal modules, ${written.length} bytes, pure ASCII`)
 for (const mod of [...MODULES, ENTRY]) console.log(`    ${mod.id.padEnd(14)} <- ${mod.file}`)

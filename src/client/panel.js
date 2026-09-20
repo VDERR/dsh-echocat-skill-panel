@@ -645,31 +645,47 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
   // Shrinking it to a grey line would make the group unreadable and un-editable, and
   // editing a parked skill (its name, its source, deleting it) is exactly what a user
   // needs the group for.
+  //
+  // THREE rows, not two columns. The card used to put the name and the actions side by
+  // side in one flex row, and with six actions the name lost: it wrapped to two lines and
+  // then ellipsised ("h3-prompt-writi…"). A skill name is the one thing on this card that
+  // must never be cut off, so it gets the card's full width on its own row, and the
+  // actions get the row below.
   return h(
     'div',
     { className: skill?.disabled === true ? 'sr-skill sr-skill--off' : 'sr-skill' },
-    h(Avatar, { name: title }),
     h(
       'div',
-      { className: 'sr-skill-main' },
+      { className: 'sr-skill-head' },
+      h(Avatar, { name: title }),
       h(
         'div',
-        { className: 'sr-skill-top' },
+        { className: 'sr-skill-headtext' },
+        // No CSS truncation on the title: it wraps and shows in full. The `title`
+        // attribute keeps the slug discoverable when a Chinese name is what is shown.
         h('span', { className: 'sr-skill-name', title: zh === '' ? skill.name : `${zh}（/${skill.name}）` }, title),
+        zh === '' ? null : h('div', { className: 'sr-skill-slug', title: `代号 ${skill.name}` }, `/${skill.name}`),
+      ),
+      // Tags ride with the name, because they describe IT.
+      h(
+        'div',
+        { className: 'sr-skill-tags' },
         skill?.disabled === true ? h('span', { className: 'sr-tag sr-tag--off' }, '已停用') : null,
         typeof skill.tag === 'string' && skill.tag !== '' ? h('span', { className: 'sr-tag' }, skill.tag) : null,
         skill.modelInvocable === false ? h('span', { className: 'sr-tag' }, '仅 /') : null,
-        // Item 44: the host already sends per-skill totals; showing them here is
-        // what turns the catalogue from a static list into a record. The marker
-        // rides in the existing top row so the card never grows taller.
+        // The host already sends per-skill totals; showing them here is what turns the
+        // catalogue from a static list into a record.
         used > 0 ? h('span', { className: 'sr-tag sr-tag--used', title: `本机累计调用 ${used} 次` }, `用过 ${used} 次`) : null,
       ),
-      zh === '' ? null : h('div', { className: 'sr-skill-slug', title: `代号 ${skill.name}` }, `/${skill.name}`),
+    ),
+    h(
+      'div',
+      { className: 'sr-skill-main' },
       typeof blurb === 'string' && blurb !== ''
         ? h('div', { className: chinese ? 'sr-blurb' : 'sr-blurb sr-blurb--en', title: blurb }, blurb)
         : null,
-      // Where the skill came from, and — when the source has been compared — whether
-      // it moved on. Sits in the text column so it can never crowd the buttons.
+      // Where the skill came from, and — when the source has been compared — whether it
+      // moved on.
       h(SourceLine, { skill, update }),
     ),
     h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update }),

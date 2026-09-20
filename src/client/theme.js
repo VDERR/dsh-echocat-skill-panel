@@ -300,7 +300,12 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-skill:hover{background:var(--sr-fill);border-color:var(--sr-line2);transform:translateY(-1px)}
 .sr-avatar{flex:none;width:26px;height:26px;border-radius:var(--sr-r-sm);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--sr-card);text-transform:uppercase;letter-spacing:0}
 .sr-skill-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(var(--sr-sp)*.5)}
-.sr-skill-top{display:flex;align-items:center;gap:calc(var(--sr-sp)*1.5);min-width:0}
+/* .sr-skill-top is gone on purpose: it was the row that put the name and the actions side
+   by side, which is what truncated the name to a few characters plus an ellipsis once the
+   card had six buttons. The card is a column of three rows now — head, text, actions — and
+   the design pass in design.js owns that layout. Left as a note, because a rule with no
+   element is the kind of thing that lingers for years.
+   NO BACKTICKS IN THIS FILE: the stylesheet is a template literal, so one would end it. */
 .sr-skill-name{font-family:var(--sr-mono);font-size:11.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sr-tag{flex:none;font-size:10px;line-height:16px;padding:0 calc(var(--sr-sp)*1.75);border-radius:var(--sr-r-pill);background:var(--sr-fill);color:var(--sr-fg3);white-space:nowrap}
 /* The usage marker (item 44) is the one tag that carries good news, so it is the
@@ -555,6 +560,9 @@ ${SURFACES}{
 /* The design pass's dark palette, LAST because it redefines tokens the earlier dark
    block also declares and has to win over it. */
 ${DESIGN_DARK_CSS}
+/* end of stylesheet: the build script checks that this marker survives, because a stray
+   backtick in any comment above closes the template literal early and silently truncates
+   the sheet — the artifact still parses, so nothing else catches it. */
 `
 
 /* ------------------------------------------------------------------ 4.0 polish -- */
