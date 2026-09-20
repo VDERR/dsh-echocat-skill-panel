@@ -1731,6 +1731,62 @@ export function createInstaller({
     return { name: finalName, displayNameZh: value }
   }
 
+  /* ---------------------------------------------------------------- colour -- */
+
+  /**
+   * The palette a colour must come from, mirrored from `src/client/api.js`.
+   *
+   * The host validates rather than trusting the browser half: a colour key arrives over HTTP
+   * and lands in a file inside the user's skill directory, so "whatever the client sent" is not
+   * an acceptable value. Eight named keys also mean the panel can guarantee the choice is
+   * legible on both the light and the dark sheet — a free hue could not.
+   */
+  const SKILL_COLOR_KEYS = Object.freeze(['indigo', 'teal', 'green', 'amber', 'red', 'pink', 'violet', 'slate'])
+
+  /**
+   * Set — or clear — the colour the user assigned to one skill.
+   *
+   * The choice is stored in the plugin's own record inside the skill directory, so it travels
+   * with the folder (drops into a backup, comes back on a rollback) while never touching the
+   * skill's own `meta.yaml`, which belongs to the skill's author.
+   *
+   * Writing it does NOT invalidate the file fingerprint: `fingerprintTree` excludes this
+   * record, precisely so this plugin's own bookkeeping cannot later read back as "you changed
+   * these files". Colour therefore costs nothing and can be changed as often as the user likes.
+   *
+   * A skill with no record yet gets one, because a colour without provenance is still a colour
+   * — refusing would mean you cannot tag a hand-installed skill, which is the common case.
+   */
+  function setColor({ name, color }) {
+    const slug = assertSkillName(name)
+    const dir = skillDirOf(slug)
+    if (dir === null) throw new InstallError('NOT_FOUND', `没有找到叫 "${slug}" 的 skill。`)
+    const wanted = String(color ?? '').trim()
+    if (wanted !== '' && !SKILL_COLOR_KEYS.includes(wanted)) {
+      throw new InstallError('BAD_REQUEST', `不认识的颜色 "${wanted}"。`, `可选：${SKILL_COLOR_KEYS.join(' / ')}，空字符串表示清除。`)
+    }
+    const existing = readProvenance(dir)
+    const base =
+      existing ??
+      buildRecord({
+        dir,
+        name: slug,
+        // No record means we know nothing about where it came from, and inventing a source
+        // would be worse than admitting it: `file` + `claimed` is the honest description of
+        // "a skill that was already here".
+        fields: { ...describeSource({ source: { kind: 'file', url: '', repo: '', ref: '', subpath: '', commit: '' } }), claimed: true },
+        version: pluginVersion,
+        now: Date.now(),
+      })
+    const next = { ...base, color: wanted }
+    try {
+      writeProvenance(dir, next)
+    } catch (error) {
+      throw new InstallError('FS_ERROR', `保存颜色失败：${error?.message ?? error}`)
+    }
+    return { name: slug, color: wanted }
+  }
+
   /* ---------------------------------------------------------------- public -- */
 
   /**
@@ -1894,6 +1950,12 @@ export function createInstaller({
         return { ok: true, checks: results, skills: onDisk() }
       }
 
+      if (action === 'color') {
+        const result = setColor({ name: request.name, color: request.color })
+        record({ action: 'color', name: result.name, ok: true, ms: Date.now() - started })
+        return { ok: true, skill: result, skills: onDisk() }
+      }
+
       if (action === 'enable' || action === 'disable') {
         const result = setEnabled({ name: request.name, enabled: action === 'enable' })
         record({ action, name: result.name, ok: true, ms: Date.now() - started })
@@ -1937,6 +1999,9 @@ export function createInstaller({
           },
           version: pluginVersion,
           now: Date.now(),
+          // Claiming rewrites the whole record, so the user's colour has to be carried over
+          // by hand — it is the one field in there that is not about provenance at all.
+          color: readProvenance(dir)?.color ?? '',
         })
         writeProvenance(dir, record_)
         record({ action: 'claim', name: finalName, ok: true, ms: Date.now() - started })
@@ -2010,6 +2075,8 @@ export function createInstaller({
     uninstall,
     /** Move a skill out of, or back into, the watched root. */
     setEnabled,
+    /** Assign or clear the user's colour for one skill. */
+    setColor,
     /** Provenance + update state of one skill, for the panel's cards. */
     provenance: skillProvenance,
     /** Ask one skill's recorded source whether it moved on (network). */

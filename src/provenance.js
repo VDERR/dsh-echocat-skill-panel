@@ -184,7 +184,7 @@ export function describeSource({ source, url = '', repo = '', ref = '', subpath 
  * @param options.version - the plugin's version, for later diagnosis.
  * @param options.now - epoch ms, injectable for tests.
  */
-export function buildRecord({ dir, name, fields, version = '', now = Date.now() }) {
+export function buildRecord({ dir, name, fields, version = '', now = Date.now(), color = '' }) {
   const print = fingerprintTree(dir)
   return {
     version: PROVENANCE_VERSION,
@@ -198,6 +198,16 @@ export function buildRecord({ dir, name, fields, version = '', now = Date.now() 
     subpath: fields.subpath,
     commit: fields.commit,
     claimed: fields.claimed === true,
+    /**
+     * The colour the USER assigned to this skill, as a palette key — `''` for none.
+     *
+     * It lives in this record rather than in the skill's own `meta.yaml` because it is not a
+     * property of the skill: it is a local preference of whoever is looking at the panel, and
+     * writing it into the author's metadata would make it travel with the skill and collide on
+     * the next update. This record is already the plugin's own file inside the skill directory,
+     * so it is the one place that can hold "mine" without touching "theirs".
+     */
+    color: text(color, 20),
     fingerprint: print.hash,
     files: print.files,
     bytes: print.bytes,
@@ -268,6 +278,8 @@ export function provenanceSummary(dir, { readFile = readFileSync } = {}) {
     claimed: record.claimed === true,
     files: record.files,
     bytes: record.bytes,
+    /** The user's assigned palette key, or `''`. The panel colours the avatar from this. */
+    color: typeof record.color === 'string' ? record.color : '',
     // An unreadable or partially-hashed tree cannot prove anything either way.
     changedSinceInstall: current.truncated === true ? false : current.hash !== record.fingerprint,
   }
@@ -292,6 +304,7 @@ export function readProvenance(dir, { readFile = readFileSync } = {}) {
       subpath: typeof parsed.subpath === 'string' ? parsed.subpath : '',
       commit: typeof parsed.commit === 'string' ? parsed.commit : '',
       claimed: parsed.claimed === true,
+      color: typeof parsed.color === 'string' ? parsed.color : '',
       fingerprint: parsed.fingerprint,
       files: typeof parsed.files === 'number' ? parsed.files : 0,
       bytes: typeof parsed.bytes === 'number' ? parsed.bytes : 0,

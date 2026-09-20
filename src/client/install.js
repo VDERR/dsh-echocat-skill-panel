@@ -513,6 +513,24 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
 const PORTAL_HOST_CLASS = 'sr-portal-host'
 
 /**
+ * The surfaces that must NEVER receive a blur, a transform, a filter or a contain.
+ *
+ * Each sits on the DOM path from document.body down to .sr-backdrop, which is
+ * position:fixed; inset:0. Any of those four properties turns an element into a CONTAINING
+ * BLOCK for fixed-position descendants, so the dialog would size itself against that ancestor
+ * instead of the viewport and stop being centred — the same failure the portal was introduced
+ * to fix. .sr-strip-shell is the dangerous one in practice, because a frosted-glass shell is
+ * exactly what a designer reaches for first.
+ *
+ * A blur on .sr-head, .sr-foot or .sr-sec-head is fine: those live INSIDE the panel and are not
+ * ancestors of the backdrop.
+ *
+ * Listed here so a test can assert the shipped sheet never does it to them — a CSS comment
+ * cannot enforce itself. (NO BACKTICKS IN THIS FILE: it is inlined into a template literal.)
+ */
+const NO_CONTAINING_BLOCK = ['.sr-strip-shell', '.sr-root', '.sr-rail', '.sr-portal-host']
+
+/**
  * The one portal host, created on first use and reused for the life of the page.
  *
  * Module-level rather than per-render: this function is called on every render of the

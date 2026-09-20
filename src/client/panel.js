@@ -628,17 +628,86 @@ function Sparkline({ values, label = '最近回合调用次数' }) {
   )
 }
 
-/** Deterministic avatar (item 33): hue from a name hash, never a random palette. */
-function Avatar({ name }) {
-  const hue = api.hueOf(name)
+/**
+ * The skill's avatar tile.
+ *
+ * NEUTRAL BY DEFAULT, and that is the point. It used to take a hue from a hash of the name,
+ * which gave thirteen skills thirteen unrelated colours — a chat-app look that also said
+ * nothing, because the hue was arbitrary. A colour is now something the user ASSIGNS, so a
+ * coloured tile means "I marked this one" instead of "this one hashed to 200°".
+ *
+ * An uncoloured tile is not empty: it carries the same initial in muted ink on the sunken
+ * surface, so a list of uncoloured skills reads as a calm index rather than a blank column.
+ */
+function Avatar({ name, color }) {
+  const entry = api.skillColor(color)
   return h(
     'span',
     {
-      className: 'sr-avatar',
-      style: { background: `hsl(${hue} 52% 44%)`, color: '#fff' },
+      className: entry === null ? 'sr-avatar' : 'sr-avatar sr-avatar--marked',
+      style: entry === null ? undefined : { background: entry.hex, color: '#fff' },
+      title: entry === null ? undefined : `已标记为${entry.label}`,
       'aria-hidden': 'true',
     },
     api.initial(name),
+  )
+}
+
+/**
+ * The colour picker: eight swatches plus a "no colour" reset.
+ *
+ * A palette rather than a hue wheel on purpose. Eight desaturated tones are all legible on
+ * both the light and the dark sheet, and a free hue lets anyone pick something they then
+ * cannot read. The choice is written to the plugin's own record inside the skill directory, so
+ * it survives an update and travels with a backup.
+ *
+ * It closes on pick: one click, no confirm, and it destroys nothing — the same reasoning as the
+ * enable/disable switch.
+ */
+function ColorPicker({ name, current, onDone }) {
+  const [busy, setBusy] = React.useState(false)
+  const choose = React.useCallback(
+    (key) => {
+      setBusy(true)
+      void api
+        .post({ action: 'color', name, color: key })
+        .then(() => {
+          if (typeof onDone === 'function') onDone()
+        })
+        .then(() => setBusy(false))
+    },
+    [name, onDone],
+  )
+  return h(
+    'div',
+    { className: 'sr-swatches', role: 'group', 'aria-label': `为 ${name} 选择标记颜色` },
+    ...api.SKILL_COLORS.map((entry) =>
+      h('button', {
+        key: entry.key,
+        type: 'button',
+        className: current === entry.key ? 'sr-swatch sr-swatch--on' : 'sr-swatch',
+        style: { background: entry.hex },
+        disabled: busy,
+        title: entry.label,
+        'aria-label': entry.label,
+        'aria-pressed': current === entry.key,
+        onClick: () => choose(entry.key),
+      }),
+    ),
+    h(
+      'button',
+      {
+        key: 'none',
+        type: 'button',
+        className: current === '' ? 'sr-swatch sr-swatch--none sr-swatch--on' : 'sr-swatch sr-swatch--none',
+        disabled: busy,
+        title: '不标记（默认）',
+        'aria-label': '不标记颜色',
+        'aria-pressed': current === '',
+        onClick: () => choose(''),
+      },
+      h(Icon, { name: 'ban', size: 11 }),
+    ),
   )
 }
 
@@ -655,6 +724,9 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
   const [draft, setDraft] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [note, setNote] = React.useState('')
+  // The colour palette, revealed by clicking the avatar. State lives here (not inside the
+  // picker) so the button's `aria-expanded` and the panel agree.
+  const [palette, setPalette] = React.useState(false)
 
   const startEdit = React.useCallback(() => {
     setDraft(zh)
@@ -692,7 +764,7 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
     return h(
       'div',
       { className: 'sr-skill sr-skill--editing' },
-      h(Avatar, { name: title }),
+      h(Avatar, { name: title, color: skill?.provenance?.color }),
       h(
         'div',
         { className: 'sr-skill-main' },
@@ -747,7 +819,23 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
     h(
       'div',
       { className: 'sr-skill-head' },
-      h(Avatar, { name: title }),
+      // The avatar is a button when the host can write: clicking it opens the colour
+      // palette. That is the whole "assign a colour to this skill" affordance, placed on the
+      // thing it changes rather than buried in a menu.
+      api.canInstall(capability)
+        ? h(
+            'button',
+            {
+              type: 'button',
+              className: 'sr-avatar-btn',
+              onClick: () => setPalette((open) => !open),
+              'aria-expanded': palette,
+              'aria-label': `为 ${skill.name} 选择标记颜色`,
+              title: '点击标记颜色',
+            },
+            h(Avatar, { name: title, color: skill?.provenance?.color }),
+          )
+        : h(Avatar, { name: title, color: skill?.provenance?.color }),
       h(
         'div',
         { className: 'sr-skill-headtext' },
@@ -756,17 +844,14 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
         h('span', { className: 'sr-skill-name', title: zh === '' ? skill.name : `${zh}（/${skill.name}）` }, title),
         zh === '' ? null : h('div', { className: 'sr-skill-slug', title: `代号 ${skill.name}` }, `/${skill.name}`),
       ),
-      // Tags ride with the name, because they describe IT.
-      h(
-        'div',
-        { className: 'sr-skill-tags' },
-        skill?.disabled === true ? h('span', { className: 'sr-tag sr-tag--off' }, '已停用') : null,
-        typeof skill.tag === 'string' && skill.tag !== '' ? h('span', { className: 'sr-tag' }, skill.tag) : null,
-        skill.modelInvocable === false ? h('span', { className: 'sr-tag' }, '仅 /') : null,
-        // The host already sends per-skill totals; showing them here is what turns the
-        // catalogue from a static list into a record.
-        used > 0 ? h('span', { className: 'sr-tag sr-tag--used', title: `本机累计调用 ${used} 次` }, `用过 ${used} 次`) : null,
-      ),
+      // The tag row is GONE, deliberately, and the state moved into the text column below.
+      //
+      // It was the one element in the card that could not be made to behave: three attempts at
+      // its flex sizing and it still rendered as two 60px clipped blobs instead of compact
+      // pills. The row carried the least information on the card (a tag, plus 仅 / and 用过 N
+      // 次) while occupying the most fragile part of the layout, so removing it is the right
+      // trade rather than a fourth fix. Those cues now ride with the source line, where they sit
+      // beside the name they describe instead of floating at the far edge of the card.
     ),
     h(
       'div',
@@ -775,32 +860,61 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
         ? h('div', { className: chinese ? 'sr-blurb' : 'sr-blurb sr-blurb--en', title: blurb }, blurb)
         : null,
       // Where the skill came from, and — when the source has been compared — whether it
-      // moved on.
-      h(SourceLine, { skill, update }),
+      // moved on. `usedCount` rides along so the cues live on one line instead of in pills.
+      h(SourceLine, { skill, update, usedCount: used }),
     ),
+    // The palette occupies its own row, like the claim field: a `flex-basis:100%` child of the
+    // button row would resolve against the row's shrink-to-fit width and overflow the card.
+    palette
+      ? h(
+          'div',
+          { className: 'sr-palette-row' },
+          h(ColorPicker, {
+            name: skill.name,
+            current: typeof skill?.provenance?.color === 'string' ? skill.provenance.color : '',
+            onDone: () => {
+              setPalette(false)
+              if (typeof onChanged === 'function') onChanged()
+            },
+          }),
+        )
+      : null,
     h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update }),
   )
 }
 
 /**
- * One line of provenance under a card's blurb.
+ * One line of provenance under a card's blurb, now also carrying the state cues that used to be
+ * tag pills at the card's far edge.
  *
  * Three states, and the difference between them is the whole point of the feature:
  *   * a comparable source that the host has checked -> 可更新 / 已是最新
  *   * a recorded source whose kind cannot be compared -> the address, no verdict
- *   * no record at all (installed by hand, or by 2.x) -> nothing; the card offers
- *     「标记来源」 instead
+ *   * no record at all (installed by hand, or by 2.x) -> the cues alone, or nothing
  *
  * `claimed` sources are shown as such: the address is what the USER typed, and
  * presenting it as a fact would be the dishonest version of this line.
  */
-function SourceLine({ skill, update }) {
+function SourceLine({ skill, update, usedCount = 0 }) {
   const provenance = skill?.provenance
   const checkbox = update?.result
   const known = provenance !== null && typeof provenance === 'object' && provenance.known === true
-  // No record at all: nothing true can be said, and a "来源未知" line on every
-  // hand-installed skill would be noise. The card offers 标记来源 instead.
-  if (!known) return null
+  // The state cues that used to be tag pills at the far edge of the card.
+  //
+  // They read as a clause about the skill here, which is better than three floating chips: 仅 /
+  // and 用过 N 次 describe its nature and its record. 已停用 is NOT among them — that is a state
+  // the whole card is in, so it is carried by the `sr-skill--off` modifier and the 已停用 group
+  // heading, both of which are visible without reading a line of small print.
+  const cues = []
+  if (skill?.modelInvocable === false) cues.push('仅 / 可调用')
+  if (usedCount > 0) cues.push(`用过 ${usedCount} 次`)
+  // No record at all: nothing true can be said about the source, and a "来源未知" line on every
+  // hand-installed skill would be noise — but the cues above are still true, so the line renders
+  // with them alone rather than disappearing.
+  if (!known) {
+    if (cues.length === 0) return null
+    return h('div', { className: 'sr-src sr-src--bare' }, h('span', { className: 'sr-src-text' }, cues.join(' · ')))
+  }
   const label = api.sourceLabel(provenance)
   const claimed = provenance.claimed === true
   const comparable = api.hasSource(provenance) === true
@@ -820,6 +934,8 @@ function SourceLine({ skill, update }) {
   else if (checked) verdict = checkbox.supported === true ? '已是最新' : checkbox.note
   else if (comparable && update?.phase === 'checking') verdict = '检查中…'
   if (verdict !== '') parts.push(verdict)
+  // The cues trail the source, separated by the same middot the run-on hints use elsewhere.
+  for (const cue of cues) parts.push(cue)
 
   return h(
     'div',

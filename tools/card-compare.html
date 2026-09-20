@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>skill card — A/B</title>
+<style id="host-stub">
+  /* The host values the plugin actually reads, so the widths are honest. */
+  :root{
+    --dsh-conversation-column-width: 900px;
+    --dsh-chat-content-width: clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * .64), 920px);
+    --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
+    --dsw-alias-bg-base:#fff;
+    --dsw-alias-label-primary:#1f2329;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:#eef0f3;font:13px/1.5 system-ui,"Segoe UI",sans-serif;padding:20px;display:flex;gap:20px;align-items:flex-start}
+  .col{flex:1;min-width:0}
+  .col > h2{font:600 13px/1.4 system-ui;color:#3a3f4a;margin:0 0 4px}
+  .col > p{font:11.5px/1.5 system-ui;color:#6b7280;margin:0 0 12px;min-height:34px}
+  .frame{background:#fff;border:1px solid #dfe2e7;border-radius:14px;padding:14px}
+</style>
+<style id="plugin-css"></style>
+</head>
+<body>
+  <div class="col">
+    <h2>现在（两栏 · 名字 12px · 描述 11.5px）</h2>
+    <p>每栏 273px。名字被迫换行、字号压到 12px，描述 11.5px，来源行 10px。</p>
+    <div class="frame"><div class="sr-grid sr-grid--now" id="now"></div></div>
+  </div>
+  <div class="col">
+    <h2>建议（单栏 · 名字 15px · 描述 13px）</h2>
+    <p>整宽 573px。名字一行放下、15px，描述 13px/20px，来源行升到 11.5px 二级色。</p>
+    <div class="frame"><div class="sr-grid sr-grid--one" id="next"></div></div>
+  </div>
+
+<script>
+const CARDS = [
+  { initial:'C', hue:'#4f46e5', name:'cinema-dna-21x9x3', zh:'电影9格故事版', tag:'影视', used:19,
+    blurb:'把故事转译成电影感 21:9 单帧、三联镜头或九镜故事板，锁住人物与风格一致性。',
+    src:'VSERR/echocat-skill-panel-3.0', off:false },
+  { initial:'H', hue:'#0ea5e9', name:'h3-prompt-writing', zh:'', tag:'提示词', used:14,
+    blurb:'Write MiniMax H3 video prompts for T2VA, I2VA, FL2VA, L2VA, Ref2VA', src:'',
+    srcPath:'~/echocat-skill-panel-3.0', off:false },
+  { initial:'M', hue:'#8b5cf6', name:'music-video-subtitle-generator', zh:'音乐视频字幕', tag:'音乐', used:9,
+    blurb:'按节拍与唱词切分长片，设计随拍律动的空间排版。', src:'VSERR/echocat-skill-panel-3.0', off:false },
+  { initial:'P', hue:'#10b981', name:'papercraft-stop-motion-explainer', zh:'', tag:'教育', used:5,
+    blurb:'tactile handmade papercraft visuals for science and general knowledge',
+    src:'VSERR/echocat-skill-panel-3.0', off:false },
+  { initial:'B', hue:'#f59e0b', name:'brand-promo-video-generator', zh:'', tag:'', used:0,
+    blurb:'promotional shorts for brands, products and personal projects.', src:'', off:true },
+]
+
+/** Build one card using the CURRENT class vocabulary, so the real stylesheet applies. */
+function card(s) {
+  const el = document.createElement('div')
+  el.className = s.off ? 'sr-skill sr-skill--off' : 'sr-skill'
+  el.innerHTML = `
+    <div class="sr-skill-head">
+      <span class="sr-avatar" style="background:${s.off ? '#c9ccd3' : s.hue}">${s.initial}</span>
+      <div class="sr-skill-headtext">
+        <span class="sr-skill-name">${s.zh || s.name}</span>
+        ${s.zh ? `<div class="sr-skill-slug">/${s.name}</div>` : ''}
+      </div>
+      <div class="sr-skill-tags">
+        ${s.off ? '<span class="sr-tag sr-tag--off">已停用</span>' : ''}
+        ${s.tag ? `<span class="sr-tag">${s.tag}</span>` : ''}
+        ${s.used > 0 ? `<span class="sr-tag sr-tag--used">用过 ${s.used} 次</span>` : ''}
+      </div>
+    </div>
+    <div class="sr-skill-main">
+      <div class="sr-blurb">${s.blurb}</div>
+      ${s.src ? `<div class="sr-src"><span class="sr-ic-dot"></span>${s.src}</div>` : ''}
+    </div>
+    <div class="sr-card-foot">
+      <div class="sr-row-actions">
+        <button type="button" class="sr-btn sr-btn--sm sr-btn--toggle ${s.off ? '' : 'sr-btn--on'}">
+          <span class="sr-switch"><span class="sr-switch-knob"></span></span>
+        </button>
+        <button type="button" class="sr-btn sr-btn--sm sr-btn--primary">引用</button>
+        <button type="button" class="sr-btn sr-btn--sm">中文名</button>
+        <button type="button" class="sr-btn sr-btn--sm sr-btn--icon">link</button>
+        <button type="button" class="sr-btn sr-btn--sm sr-btn--danger sr-btn--icon">del</button>
+      </div>
+    </div>`
+  return el
+}
+
+document.getElementById('now').append(...CARDS.map(card))
+document.getElementById('next').append(...CARDS.map(card))
+
+/** The plugin's real stylesheet, injected by the tool. */
+window.__applyCss = (css) => { document.getElementById('plugin-css').textContent = css }
+</script>
+</body>
+</html>

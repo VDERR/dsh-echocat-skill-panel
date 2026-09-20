@@ -301,7 +301,26 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
 .sr-count{font-size:10px;color:var(--sr-fg3);font-variant-numeric:tabular-nums}
 
 /* ---- skill cards ---- */
-.sr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:calc(var(--sr-sp)*1.75)}
+/**
+ * The card grid: two or three columns across the panel, never four.
+ *
+ * The floor is 290px, and it is not arbitrary. A card carries a 30px avatar, a name that must
+ * not break mid-word, a tag row, a blurb and a row of up to five buttons. MEASURED: at a 216px
+ * floor the name breaks INSIDE words ("h3- prompt- writ ing", "manua l-only- skill") and the
+ * blurb wraps one word per line — visibly worse than a single column. At 290px the name fits,
+ * and the panel's own --sr-max (about 920px on a full window) yields three columns while a
+ * narrow window yields two.
+ *
+ * The lesson: a responsive grid's floor has to come from the CONTENT's minimum width, not from
+ * how many columns would be nice. The first attempt used 216px and rendered as a broken page.
+ *
+ * NO BACKTICKS IN THIS FILE. This comment is inside the stylesheet template literal, and a
+ * backtick here ends that literal early; the rest of the sheet then parses as JavaScript, which
+ * usually still parses, so the break surfaces at runtime instead of at build time. That mistake
+ * has cost six debugging cycles in this repository, and tools/check-template-literals.mjs now
+ * fails the build over it.
+ */
+.sr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:calc(var(--sr-sp)*3)}
 .sr-skill{display:flex;align-items:center;gap:calc(var(--sr-sp)*2.5);padding:calc(var(--sr-sp)*2) calc(var(--sr-sp)*2.25) calc(var(--sr-sp)*2) calc(var(--sr-sp)*3);border:1px solid var(--sr-line);border-radius:var(--sr-r);background:var(--sr-raised);text-align:left;transition:background var(--sr-speed),border-color var(--sr-speed),transform var(--sr-speed)}
 .sr-skill:hover{background:var(--sr-fill);border-color:var(--sr-line2);transform:translateY(-1px)}
 .sr-avatar{flex:none;width:26px;height:26px;border-radius:var(--sr-r-sm);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--sr-card);text-transform:uppercase;letter-spacing:0}
@@ -558,7 +577,6 @@ ${SURFACES}{
 .sr-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sr-hero-top{flex-direction:column}
 .sr-spark{width:100%;height:30px}
-.sr-grid{grid-template-columns:minmax(0,1fr)}
 .sr-sheet{width:100%;max-height:100vh;height:100vh;border-radius:0}
 .sr-backdrop{padding:0}
 .sr-share-name{max-width:44%}

@@ -58,18 +58,45 @@ function slugify(name) {
     .slice(0, 64)
 }
 
-/** Stable 0..359 hue from a name — the avatar colour must not jump between renders. */
-function hueOf(name) {
-  let hash = 2166136261
-  const text = String(name ?? '')
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
-  }
-  return Math.abs(hash) % 360
+/**
+ * The palette a user picks from, and the reason the old behaviour was wrong.
+ *
+ * The avatar used to take a hue from `hueOf(name)`, which gave thirteen skills thirteen
+ * unrelated colours — a chat-app look that fought the interface and said nothing: the hue was
+ * arbitrary, so it distinguished entries without meaning anything. Worse, it was LOUD by
+ * default and the user had no say in it.
+ *
+ * Now: the DEFAULT avatar is neutral (a quiet sunken tile that happens to be the same letter),
+ * and a colour is something the user ASSIGNS to a skill that matters to them. That inverts the
+ * signal — a coloured avatar now means "I marked this one", which is information.
+ *
+ * The palette is deliberately eight desaturated tones rather than a hue picker: a free hue lets
+ * someone pick something illegible against the surface, and these eight are all legible on both
+ * the light and the dark sheet. Keys are stable strings; they are what gets written to disk.
+ */
+const SKILL_COLORS = [
+  { key: 'indigo', hex: '#5b5bd6', label: '靛蓝' },
+  { key: 'teal', hex: '#0d9488', label: '青' },
+  { key: 'green', hex: '#16a34a', label: '绿' },
+  { key: 'amber', hex: '#d97706', label: '琥珀' },
+  { key: 'red', hex: '#dc2626', label: '红' },
+  { key: 'pink', hex: '#db2777', label: '品红' },
+  { key: 'violet', hex: '#7c3aed', label: '紫' },
+  { key: 'slate', hex: '#475569', label: '石板' },
+]
+
+/** The palette entry for a stored key, or `null` for "no colour" (the neutral default). */
+function skillColor(key) {
+  if (typeof key !== 'string' || key === '') return null
+  return SKILL_COLORS.find((entry) => entry.key === key) ?? null
 }
 
-/** Avatar letter: first alphanumeric character, uppercased. */
+/**
+ * The avatar letter: the first alphanumeric character, uppercased.
+ *
+ * Kept independent of any colour: an avatar is a letter first. `hueOf` is gone from the render
+ * path entirely — nothing should be coloured unless the user asked for it.
+ */
 function initial(name) {
   const match = /[a-z0-9]/iu.exec(String(name ?? ''))
   return match === null ? '?' : match[0].toUpperCase()
@@ -680,7 +707,9 @@ module.exports = {
   RELEASE_PATH,
   checkPluginRelease,
   formatBytes,
-  slugify,  hueOf,
+  slugify,
+  SKILL_COLORS,
+  skillColor,
   initial,
   canInstall,
   installDisabled,

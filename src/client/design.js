@@ -563,8 +563,32 @@ const DESIGN = Object.freeze([
     'name row: avatar, the name block, then the tags'),
   D('card-headtext', 'card', '.sr-skill-headtext', { flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'calc(var(--sr-u) * .5)' },
     'the name block takes whatever width the tags do not need'),
-  D('card-tags', 'card', '.sr-skill-tags', { flex: 'none', display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 1.25)', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '55%' },
+  D('card-tags', 'card', '.sr-skill-tags', { flex: 'none', display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 1.25)', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '55%', alignSelf: 'center' },
     'tags sit at the end of the name row and wrap rather than squeeze the name'),
+  // MEASURED, and it does not follow from the CSS: the tag row came out 38px wide by 200px
+  // TALL, dragging `.sr-skill-head` to 200px and turning each tag pill into a 160px blob with
+  // 198px of leading. Only one rule names that element, it sets no height, and its parent is
+  // `align-items:center` — yet Chrome stretched it, and it kept stretching even with
+  // `max-height` on the row and `align-self` on both the row and the pills.
+  //
+  // So the fix is not an explanation, it is a structure that cannot do it: a FIXED height on
+  // the row, `flex-start` alignment so nothing is asked to fill a column, and the pills sized
+  // from their own line box. A tag row is one or two lines of small print; there is no reason
+  // for it to be able to grow at all.
+  D('card-tags-clamp', 'card', '.sr-skill-tags', {
+    alignSelf: 'flex-start',
+    height: 20,
+    maxHeight: 20,
+    overflow: 'hidden',
+    flexWrap: 'nowrap',
+  }, 'a fixed 20px tag row: one line of tags, and structurally unable to stretch'),
+  D('card-tag-pill', 'card', '.sr-tag', {
+    alignSelf: 'center',
+    height: 19,
+    maxHeight: 19,
+    lineHeight: '17px',
+    whiteSpace: 'nowrap',
+  }, 'and pills sized from their own line box rather than from the row'),
   // THE fix for the truncation. A skill name must not be cut off, so it wraps; and
   // `overflow-wrap:anywhere` matters because a slug is one unbroken token —
   // `paper-collage-explainer-generator` has no space to wrap at and would overflow instead.
@@ -574,8 +598,14 @@ const DESIGN = Object.freeze([
     'and the slug under it, for the same reason'),
   D('card-main-full', 'card', '.sr-skill-main', { flex: '0 0 auto', minWidth: 0 },
     'the text block no longer shares a row with the actions, so it must not stretch'),
-  D('card-actions-row', 'card', '.sr-card-foot .sr-row-actions', { width: '100%', justifyContent: 'flex-start', flexWrap: 'wrap', rowGap: 'calc(var(--sr-u) * 1.5)' },
+  D('card-actions-row', 'card', '.sr-card-foot .sr-row-actions', { width: '100%', justifyContent: 'flex-start', flexWrap: 'wrap', rowGap: 'calc(var(--sr-u) * 1.5)', columnGap: 'calc(var(--sr-u) * 1.5)' },
     'the actions own the last row and start at the card edge, which is what makes it read as a footer'),
+  // Five labelled buttons do not fit a ~290px card at the base size, and a wrapped button row
+  // is what made the card look like a toolbar. The compact size is the fix.
+  D('card-actions-compact', 'card', '.sr-card-foot .sr-btn', { fontSize: 11, paddingInline: 'calc(var(--sr-u) * 2.25)' },
+    'inside a card the buttons step down one size so the row fits on one or two lines, not four'),
+  D('card-actions-icon', 'card', '.sr-card-foot .sr-btn--icon', { width: 26, height: 26 },
+    'and the icon buttons match that step, so the row has one height'),
   D('card-foot-row', 'card', '.sr-card-foot', { alignItems: 'stretch' },
     'the action column spans the card now that it is a row of its own'),
 
@@ -596,7 +626,105 @@ const DESIGN = Object.freeze([
   D('release-note-ok', 'frame', '.sr-release-note--ok', { color: 'var(--sr-ok)' },
     '"已是最新" is good news and wears the success colour, not the accent'),
 
-  /* ============================ 20. enable / disable + catalogue groups ============ */
+  /* ============================ 20. frosted glass, and a readable card scale ======== */
+  //
+  // The user's report was simply "界面很丑陋", and measurement agreed: content text sat at
+  // 10–11.5px against a host body of 14px, so the panel read as a shrunk screenshot. These
+  // records raise the content floor and give the surface a frosted, floating character.
+  //
+  // CONSTRAINT, and it is a hard one: NONE of this may be applied to `.sr-strip-shell`,
+  // `.sr-root`, `.sr-rail` or `.sr-portal-host`. `backdrop-filter` — like transform, filter and
+  // contain — makes an element a CONTAINING BLOCK for fixed-position descendants, and
+  // `.sr-backdrop` is `position:fixed; inset:0` inside that subtree, so a blurred shell would
+  // re-break the centred install dialog (the bug 4.0.2 just fixed). `.sr-head` / `.sr-foot` /
+  // `.sr-sec-head` are safe: they are inside the panel, not ancestors of the backdrop.
+  D('frost-head', 'frame', '.sr-head', {
+    background: 'color-mix(in srgb, var(--sr-card) 62%, transparent)',
+    backdropFilter: 'saturate(1.7) blur(14px)',
+    WebkitBackdropFilter: 'saturate(1.7) blur(14px)',
+    borderBottomColor: 'color-mix(in srgb, var(--sr-line) 60%, transparent)',
+  }, 'the header floats over the list instead of being an opaque bar: 62% + a 14px blur'),
+  D('frost-foot', 'frame', '.sr-foot', {
+    background: 'color-mix(in srgb, var(--sr-card) 58%, transparent)',
+    backdropFilter: 'saturate(1.7) blur(14px)',
+    WebkitBackdropFilter: 'saturate(1.7) blur(14px)',
+    borderTopColor: 'color-mix(in srgb, var(--sr-line) 45%, transparent)',
+  }, 'and the footer matches, so the two sticky edges read as one material'),
+  D('float-card', 'card', '.sr-skill', {
+    boxShadow: 'var(--sr-e2)',
+    borderColor: 'color-mix(in srgb, var(--sr-line) 72%, transparent)',
+    borderRadius: 14,
+  }, 'a softer border and a deeper shadow, so a card floats instead of being outlined'),
+  D('float-hero', 'hero', '.sr-hero', {
+    boxShadow: 'none',
+    border: '1px solid color-mix(in srgb, var(--sr-line) 55%, transparent)',
+  }, 'the hero is a summary strip, not a card: flat and translucent, no float'),
+  // ---- the readable content scale: this is the actual fix for "ugly" ----
+  //
+  // The first pass of this block got the RELATIVE sizes wrong and looking at the render is the
+  // only reason it was caught: at 26px the four stat numbers were twice the size of a skill
+  // name, so the diagnostic figures shouted while the browsable catalogue whispered. A summary
+  // is not the content.
+  D('type-stat-v', 'stat', '.sr-stat-v', { fontSize: 20, fontWeight: 650, lineHeight: 1.1 },
+    '20px, not 26px: the counters summarise the list, they are not the thing being read'),
+  D('type-name', 'card', '.sr-skill-name', { fontSize: 13.5, lineHeight: 1.4, fontWeight: 600 },
+    'the skill name is what gets scanned, and 12px made it the same size as its own description'),
+  D('type-blurb', 'card', '.sr-blurb', { fontSize: 12.5, lineHeight: 1.5 },
+    'the description is how you choose between skills, so it is content, not a footnote'),
+  D('type-src', 'meta', '.sr-src', { fontSize: 11.5, lineHeight: 1.6, color: 'var(--sr-fg2)' },
+    'provenance was the smallest, faintest text on the card while being the reason to trust or update it'),
+  D('type-src-bare', 'meta', '.sr-src--bare', { color: 'var(--sr-fg3)' },
+    'with no recorded source the line carries only the cues, so it steps back a notch'),
+  D('type-tag', 'meta', '.sr-tag', { fontSize: 11, lineHeight: 18 },
+    'tags rise with everything else, and lose the pill fill: a pill reads as "clickable"'),
+  D('avatar-neutral', 'card', '.sr-avatar', {
+    background: 'var(--sr-sunken)',
+    color: 'var(--sr-fg2)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--sr-line) 80%, transparent)',
+  }, 'an UNMARKED skill is a quiet sunken tile — a coloured tile now means "I marked this one"'),
+  D('avatar-marked', 'card', '.sr-avatar--marked', {
+    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.24)',
+  }, 'a marked tile gets a hairline of its own colour, so a dark swatch does not read as a hole'),
+  D('avatar-btn', 'card', '.sr-avatar-btn', {
+    flex: 'none',
+    // `display:flex` + `line-height:0`, NOT `display:block`.
+    //
+    // Measured: as a plain block this element is a flex item of `.sr-skill-head` with
+    // `align-items:center`, so it STRETCHES to the row's height — and it took the avatar with
+    // it. The head row came out 200px tall and the tile rendered as a giant oval. A flex box
+    // whose size comes from its single child cannot stretch that way, and `line-height:0`
+    // removes the inline-box strut that would otherwise add a few pixels under the tile.
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: 0,
+    background: 'none',
+    cursor: 'pointer',
+    borderRadius: 10,
+    lineHeight: 0,
+  }, 'the avatar is the colour affordance, so it is clickable without looking like a button'),
+  D('avatar-btn-tile', 'card', '.sr-avatar-btn .sr-avatar', { flex: 'none' },
+    'and inside it the tile keeps its 30x30 size instead of filling the button'),
+  D('avatar-btn-focus', 'a11y', '.sr-avatar-btn:focus-visible .sr-avatar', { outline: '2px solid var(--sr-accent)', outlineOffset: 2 },
+    'focus lands on the wrapper, so the ring has to be drawn on the tile inside it'),
+  D('palette-row', 'card', '.sr-palette-row', {
+    alignSelf: 'stretch', width: '100%', marginTop: 'calc(var(--sr-u) * .5)', paddingTop: 'calc(var(--sr-u) * 2)',
+    borderTop: '1px solid var(--sr-line)',
+  }, 'the palette is its own row at card width, never a child of the button row'),
+  D('swatches', 'card', '.sr-swatches', { display: 'flex', flexWrap: 'wrap', gap: 'calc(var(--sr-u) * 2)', alignItems: 'center' },
+    'eight swatches plus a reset, wrapping on a narrow card'),
+  D('swatch', 'card', '.sr-swatch', {
+    width: 20, height: 20, borderRadius: 999, border: '1px solid color-mix(in srgb, #111113 14%, transparent)',
+    padding: 0, cursor: 'pointer', flex: 'none',
+  }, 'a 20px dot: big enough to hit with a mouse, small enough that nine fit one row'),
+  D('swatch-on', 'card', '.sr-swatch--on', { boxShadow: '0 0 0 2px var(--sr-card), 0 0 0 4px var(--sr-accent)' },
+    'the chosen swatch is ringed with a gap, so the ring reads against any swatch colour'),
+  D('swatch-none', 'card', '.sr-swatch--none', {
+    background: 'var(--sr-sunken)', color: 'var(--sr-fg3)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }, 'the reset swatch shows the neutral tile itself, so "no colour" looks like what you get'),
+
+  /* ============================ 21. enable / disable + catalogue groups ============ */
   D('group-head', 'card', '.sr-group-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', padding: 'calc(var(--sr-u) * 2.5) 0 calc(var(--sr-u) * 1.5)' },
     'a group header is a row: label, count, and the sentence that explains the state'),
   D('group-gap', 'card', '.sr-group', { marginTop: 'calc(var(--sr-u) * 2)' },

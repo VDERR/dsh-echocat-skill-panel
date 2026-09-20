@@ -704,9 +704,18 @@ console.log('\n[12] capability model and validation (api)')
   ok('slugify trims stray dashes', api.slugify('--Weird__Name--') === 'weird__name', api.slugify('--Weird__Name--'))
   ok('initial takes the first alphanumeric', api.initial('gpt-image') === 'G' && api.initial('_x') === 'X')
   ok('initial survives an empty name', api.initial('') === '?')
-  ok('hueOf is deterministic', api.hueOf('gpt-image') === api.hueOf('gpt-image'))
-  ok('hueOf stays inside 0..359', [api.hueOf('a'), api.hueOf('b'), api.hueOf('')].every((v) => Number.isInteger(v) && v >= 0 && v < 360))
-  ok('hueOf separates different names', api.hueOf('alpha') !== api.hueOf('beta'))
+  // The avatar used to take a hue from a name hash, which gave every skill its own arbitrary
+  // colour — thirteen skills, thirteen hues, and the hue meant nothing. The palette is now
+  // something the USER assigns and the default is a NEUTRAL tile, so these assertions are about
+  // the inversion: an unmarked skill must come out colourless.
+  ok('the palette is a fixed set of named keys', Array.isArray(api.SKILL_COLORS) && api.SKILL_COLORS.length === 8, String(api.SKILL_COLORS?.length))
+  ok('every palette entry has a key, a hex and a label',
+    api.SKILL_COLORS.every((c) => /^[a-z]+$/u.test(c.key) && /^#[0-9a-f]{6}$/iu.test(c.hex) && typeof c.label === 'string' && c.label !== ''))
+  ok('palette keys are unique', new Set(api.SKILL_COLORS.map((c) => c.key)).size === 8)
+  ok('an absent colour resolves to null, not to a colour', api.skillColor('') === null && api.skillColor(undefined) === null)
+  ok('an unknown key resolves to null rather than falling back to a colour', api.skillColor('chartreuse') === null)
+  ok('a known key resolves to its entry', api.skillColor('teal')?.hex === '#0d9488')
+  ok('hueOf is gone from the API', typeof api.hueOf === 'undefined', 'the hash-colour path was removed with the palette')
 
   ok('canInstall is true only when api:1 and writable', api.canInstall(CAP_FULL) === true)
   ok('canInstall is false when read-only', api.canInstall({ ...CAP_FULL, writable: false }) === false)
@@ -1469,8 +1478,20 @@ await (async () => {
       // components, so running it outside the patch window closes every section.
       const cards = withExpanded(() => textOf(exports.__ui.SkillReportPanel({ snapshot })))
       ok('[21] an invoked skill shows its total on the card', cards.includes('\u7528\u8fc7 3 \u6b21'))
-      const marked = withExpanded(() => findAllHost(exports.__ui.SkillReportPanel({ snapshot }), (n) => String(n.props?.className ?? '').includes('sr-tag--used')))
-      ok('[21] ...as a dedicated marker, not a plain tag', marked.length === 2, String(marked.length))
+      // The count used to be an `sr-tag--used` pill in the card's tag row. That row is GONE: it
+      // was the one element in the card whose flex sizing could not be made to behave (three
+      // attempts, and it still rendered as 60px clipped blobs), so its contents moved onto the
+      // source line — where a count reads as a clause about the skill rather than a floating
+      // chip. The assertion follows the element instead of the old class name.
+      // Matched on the class LIST containing `sr-src` as a whole member — `\bsr-src\b` also
+      // matches `sr-src-text`, which is the inner span, so every row counted twice.
+      const marked = withExpanded(() =>
+        findAllHost(exports.__ui.SkillReportPanel({ snapshot }), (n) => String(n.props?.className ?? '').split(/\s+/u).includes('sr-src') && deepText(n).includes('\u7528\u8fc7')),
+      )
+      ok('[21] ...on the source line, not as a floating tag', marked.length === 2,
+        `${marked.length} matched: ${JSON.stringify(marked.map((n) => String(n.props?.className ?? '')))}`)
+      ok('[21] ...and the old tag row is gone from every card',
+        withExpanded(() => findAllHost(exports.__ui.SkillReportPanel({ snapshot }), (n) => String(n.props?.className ?? '').includes('sr-skill-tags'))).length === 0)
       ok('[21] the 用过的 chip is offered once something was used', cards.includes('\u7528\u8fc7\u7684'))
       const chip = withExpanded(() => findAllHost(exports.__ui.SkillReportPanel({ snapshot }), (n) => n.type === 'button' && deepText(n).includes('\u7528\u8fc7\u7684')))
       ok('[21] ...and counted', chip.length === 1 && deepText(chip[0]).includes('2'), JSON.stringify(chip.map(deepText)))
@@ -1669,9 +1690,13 @@ await (async () => {
           ok('[24] ...carrying the skill name', updateCall?.body?.name === 'git-skill', JSON.stringify(updateCall?.body))
           ok('[24] ...and not a confirmation a verified source does not need', updateCall?.body?.confirm === false, JSON.stringify(updateCall?.body))
 
-          // A source with no record offers the claim field instead of an update —
-          // two cards are in that state here (pasted, and never recorded at all).
-          const claimButtons = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u6807\u8bb0'))
+          // A source with no record offers the claim field instead of an update — two cards are
+          // in that state here (pasted, and never recorded at all).
+          //
+          // Matched on 的来源, which is the CLAIM button's phrase. A bare 标记 also hits the
+          // avatar button (「为 X 选择标记颜色」) that the colour feature added, and a matcher
+          // that quietly matches more than it means is how an assertion stops testing anything.
+          const claimButtons = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u7684\u6765\u6e90'))
           ok('[24] a skill with no record can have its source recorded', claimButtons.length === 2, JSON.stringify(claimButtons.map((n) => n.props['aria-label'])))
           const claimOne = claimButtons.find((n) => String(n.props?.['aria-label'] ?? '').includes('hand-skill'))
           ok('[24] ...and the button names the skill it records', claimOne !== undefined, JSON.stringify(claimButtons.map((n) => n.props['aria-label'])))
@@ -1815,7 +1840,10 @@ await (async () => {
             JSON.stringify(refByTitle.map((n) => n.props.title)))
 
           // The claim field: its own row, at the card's width, not a cell in the button row.
-          const claimButton = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u6807\u8bb0'))[0]
+          // Matched on 的来源, the claim button's phrase. A bare 标记 ALSO matches the avatar's
+          // 「为 X 选择标记颜色」, and the first version of this assertion clicked the avatar
+          // instead — so it "revealed" nothing and then blamed the component.
+          const claimButton = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u7684\u6765\u6e90'))[0]
           ok('[26] the card with no source offers a claim', claimButton !== undefined)
           view.click(claimButton)
           const claimInput = view.findAll((n) => n.type === 'input' && String(n.props?.className ?? '').includes('sr-claim-input'))[0]
