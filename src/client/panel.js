@@ -679,12 +679,25 @@ function ColorPicker({ name, current, onDone }) {
   const choose = React.useCallback(
     (key) => {
       setBusy(true)
+      // `performSetColor`, NOT a bare `api.post(...).then(...)`.
+      //
+      // The old version chained two `.then()`s and no `.catch()`, which looked defensive and was the exact
+      // bug: `api.post` NEVER THROWS — it resolves to `{ok:false, error}` — so on a rejected write the first
+      // `.then()` still ran, closed the palette as though the colour had saved, and reported NOTHING. The
+      // second `.then()` that clears `busy` never ran either, so every swatch stayed disabled and that
+      // palette was permanently dead after a single failure. The owner reported "clicking does nothing",
+      // twice, and this is why.
+      //
+      // The helper raises the pending/ok/error toasts from the host's own message and refreshes the
+      // catalogue, which is also what makes the card actually redraw with the new colour.
       void api
-        .post({ action: 'color', name, color: key })
-        .then(() => {
-          if (typeof onDone === 'function') onDone()
+        .performSetColor(name, key, {
+          onDone: () => {
+            if (typeof onDone === 'function') onDone()
+          },
         })
-        .then(() => setBusy(false))
+        // `finally`, so `busy` clears on EVERY path. This is what keeps the palette usable after a refusal.
+        .finally(() => setBusy(false))
     },
     [name, onDone],
   )

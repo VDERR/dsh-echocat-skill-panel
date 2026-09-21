@@ -383,6 +383,8 @@ const json = (payload, status = 200) => ({ ok: status < 400, status, json: async
 let nameTakenOnce = false
 let invalidNameOnce = false
 let needsConfirmOnce = false
+/** Make the next `color` write FAIL, to drive the refusal path the palette used to swallow silently. */
+let failColorOnce = false
 /** Skill name the stubbed `check` should report as behind, or `''` for none. */
 let behindOnce = ''
 
@@ -432,6 +434,15 @@ globalThis.fetch = async (url, init) => {
     }
     if (body.action === 'disable' || body.action === 'enable') {
       return json({ ok: true, skill: { name: body.name, disabled: body.action === 'disable' }, skills: HOST_SKILLS, capability: CAP_FULL })
+    }
+    if (body.action === 'color') {
+      // `failColorOnce` lets a test drive the REFUSAL path, which is the one that was silently broken: the
+      // palette treated a refusal as a success. The reply shape is exactly what the host sends for an action
+      // it does not recognise, which is what an out-of-date host returns.
+      if (failColorOnce) {
+        return json({ ok: false, error: { code: 'BAD_REQUEST', message: '不认识的 action：color' } }, 400)
+      }
+      return json({ ok: true, skill: { name: body.name, color: body.color }, skills: HOST_SKILLS, capability: CAP_FULL })
     }
     if (body.action === 'claim') {
       return json({ ok: true, skill: { name: body.name }, provenance: { known: true, source: 'git', url: body.input, repo: body.input, claimed: true, changedSinceInstall: false }, skills: HOST_SKILLS, capability: CAP_FULL })
@@ -1288,6 +1299,8 @@ await (async () => {
     const paletteSnapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: paletteCatalog, disabledSkills: [] }
     clearToasts()
     let doneCount = 0
+    // Counts `onDone` calls for the refusal case: it must NOT fire when the write was refused.
+    let colourDoneCount = 0
     {
       // Rendered through the PANEL so the assertion is about what a user can actually click, but the
       // palette is opened by invoking the avatar's own `onClick` — the harness re-renders a function tree
@@ -1341,6 +1354,56 @@ await (async () => {
       const roTree = exports.__ui.SkillReportPanel({ snapshot: { ...paletteSnapshot, capability: { api: 1, writable: false } } })
       ok('[17f] a read-only host renders no avatar button',
         findAllHost(roTree, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('选择标记颜色')).length === 0)
+    }
+
+    /* -- a REJECTED colour write must report, and must not kill the palette -- */
+    //
+    // This is the assertion that would have caught the reported bug. `api.post` NEVER THROWS — it resolves to
+    // `{ok:false, error}` — so a caller that only chains `.then()` treats a refusal as a success: the palette
+    // closed as though the colour had saved, said nothing, and its `busy` flag stayed set, leaving every
+    // swatch disabled. One failed write made that palette permanently dead, and silently.
+    {
+      clearToasts()
+      const before = calls.length
+      // Make the host refuse this one action, the way a host that has never heard of it would.
+      failColorOnce = true
+      const beforeDone = colourDoneCount
+      const picker = exports.__ui.ColorPicker({ name: 'refused-skill', current: '', onDone: () => { colourDoneCount += 1 } })
+      const swatch = findAllHost(picker, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('水绿'))[0]
+      ok('[17g] the swatch exists to click', swatch !== undefined)
+      swatch.props.onClick()
+      await tick()
+      await tick()
+      ok('[17g] the write was attempted', calls.length > before, String(calls.length - before))
+      // The palette must not be dismissed as though it had worked.
+      ok('[17g] a refused write does NOT report success to the caller', colourDoneCount === beforeDone,
+        'onDone fired, so the card closes its palette and the user sees nothing happen')
+      // And the failure has to be visible rather than silent.
+      const colourToasts = exports.__api.getToasts()
+      ok('[17g] ...and the refusal is REPORTED, not swallowed',
+        colourToasts.some((t) => t.kind === 'error'),
+        JSON.stringify(colourToasts.map((t) => ({ kind: t.kind, message: t.message }))))
+      ok('[17g] ...carrying a message the user can act on',
+        colourToasts.some((t) => t.kind === 'error' && String(t.message ?? '').length > 0),
+        JSON.stringify(colourToasts.map((t) => t.message)))
+      // And the swatches must be usable again after a refusal. `busy` has to clear on the FAILURE path.
+      //
+      // Asserted against the artifact's SOURCE rather than by re-rendering, and deliberately. This harness's
+      // `useState` is a no-op setter, so `busy` can never become true here and a re-render would report
+      // "not disabled" under the BROKEN code as well — an assertion that passes either way is not evidence.
+      // The load-bearing fact is that the clear sits on `.finally`, which runs whether the write resolved or
+      // was refused; a chained `.then` does not run at all once the chain above it rejects, which is what
+      // left the palette permanently dead after one failure.
+      //
+      // Scoped to the palette's own slice of the artifact. A whole-file `includes` was the first version and
+      // it failed on the FIXED code, because four other call sites match the same text — which is how the
+      // same defect was then found in `install.js`.
+      const pickerSource = source.slice(source.indexOf('function ColorPicker'), source.indexOf('function ColorPicker') + 2200)
+      ok('[17g] the palette clears its busy flag on EVERY path, not only on success',
+        pickerSource.includes('.finally(() => setBusy(false))') && !pickerSource.includes('.then(() => setBusy(false))'),
+        'a `.then` after the request never runs when the write is refused, so every swatch stays disabled')
+      failColorOnce = false
+      clearToasts()
     }
 
     /* -- a NEEDS_CONFIRM reply is surfaced, not swallowed -- */

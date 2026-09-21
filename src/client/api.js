@@ -705,6 +705,33 @@ function performSetEnabled(name, enabled, labels = {}) {
   )
 }
 
+/**
+ * Assign, or clear, one skill's colour.
+ *
+ * A dedicated helper rather than a bare `post()` call, and that is the whole point of this function
+ * existing. `post()` is documented as NEVER THROWING — it resolves to `{ok:false, error}` — so a caller
+ * that only chains `.then()` treats a failed write as a successful one. The palette did exactly that: it
+ * closed as though the colour had been saved, reported nothing at all, and because its `setBusy(false)`
+ * sat on a second `.then()` that never ran, EVERY SWATCH STAYED DISABLED. One failed write made that
+ * palette permanently dead, silently, which is precisely what the owner described twice.
+ *
+ * `performWrite` is what the enable switch, the rename and the delete all use: it raises a pending toast,
+ * then an ok or an error toast with the host's own message and hint, and refreshes the catalogue so the
+ * card actually redraws with the new colour.
+ */
+function performSetColor(name, color, labels = {}) {
+  const wanted = String(color ?? '')
+  const known = SKILL_COLORS.find((entry) => entry.key === wanted)
+  return performWrite(
+    { action: 'color', name, color: wanted },
+    {
+      pending: `正在标记 ${name}…`,
+      okPrefix: wanted === '' ? '已取消标记' : `已标记为${known?.label ?? wanted}`,
+      onDone: labels.onDone,
+    },
+  )
+}
+
 module.exports = {
   SKILLS_PATH,
   RELEASE_PATH,
@@ -747,5 +774,6 @@ module.exports = {
   performInstall,
   performUninstall,
   performSetEnabled,
+  performSetColor,
   performRescan,
 }
