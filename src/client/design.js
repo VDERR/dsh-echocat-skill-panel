@@ -779,6 +779,15 @@ const DESIGN = Object.freeze([
   // ---- spacing: tight inside a card, loose between cards (the single most-cited rule) -----
   D('r-space-card-pad', 'space', '.sr-skill', { padding: 14 },
     'one padding value inside a card, so every card has the same inner rhythm'),
+  // The card's rows are spread over its full height rather than stacked at the top.
+  //
+  // The grid stretches every card in a row to the tallest, and one card carries 3–4 blurb lines where its
+  // neighbour carries 1–2, so a short card used to end with a band of empty space BELOW its buttons: it read
+  // as top-heavy and the rows across a row of cards visibly did not line up. Spreading the slack into the gaps
+  // gives the content the card's whole height instead of the first two thirds of it, which is what "整体居中
+  // 显示" describes — the content sits in the middle of the box rather than at the start of it.
+  D('r-space-card-spread', 'space', '.sr-skill', { justifyContent: 'space-between' },
+    'the card distributes its rows over its full height instead of stacking them at the top'),
   D('r-space-card-gap', 'space', '.sr-skill', { gap: 12 },
     'and one gap between its rows: 14 inside, 12 between rows, 16 between cards — three tiers'),
   D('r-space-grid-gap', 'space', '.sr-grid', { gap: 16 },

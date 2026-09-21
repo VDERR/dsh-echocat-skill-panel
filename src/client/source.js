@@ -88,16 +88,42 @@ function refresh() {
 /**
  * Republish the catalog straight from a write response.
  *
- * Every install/uninstall reply carries the whole on-disk `skills` array (plus a
- * fresh `capability`), so a successful write can update the list immediately
- * instead of waiting up to `POLL_MS` for the next poll. The phase flips to
- * `ready` on purpose: the write is proof the host is reachable, so a stale
- * "主机侧不可达" banner must not survive it.
+ * Every install/uninstall reply carries the whole on-disk `skills` array (plus a fresh `capability`), so a
+ * successful write can update the list immediately instead of waiting up to `POLL_MS` for the next poll. The
+ * phase flips to `ready` on purpose: the write is proof the host is reachable, so a stale "主机侧不可达"
+ * banner must not survive it.
+ *
+ * IT MERGES, and that is the fix for a bug the owner hit as "颜色标签点了没反应". This used to be
+ * `{ ...data, skills }` — a wholesale REPLACEMENT with the write response's rows. Those rows come from the
+ * host's on-disk scan, which knows a skill's name, size and timestamp but NOT its provenance, so every write
+ * answered with a catalogue in which no skill had a colour... and the client adopted it, dropping every
+ * marking for up to five seconds. Assigning a colour was the most visible symptom, but a toggle, a rename or a
+ * delete wiped the same information.
+ *
+ * The missing fields could equally be filled on the host, and that was tried first: adding the provenance to
+ * the scan makes `onDisk()` walk every skill directory to fingerprint it, MEASURED at 1998ms for this
+ * catalogue because one skill is 264 files and 453MB — against a poll every five seconds. Merging costs
+ * nothing and cannot be slow.
+ *
+ * A field the response DOES carry always wins, so a write's own effect (the `disabled` flag after a toggle)
+ * still lands immediately.
  */
 function applySkills(skills, capability) {
   if (!Array.isArray(skills)) return
   const data = state.data !== null && typeof state.data === 'object' ? state.data : {}
-  const next = { ...data, skills }
+  const previous = new Map((Array.isArray(data.skills) ? data.skills : []).map((skill) => [skill?.name, skill]))
+  const merged = skills.map((skill) => {
+    const before = previous.get(skill?.name)
+    if (before === undefined) return skill
+    const next = { ...skill }
+    // Carry over anything the write response does not speak about. Today that is `provenance` — the colour and
+    // the recorded source — and anything else the host adds to the polled payload later.
+    for (const key of Object.keys(before)) {
+      if (next[key] === undefined) next[key] = before[key]
+    }
+    return next
+  })
+  const next = { ...data, skills: merged }
   if (capability !== undefined && capability !== null) next.capability = capability
   publish({ phase: 'ready', data: next, error: null, fetchedAt: Date.now() })
 }

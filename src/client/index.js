@@ -25,6 +25,7 @@ const {
   getSnapshot,
   subscribe,
   DEFAULT_PATH,
+  applySkills,
   checkForUpdates,
   getUpdates,
   clearUpdates,
@@ -133,6 +134,10 @@ module.exports = {
     getSnapshot,
     subscribe,
     DEFAULT_PATH,
+    // Exported for the test that pins the merge contract. A write response carries no provenance, and
+    // adopting it wholesale is what wiped every skill's colour — a bug that shipped because nothing asserted
+    // what this function does with a response that is missing fields.
+    applySkills,
     checkForUpdates,
     getUpdates,
     clearUpdates,

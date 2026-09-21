@@ -1456,6 +1456,42 @@ await (async () => {
       ok('[17c] the sheet clears its textarea after success', !view.text().includes('fresh-skill\n\n#'))
       ok('[17c] installs went out exactly once more', calls.filter((c) => c.body?.action === 'install').length === before + 1)
     })
+
+    /* -- a write response must not wipe every skill's colour and provenance -- */
+    //
+    // THE bug behind "颜色标签点了没反应", and it was never only about colour.
+    //
+    // Every write answers with the host's on-disk `skills` array — name, size, timestamp, `disabled` — which
+    // carries NO provenance. `applySkills` adopted that array WHOLESALE, so after any write the client's
+    // catalogue was one in which no skill had a colour or a recorded source, and every card lost its marking
+    // until the next poll put them back, up to five seconds later. Assigning a colour was merely the most
+    // visible way to see it: a toggle, a rename or a delete wiped the same information.
+    {
+      const row = (name, extra = {}) => ({ name, dir: `C:\\skills\\${name}`, hasSkillMd: true, disabled: false, bytes: 10, modifiedAt: 1, ...extra })
+      const coloured = [
+        row('marked', { provenance: { known: true, source: 'git', color: 'teal', changedSinceInstall: false } }),
+        row('plain', { provenance: { known: false, source: '', color: '', changedSinceInstall: false } }),
+      ]
+      exports.__source.applySkills(coloured, CAP_FULL)
+      ok('[17h] the coloured row is in the published catalogue',
+        exports.__source.getSnapshot().data.skills.find((s) => s.name === 'marked')?.provenance?.color === 'teal')
+
+      // A write response, exactly as the host builds it: provenance is absent entirely.
+      exports.__source.applySkills([row('marked'), row('plain', { disabled: true })], CAP_FULL)
+      const after = exports.__source.getSnapshot().data.skills
+      ok('[17h] a write response does NOT wipe the colour',
+        after.find((s) => s.name === 'marked')?.provenance?.color === 'teal',
+        JSON.stringify(after.find((s) => s.name === 'marked')))
+      ok('[17h] ...nor the rest of the provenance, so the source line survives too',
+        after.find((s) => s.name === 'marked')?.provenance?.source === 'git',
+        JSON.stringify(after.find((s) => s.name === 'marked')?.provenance))
+      // ...while a field the response DOES carry still wins, or the write's own effect would be lost.
+      ok('[17h] ...but the write\'s own change still lands',
+        after.find((s) => s.name === 'plain')?.disabled === true,
+        JSON.stringify(after.find((s) => s.name === 'plain')))
+      ok('[17h] a skill the client had never seen is taken as-is',
+        exports.__source.getSnapshot().data.skills.length === 2)
+    }
     {
       // The list must not wait for the next poll: render the panel straight from
       // the store's snapshot, with only the section state forced open.
