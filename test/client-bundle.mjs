@@ -690,22 +690,21 @@ console.log('\n[10] package identity')
     ok('the stylesheet is responsive (item 40)', css.includes('max-width:560px'))
     ok('the stylesheet themes selection and caret (item 41)', css.includes('::selection') && css.includes('caret-color'))
     /**
-     * ONE RADIUS, AND THE TOKENS ARE WHERE IT HAS TO HOLD.
+     * THE SCALE, AT THE BASE OF THE CASCADE, MATCHING THE HOST'S COMPOSER.
      *
-     * This asserted `--sr-r:12px` — the value from a three-step scale (12 / 9 / 999) that the design pass later
-     * replaced with 8 for the elements it happened to name. The ones it did not name kept reading these tokens, which
-     * is why a single component showed four different corner roundings: the collapsed bar at 999, its expanded shell at
-     * 12, its floating row at 8, and the count chip inside it at 6.
+     * This has now pinned three different scales, and each change came from the owner naming a reference: the original
+     * three-step values (12 / 9 / 999), then a single 8, and now the host composer card's 22 for surfaces with 8 for the
+     * controls inside them.
      *
      * Asserting the TOKENS rather than a list of elements is the point: an element is only at the right radius if
-     * somebody remembered to name it, and that is not a property a design system can have.
+     * somebody remembered to name it, and that is not a property a design system can have. The old values must be GONE
+     * rather than merely overridden, or an unnamed element falls back to a corner that disagrees with its neighbours —
+     * which is exactly how one component came to show four different roundings.
      */
     ok('the stylesheet defines the 4px rhythm', css.includes('--sr-sp:4px'))
-    ok('...and ONE radius scale, at the base of the cascade',
-      css.includes('--sr-r:8px') && css.includes('--sr-r-sm:8px'),
+    ok('...and a radius scale matching the host composer, at the base of the cascade',
+      css.includes('--sr-r:22px') && css.includes('--sr-r-sm:8px'),
       /--sr-r:[^;]+/u.exec(css)?.[0] + ' ' + /--sr-r-sm:[^;]+/u.exec(css)?.[0])
-    // The old values must be GONE, not merely overridden for some selectors: leaving them lets an unnamed element fall
-    // back to a different corner than everything around it.
     ok('...with the old three-step values removed',
       !css.includes('--sr-r:12px') && !css.includes('--sr-r-sm:9px') && !css.includes('--sr-r-pill:999px'),
       'a surviving 12/9/999 token is a corner that disagrees with its neighbours')

@@ -151,26 +151,29 @@ try {
   ok('...and no animation is overriding it', scaleOf(anim.transform) === hoveredScale, JSON.stringify(anim))
 
   /**
-   * THE COMPOSER STRIP'S CORNERS, measured rather than read from the sheet.
+   * THE RADIUS SCALE, measured in the browser, now that it matches the host's composer.
    *
-   * The owner's report was that ONE component showed four different corner roundings — the collapsed bar, its expanded
-   * shell, the floating row inside it, and the count chip — because the radius tokens still held the old three-step
-   * scale (12 / 9 / 999) while the design pass only corrected the elements it happened to name. The tokens are one
-   * value now, and this is the check that the RENDERING agrees: the strip, the row it sits in, the chip inside it and
-   * the cards must all resolve to `--sr-r`.
+   * Three passes have moved this scale, and each time the owner named a reference. The current one is the message input
+   * box below the strip, whose own scale is a large radius for SURFACES and a small one for the controls INSIDE them.
+   * So there are two expected resolutions, not one, and the check has to know which is which — asserting "everything is
+   * one value" was correct for the previous pass and wrong for this one.
+   *
+   * `.sr-strip` is 22 closed and 8 open, and that is intentional: closed it IS the surface, open it is a control sitting
+   * inside the floating row that became the surface. Asserting a single value for it would forbid that.
    */
   const radius = JSON.parse(
     (await evaluate(`(() => {
       const r = (sel) => { const el = document.querySelector(sel); return el === null ? 'MISSING' : getComputedStyle(el).borderTopLeftRadius }
       const host = document.querySelector('.sr-root') ?? document.documentElement
+      const cs = getComputedStyle(host)
+      const height = (sel) => { const el = document.querySelector(sel); return el === null ? 0 : Math.round(el.getBoundingClientRect().height) }
       return JSON.stringify({
-        token: getComputedStyle(host).getPropertyValue('--sr-r').trim(),
-        strip: r('.sr-strip'),
-        count: r('.sr-strip-count'),
-        panel: r('.sr-strip-panel'),
-        skill: r('.sr-grid .sr-skill'),
-        // The bar when the report is OPEN, which is a different element chain: the shell stops drawing the frame and the
-        // bar keeps its own. This is the pair that used to disagree — a pill closed and a rounded rectangle open.
+        large: cs.getPropertyValue('--sr-r').trim(),
+        small: cs.getPropertyValue('--sr-r-sm').trim(),
+        surfaces: { root: r('.sr-root'), skill: r('.sr-grid .sr-skill'), panel: r('.sr-strip-panel'), count: r('.sr-strip-count'), hero: r('.sr-hero') },
+        controls: { btn: r('.sr-btn'), chip: r('.sr-chip'), icon: r('.sr-btn--icon') },
+        btnHeight: height('.sr-btn'),
+        stripClosed: r('.sr-strip'),
         openRule: (() => {
           for (const sheet of document.styleSheets) {
             let list = []
@@ -186,16 +189,27 @@ try {
       })
     })()`)) ?? '{}',
   )
-  ok('the strip, its chip, its panel and the cards all resolve to ONE radius',
-    [radius.strip, radius.count, radius.panel, radius.skill].every((value) => value === radius.token),
-    JSON.stringify(radius))
-  // The open state must name the same token rather than zeroing it, or the bar changes corner as the report opens.
-  ok('...and the OPEN bar names the same token rather than removing its radius',
-    radius.openRule === 'var(--sr-r)', `open rule radius: ${radius.openRule}`)
-  // A pill would sail past this. The point is that the corner is a corner and not a stadium.
-  ok('...and that radius is a real corner, not a pill',
-    radius.token !== '' && Number.parseFloat(radius.token) <= 10,
-    `--sr-r = ${radius.token}`)
+  ok('every SURFACE resolves to the large step, matching the host composer',
+    Object.values(radius.surfaces ?? {}).every((value) => value === radius.large) && radius.large === '22px',
+    JSON.stringify({ large: radius.large, surfaces: radius.surfaces }))
+  ok('...and every control inside them resolves to the small step',
+    Object.values(radius.controls ?? {}).every((value) => value === radius.small) && radius.small === '8px',
+    JSON.stringify({ small: radius.small, controls: radius.controls }))
+  /**
+   * AND NO CONTROL MAY TURN INTO A STADIUM, which is the failure mode of a large radius on a small box.
+   *
+   * This is the check that a blanket "make everything 22px" would fail: `.sr-btn` is 26 + 2px of border, so a 22px
+   * corner is 79% of its height and reads as the pill the owner asked to be rid of two passes ago. Measured against the
+   * element's own height rather than against a fixed number, so it keeps its meaning if the button grows.
+   */
+  const btnRadius = Number.parseFloat(radius.controls?.btn ?? '0')
+  ok('...without any control becoming a stadium',
+    btnRadius > 0 && btnRadius / radius.btnHeight < 0.5,
+    `${btnRadius}px on a ${radius.btnHeight}px button = ${(btnRadius / radius.btnHeight).toFixed(2)} of its height`)
+  // The bar is the surface when closed, so it takes the large step; open it is a control inside the float.
+  ok('the bar is a surface when closed and a control when open',
+    radius.stripClosed === radius.large && radius.openRule === 'var(--sr-r-sm)',
+    `closed ${radius.stripClosed}, open rule ${radius.openRule}`)
 
   ws.close()
 } catch (error) {

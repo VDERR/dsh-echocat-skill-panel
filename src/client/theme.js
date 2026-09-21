@@ -151,22 +151,19 @@ ${SURFACES}{
 --sr-mono:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);
 --sr-sp:4px;
 /**
- * ONE RADIUS, at the base of the cascade.
+ * MATCHING THE HOST'S COMPOSER, which the owner named as the reference: "所有圆度改为像下面对话框的这种圆度".
  *
- * This is the scale everything falls back to, and it still carried the OLD three-step values (12 / 9 / 999) after the
- * design pass moved the whole sheet to 8. Elements the design pass happens to name were corrected; the ones it did not
- * — .sr-strip, .sr-age, .sr-sort, .sr-strip-shell--open — kept reading these, which is why ONE component showed four
- * different corner roundings: the collapsed bar at 999, its expanded shell at 12, its floating row at 8, and the install
- * count inside it at 6.
+ * Read off the DSH shell rather than guessed: the message input box is .Ogvy6G_card with border-radius:22px, and its own
+ * scale turns out to have the same SHAPE as ours: a large radius for surfaces, a small one for controls inside them, a
+ * pill for genuinely round things. So the STRUCTURE here is unchanged and only the large step moves, 8 -> 22.
  *
- * Fixing the tokens rather than the stragglers one at a time is deliberate: an element is only at the right radius if
- * somebody remembered to name it, which is not a property a design system can have.
- *
- * --sr-r-pill is kept as a NAME because ~20 rules reference it and most are genuinely round — a 5px status dot, a 6px
- * progress track, the switch. Its VALUE is what changes, so those keep their shape and everything else stops inheriting
- * a pill by accident. The few that must stay circular say so with an explicit 999.
+ * The three steps are copied from the host deliberately:
+ *   --sr-r     22px  surfaces and the containers that hold controls — the composer card, and now the strip and cards
+ *   --sr-r-sm   8px  controls INSIDE those surfaces — the host uses 8 for its own select and notice elements, for the
+ *                    same reason a 22px corner on a 22px-tall small button is a stadium rather than a button
+ *   --sr-r-pill      genuinely round things: the switch, dots, progress bars, scrollbar
  */
---sr-r:8px;
+--sr-r:22px;
 --sr-r-sm:8px;
 --sr-r-pill:8px;
 --sr-head-h:38px;
@@ -462,14 +459,16 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
    declarations stayed here, and the shell's radius was still measurable at 12px while every other corner in the sheet
    was 8. Removing them here rather than re-overriding them is the honest fix: the shell has no surface. */
 .sr-strip-shell--open{gap:calc(var(--sr-sp)*2)}
-/* The bar keeps its OWN frame when open, at the same radius as everything else — it is the SAME control in both states,
-   so it cannot be a pill closed and a rounded rectangle open. This line used to zero the radius because the shell was
-   drawing the frame; the shell no longer does. */
-.sr-strip-shell--open .sr-strip{border:0;border-radius:var(--sr-r);background:transparent}
+/* The bar inside the open float is TRANSPARENT, because the row around it is now the surface carrying the frame.
+   Its radius drops to the CONTROL step: closed, the bar IS the surface and takes the large corner; open, it is a control
+   sitting inside the float, and the host's own scale makes the same distinction — 22 for its composer card, 8 for the
+   selects inside it. This line used to zero the radius because the shell was drawing the frame; the shell no longer
+   does, so the bar keeps a corner of its own either way. */
+.sr-strip-shell--open .sr-strip{border:0;border-radius:var(--sr-r-sm);background:transparent}
 /* The bar row above already offers install and refresh. Without this the report's
    own header repeated the same two buttons a few pixels below them. */
 .sr-strip-shell--open .sr-strip-panel .sr-head .sr-btn{display:none}
-.sr-strip{flex:1;min-width:0;display:flex;align-items:center;gap:calc(var(--sr-sp)*2);padding:calc(var(--sr-sp)*1.5) calc(var(--sr-sp)*3);border:1px solid var(--sr-line);border-radius:var(--sr-r-pill);background:var(--sr-card);color:var(--sr-fg);font:inherit;font-size:11px;line-height:18px;text-align:left;cursor:pointer;transition:background var(--sr-speed),border-color var(--sr-speed)}
+.sr-strip{flex:1;min-width:0;display:flex;align-items:center;gap:calc(var(--sr-sp)*2);padding:calc(var(--sr-sp)*1.5) calc(var(--sr-sp)*3);border:1px solid var(--sr-line);border-radius:var(--sr-r);background:var(--sr-card);color:var(--sr-fg);font:inherit;font-size:11px;line-height:18px;text-align:left;cursor:pointer;transition:background var(--sr-speed),border-color var(--sr-speed)}
 .sr-strip:hover{background:var(--sr-fill);border-color:var(--sr-line2)}
 .sr-strip-dot{flex:none;width:7px;height:7px;border-radius:50%}
 .sr-strip-label{flex:none;color:var(--sr-fg3)}
