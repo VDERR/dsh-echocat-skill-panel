@@ -1188,10 +1188,24 @@ const DESIGN = Object.freeze([
     'a spinner is linear by definition; an ease makes it visibly stutter each revolution'),
   D('r-motion-transition-none-input', 'sheet', '.sr-input', { transition: 'border-color var(--sr-speed-fade) var(--sr-ease), box-shadow var(--sr-speed-fade) var(--sr-ease)' },
     'a field animates its edge and halo only — moving a field while typing is disorienting'),
+  /**
+   * THE ENTRANCE ANIMATION MUST NOT TOUCH `transform`, AND THIS IS THE FIX FOR THE HOVER SCALE.
+   *
+   * The keyframes used to be `from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}` with
+   * `animation-fill-mode: both`. A finished animation with `fill-mode: both` keeps applying its last keyframe, and CSS
+   * ANIMATIONS OUTRANK EVERY NORMAL DECLARATION — specificity does not enter into it. So the card permanently carried
+   * `transform: none`, and the hover scale lost to it no matter how specific its selector became. Measured in a real
+   * browser: the grow rule matched with specificity 13 and the computed transform was still the identity matrix.
+   *
+   * That is the fourth distinct mechanism to break this one feature, and the first three were all within the cascade
+   * this animation sits above. A card has ONE transform to spend, so it belongs to the interactive state and the
+   * entrance fades only — which is also the better motion: a fade reads as content arriving, and it cannot fight the
+   * hover for the same property.
+   */
   D('r-motion-list-enter', 'card', '.sr-skill', { animationFillMode: 'both' },
-    'cards enter with `both` so the pre-animation state is the start keyframe, not the final one'),
+    'cards enter with `both` so the pre-animation state is the start keyframe, not the final one. It is safe now only because the keyframes animate OPACITY alone'),
   D('r-motion-list-enter-name', 'card', '.sr-skill', { animationName: 'sr-card-in', animationDuration: 'var(--sr-speed-layout)', animationTimingFunction: 'var(--sr-ease)' },
-    'one short rise-and-fade as the catalogue appears, so a filter change does not snap'),
+    'one short fade as the catalogue appears, so a filter change does not snap — and deliberately no transform, which belongs to the hover'),
 
   /* ============================ 21c. responsive ====================================
    *
@@ -2074,7 +2088,10 @@ function designRuleFor(record, roots) {
  * pointing at nothing. `test/ui-polish.mjs` asserts every name referenced by a record exists here.
  */
 const KEYFRAMES = Object.freeze({
-  'sr-card-in': 'from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}',
+  // OPACITY ONLY — no transform. These cards carry a hover SCALE, and an animation with `fill-mode: both` keeps
+  // applying its final keyframe forever; animations outrank every normal declaration, so a `transform` here silently
+  // defeats the hover no matter how specific its selector is. The sheet and the toast are free to move.
+  'sr-card-in': 'from{opacity:0}to{opacity:1}',
   'sr-sheet-in': 'from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}',
   'sr-toast-in': 'from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}',
   // Referenced by the pending toast, whose icon spins while work is in flight. It was missing when
