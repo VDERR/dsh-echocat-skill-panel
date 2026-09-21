@@ -1255,39 +1255,27 @@ const DESIGN = Object.freeze([
   /**
    * HOVER FOCUS: the card under the pointer grows, the others recede.
    *
-   * "我希望我鼠标悬停在某个 skill 的时候卡片有微微的放大效果，其他的卡片有缩小效果." Both halves are here, and the
-   * shrinking half is what makes it read as a selection rather than as a bounce: a lone 1.02 scale is easy to miss
-   * because a card has no motion reference, while the neighbours getting smaller gives the eye a comparison.
+   * "我希望我鼠标悬停在某个 skill 的时候卡片有微微的放大效果" — and, on seeing it work, "悬停的时候其他卡片不用缩小".
+   * So this is now the FIRST half only: the card under the pointer grows and nothing else moves around it. The recede
+   * rule was removed at the owner's request, not because it was broken.
    *
-   * `:has()` on the GRID drives the sibling rule, because the alternative — `.sr-skill:hover ~ .sr-skill` — only
-   * matches the cards AFTER the hovered one, so the ones before it would stay at full size and the effect would
-   * look broken in the top-left of every row. `:has()` lets the grid ask "am I hovering any card" first.
+   * THE SELECTOR IS SHAPED BY WHAT IT HAD TO OUTRANK, and that history is worth keeping because every clause has a
+   * reason:
    *
-   * BOTH RULES CARRY THE SAME SPECIFICITY, AND THAT IS LOAD-BEARING — it is the fix for a bug where the hovered card
-   * did not scale at all.
+   *   * `:has(.sr-skill:hover)` on the grid replaced a plain `.sr-grid .sr-skill:hover` so the rule would score above
+   *     the recede rule's `:not(:hover)`, which contributed its argument's specificity. The recede rule is gone, so
+   *     that particular need is gone with it — but the clause is kept because it is also what makes the rule apply only
+   *     to a grid that actually holds a hovered card, which is the honest condition.
+   *   * `:is(.sr-skill)` adds one class of specificity so this beats the `.sr-skill:hover` rules elsewhere in the sheet
+   *     rather than relying on which record happens to be emitted last. Deleting it would silently re-open that
+   *     question, which is how this feature broke twice.
    *
-   * The recede rule needs `:not(:hover)` to spare the card under the pointer, and `:not()` contributes the
-   * specificity of its ARGUMENT. So that rule scored FOUR classes while the grow rule scored three, and specificity
-   * beats source order: the hovered card matched BOTH rules, the recede rule won, and the card was pinned at
-   * `scale(.98)` — which reads as "no effect", or as a slight shrink. The avatar visibly moved because its own
-   * transform rule scores three, so it won ITS pair. That asymmetry is exactly what the owner saw.
-   *
-   * Both selectors now name the hovered state through `:has(... :hover)`, so the two score 4 and 5 with the GROW rule
-   * on top, and source order decides in favour of the scale the pointer is on.
-   *
-   * The magnitudes are deliberately small (2% up, 2% down). At card sizes of ~290px that is about 6px of
-   * difference; anything larger starts to move the neighbouring row's baseline and looks like a layout bug rather
-   * than a hover.
-   *
-   * `transform-origin: center` with a scale, so the growth is symmetric and the grid's 16px gutter absorbs it —
-   * MEASURED: a 290px card at 1.02 grows 5.8px, which fits well inside the gutter, so nothing overlaps.
+   * The magnitude is deliberately small (2%). At a ~290px card that is about 6px, which the grid's 16px gutter absorbs
+   * — MEASURED, so a grown card cannot overlap its neighbour.
    */
-  D('r-hover-card-lift', 'card', '.sr-grid:has(.sr-skill:hover) .sr-skill:not(:hover)',
-    { transform: 'scale(.98)' },
-    'the cards the pointer is NOT on recede, which is what turns a hover into a focus'),
   D('r-hover-card-grow', 'card', '.sr-grid:has(.sr-skill:hover) .sr-skill:is(.sr-skill):hover',
     { transform: 'scale(1.02)', zIndex: 1 },
-    'and the one under the pointer comes forward — at a HIGHER specificity than the recede rule, so the cascade cannot pin it at .98. `z-index` so its border is not overlapped by its neighbours'),
+    'the card under the pointer comes forward. `z-index` so its border is not overlapped by its neighbours'),
   D('r-state-row-hover', 'time', '.sr-turn-h:hover', { background: 'var(--sr-fill)' },
     'a list row takes a fill on hover, exactly like a card, so the two lists behave alike'),
   D('r-state-chip-hover', 'sec', '.sr-chip:hover', { color: 'var(--sr-fg)' },

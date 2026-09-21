@@ -1189,23 +1189,19 @@ console.log('\n[16] install affordances follow the capability')
     !/\.sr-card-foot-row \.sr-row-actions\{[^}]*justify-content:center/u.test(sheet))
 
   /**
-   * THE HOVER EFFECT: the hovered card grows, the others recede.
+   * THE HOVER EFFECT: the card under the pointer grows, and NOTHING else moves.
    *
-   * Asserted on the sheet, with BOTH halves required. A lone `scale(1.02)` is half the request and is easy to miss
-   * by eye, which is how it would ship if only the first rule were checked.
+   * It required both halves (grow and recede) until the owner saw it working and asked for the recede to go —
+   * "悬停的时候其他卡片不用缩小" — so the second assertion is now inverted, and the absence is what is pinned. A later
+   * pass re-adding a sibling rule would otherwise be invisible here.
    */
   // Matched loosely on purpose: the selector has had to gain `:has()` and `:is()` to win the cascade, and a regex
   // pinned to the exact text would fail every time the selector is corrected — which is the opposite of useful. What
   // matters is that a rule scales the hovered card up; WHICH rule wins is asserted separately and precisely below.
   ok('[29] hovering a card grows it', /scale\(1\.02\)/u.test(sheet), 'the hovered card must scale up')
-  ok('[29] ...and recedes the cards the pointer is NOT on',
-    /\.sr-grid:has\(\.sr-skill:hover\) \.sr-skill:not\(:hover\)\{[^}]*scale\(\.98\)/u.test(sheet),
-    'the shrinking half is what makes it read as a focus rather than a bounce')
-  // `:has()` on the grid, not a sibling combinator: `.sr-skill:hover ~ .sr-skill` matches only the cards AFTER the
-  // hovered one, so the ones before it would keep full size and the effect would look broken at the start of a row.
-  ok('[29] ...using :has() so the cards BEFORE the hovered one recede too',
-    sheet.includes(':has(.sr-skill:hover)') && !sheet.includes('.sr-skill:hover ~ .sr-skill'),
-    'a sibling combinator only reaches forwards')
+  ok('[29] ...and NOTHING shrinks the other cards',
+    !/scale\(\.98\)|scale\(0\.98\)/u.test(sheet) && !/\.sr-skill:not\(:hover\)[^{]*\{[^}]*transform/u.test(sheet),
+    'a recede rule was removed at the owner\'s request and must not come back')
   // And the transition has to be on the base rule, or the effect animates in but snaps out.
   ok('[29] ...with the transition declared at the base, so it animates BOTH ways',
     /\.sr-skill\{[^}]*transition:[^}]*transform/u.test(sheet),
@@ -1243,18 +1239,30 @@ console.log('\n[16] install affordances follow the capability')
           return classes + pseudos + inner
         }),
       ),
-      hovered: sel.split(',').some((one) => /\.sr-skill(?![\w-])/u.test(one) && one.includes(':hover') && !one.includes(':not(:hover)')),
+      // Matched by ENDING at the card: `.sr-grid:has(.sr-skill:hover) .sr-skill:is(.sr-skill):hover` does, while
+      // `.sr-skill:hover .sr-avatar` does not — the avatar's own nudge is a deliberate separate motion and must not be
+      // counted as a competing claimant for the CARD's transform.
+      hovered: sel
+        .split(',')
+        .some(
+          (one) =>
+            /\.sr-skill(?![\w-])[^ >]*:hover$/u.test(one.trim()) ||
+            /\.sr-skill:is\(\.sr-skill\):hover$/u.test(one.trim()),
+        ),
       body: body.trim(),
     }))
     .filter((rule) => rule.hovered)
   const topSpec = Math.max(...transformRules.map((rule) => rule.spec))
   const winners = transformRules.filter((rule) => rule.spec === topSpec)
-  ok('[29] the rule that WINS the hover transform is the scale, not the recede',
+  ok('[29] the rule that WINS the hover transform is the scale',
     winners.length > 0 && winners.every((rule) => rule.body.includes('scale(1.02)') && !rule.body.includes('translateY')),
     `top specificity ${topSpec}: ` + JSON.stringify(winners.map((rule) => rule.body.slice(0, 60))))
-  ok('[29] ...because a recede rule with equal-or-higher specificity is what made the card look inert',
-    topSpec > Math.min(...transformRules.map((rule) => rule.spec)),
-    `specificities ${JSON.stringify(transformRules.map((rule) => rule.spec))}`)
+  // With the recede rule gone there is only ONE rule left, so this cannot be shown to outrank a sibling any more. What it
+  // still pins is that the winning rule is the only claimant — the state the owner asked for, and the state in which the
+  // earlier specificity fight cannot recur.
+  ok('[29] ...and it is the ONLY rule claiming a transform on a hovered card',
+    transformRules.length === 1,
+    `claimants: ${JSON.stringify(transformRules.map((rule) => rule.body.slice(0, 40)))}`)
 
   // The count, bottom-left, showing a real number for a skill that has been called.
   const rendered = textOf(tree)

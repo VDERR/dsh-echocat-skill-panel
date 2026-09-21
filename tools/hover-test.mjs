@@ -130,19 +130,18 @@ try {
 
   ok('the hovered card GROWS', hoveredScale > 1.005, `scale ${hoveredScale}`)
   /**
-   * THE RECEDE IS SCOPED TO THE HOVERED CARD'S OWN GRID, and asserting it page-wide was wrong.
+   * THE RECEDE IS GONE, at the owner's request: "悬停的时候其他卡片不用缩小". Only the card under the pointer moves.
    *
-   * The catalogue renders an enabled grid and a disabled grid, and the skill filter buttons each get their own; `:has()`
-   * on `.sr-grid` asks whether THAT grid holds the hovered card, so cards in a different grid are untouched. The first
-   * version of this check demanded that every card on the page shrink and failed with
-   * `[0.98 × 6, 1 × 11]` — six same-grid neighbours receding and eleven elsewhere holding still, which is the correct
-   * behaviour and a wrong expectation.
+   * This was asserted in the opposite direction until now, and the history is why the check is written as an exact
+   * equality rather than a threshold: the recede rule went through three forms (page-wide sibling, `:has()`-scoped
+   * grid-mates, removed) and a loose `>= 0.995` would have passed for the first two while the owner was asking for the
+   * third.
    */
   const sameGrid = others.filter((card) => card.g === hovered?.g)
   const otherGrid = others.filter((card) => card.g !== hovered?.g)
-  ok('...and its OWN grid-mates RECEDE', sameGrid.length > 0 && sameGrid.every((card) => scaleOf(card.t) < 0.995),
+  ok('...while its own grid-mates are left at their natural size', sameGrid.every((card) => scaleOf(card.t) === 1),
     JSON.stringify(sameGrid.map((card) => scaleOf(card.t))))
-  ok('...while cards in ANOTHER grid are left alone', otherGrid.every((card) => scaleOf(card.t) === 1),
+  ok('...and cards in another grid too', otherGrid.every((card) => scaleOf(card.t) === 1),
     JSON.stringify(otherGrid.map((card) => scaleOf(card.t))))
   // The magnitude, so a token 1.001 does not pass as an effect.
   ok('...by a visible amount', Math.abs(hoveredScale - 1) >= 0.015, `${hoveredScale}`)
