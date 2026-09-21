@@ -635,6 +635,16 @@ async function listSkills({ skills, agents, sessionId, logger, translate, root =
            * bug the owner reported twice.
            */
           location: isUserSkill(skill, folder) ? 'user' : 'plugin',
+          /**
+           * The LAYER the service says this skill came from, verbatim, so the panel can show it.
+           *
+           * `location` is a judgement this plugin makes; `layer` is what DSH actually reported. Two rounds of
+           * attribution fixes were written without ever looking at this value, and both were wrong for the same
+           * avoidable reason — one of them treated a MISSING path as the user's, and the skill that has no path
+           * is exactly the one that was being reported. Carrying the raw field means the panel can state where
+           * a skill came from instead of the user and I having to infer it from a directory that may not exist.
+           */
+          layer: typeof skill?.source === 'string' ? skill.source : '',
           modifiedAt: dirMtime(folder),
           displayNameZh: folder === '' ? '' : yamlScalar(join(folder, 'meta.yaml'), 'display-name-zh'),
           tag: folder === '' ? '' : yamlScalar(join(folder, 'meta.yaml'), 'tag-cn'),

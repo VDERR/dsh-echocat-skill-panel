@@ -268,6 +268,17 @@ console.log('\n[5] the installed-skill list')
     payload.skills.find((s) => s.name === 'registered-one')?.location === 'plugin',
     `location=${JSON.stringify(payload.skills.find((s) => s.name === 'registered-one')?.location)} ` +
       `dir=${JSON.stringify(payload.skills.find((s) => s.name === 'registered-one')?.dir)}`)
+  // The RAW layer the service reported, carried through so the panel can state it.
+  //
+  // Two rounds of attribution fixes were written without ever looking at this value, and both were wrong for
+  // the same avoidable reason. Passing it through means the panel says where a skill came from instead of the
+  // user and I inferring it from a directory — and a runtime-registered skill has no directory at all.
+  ok('the service\'s own layer is carried through verbatim',
+    payload.skills.find((s) => s.name === 'registered-one')?.layer === 'bundled',
+    JSON.stringify(payload.skills.map((s) => [s.name, s.layer])))
+  ok('...and absent when the service reports none, rather than invented',
+    payload.skills.find((s) => s.name === 'gpt-image')?.layer === '',
+    JSON.stringify(payload.skills.find((s) => s.name === 'gpt-image')?.layer))
   ok('...so the two are not all labelled the same',
     new Set(payload.skills.map((s) => s.location)).size >= 1 && payload.skills.some((s) => s.location === 'user'))
   ok('the usage report is unaffected', payload.turns === 0 && Array.isArray(payload.recent))
