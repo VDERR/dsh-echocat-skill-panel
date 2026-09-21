@@ -1791,6 +1791,31 @@ const DESIGN = Object.freeze([
   D('r-cf-none', 'sec', '.sr-cf--none', { paddingInline: 8 },
     'the unmarked entry has no dot to show, so it takes the padding the dot would have used'),
 
+  /* ============================ 21i. the action icons move INSIDE the bar =========
+   *
+   * "我希望浮窗的这几个图标也是在左边这个框里面的" — the four action buttons were siblings of the bar in
+   * `.sr-strip-row`, so they sat outside its rounded frame. They are children of the bar now.
+   *
+   * That is why the bar became a `div` with `role="button"`: HTML forbids interactive content inside a
+   * real `<button>`, and an inner button's click would also fire the outer toggle. The keyboard contract
+   * is restored explicitly with `onKeyDown`, so nothing about the control is less reachable than before.
+   */
+  D('r-strip-is-control', 'frame', '.sr-strip', { cursor: 'pointer' },
+    'a div does not get a pointer cursor for free, and this one is still a control'),
+  D('r-strip-focus', 'a11y', '.sr-strip:focus-visible', { outline: '2px solid var(--sr-accent)', outlineOffset: 2 },
+    'the focus ring a real button would have had, since the element no longer provides one'),
+  D('r-strip-actions', 'frame', '.sr-strip-actions', {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    flex: 'none',
+    marginLeft: 2,
+  }, 'the icons sit at the end of the bar, inside its frame, as one group'),
+  D('r-strip-action-btn', 'frame', '.sr-strip-actions .sr-btn', { width: 24, height: 24 },
+    'one step smaller than the standalone size, because they are inside a 36px bar now rather than beside it'),
+  D('r-strip-row-tight', 'frame', '.sr-strip-row', { columnGap: 0 },
+    'nothing sits beside the bar any more, so the row gap has nothing left to separate'),
+
   /* ============================ 22. enable / disable + catalogue groups ============ */
   D('group-head', 'card', '.sr-group-head', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', padding: 'calc(var(--sr-u) * 2.5) 0 calc(var(--sr-u) * 1.5)' },
     'a group header is a row: label, count, and the sentence that explains the state'),

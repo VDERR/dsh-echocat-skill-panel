@@ -1271,6 +1271,78 @@ await (async () => {
       ok('[17a] onChanged fires so the list reloads', changed === 1, String(changed))
     })
 
+    /* -- the colour palette: the whole click path, which had NO test at all -- */
+    //
+    // The owner reported twice that marking a skill with a colour does nothing, and that it happens on
+    // SOME skills. This action shipped without a single client test, so every step was unverified: the
+    // avatar being a button at all, the palette opening, a swatch existing, and a click on that swatch
+    // reaching the transport.
+    //
+    // Rendered DIRECTLY rather than through the registered `PanelSurface`, which is the real component
+    // and reads its data from the store — passing it a `snapshot` prop feeds nothing and every card
+    // disappears, which is how the first attempt at this test failed.
+    const paletteCatalog = [
+      { name: 'gpt-image', descriptionZh: '图像生成', modelInvocable: true, provenance: { known: true, kind: 'repo', url: 'https://github.com/VDERR/echocat-skill-panel' } },
+      { name: 'marked-one', descriptionZh: '已标记的', modelInvocable: true, provenance: { known: true, kind: 'repo', url: 'https://github.com/VDERR/echocat-skill-panel', color: 'amber' } },
+    ]
+    const paletteSnapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: paletteCatalog, disabledSkills: [] }
+    clearToasts()
+    let doneCount = 0
+    {
+      // Rendered through the PANEL so the assertion is about what a user can actually click, but the
+      // palette is opened by invoking the avatar's own `onClick` — the harness re-renders a function tree
+      // rather than a live React tree, so state does not survive a re-read. Asserting the WRITE is what
+      // matters here, and that needs no re-render.
+      const before = calls.length
+      const tree = withExpanded(() => exports.__ui.SkillReportPanel({ snapshot: paletteSnapshot }))
+      ok('[17f] ...and no palette is open until it is clicked',
+        findAllHost(tree, (n) => String(n.props?.className ?? '') === 'sr-palette-row').length === 0)
+
+      // The palette itself, rendered directly. This is the component the owner clicks, and its failure
+      // mode is SILENT: a swatch that posts nothing looks identical to a swatch that was never wired.
+      const picker = exports.__ui.ColorPicker({ name: 'gpt-image', current: '', onDone: () => { doneCount += 1 } })
+      // Matched on the EXACT class, not `includes`: `.sr-swatches` is the container and also contains the
+      // substring, so the first version of this counted it as a swatch and expected 9 while finding 10.
+      const swatches = findAllHost(picker, (n) => String(n.props?.className ?? '').split(/\s+/u).includes('sr-swatch'))
+      ok('[17f] the palette offers every colour plus a reset',
+        swatches.length === exports.__api.SKILL_COLORS.length + 1, `${swatches.length} swatches`)
+      const teal = findAllHost(picker, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('水绿'))[0]
+      ok('[17f] a swatch is a labelled button', teal !== undefined,
+        JSON.stringify(findAllHost(picker, (n) => n.type === 'button').map((n) => n.props?.['aria-label']).filter(Boolean)))
+      ok('[17f] nothing is written merely by opening the palette', calls.length === before)
+      teal.props.onClick()
+      await tick()
+      const colourCall = calls.slice(before).find((call) => call.body?.action === 'color')
+      ok('[17f] clicking a swatch POSTS the colour — the click the owner reports doing nothing',
+        colourCall !== undefined, JSON.stringify(calls.slice(before).map((c) => c.body)))
+      ok('[17f] ...naming the skill and the colour',
+        colourCall?.body?.name === 'gpt-image' && colourCall?.body?.color === 'teal', JSON.stringify(colourCall?.body))
+      ok('[17f] ...and the caller is told it is done, so the card can close the palette',
+        doneCount > 0, String(doneCount))
+
+      // The reset, which is the control an ALREADY marked skill needs. "Some skills cannot be marked" is
+      // the shape of a bug that depends on the skill's state, so the marked case is exercised rather than
+      // assumed equivalent.
+      const markedPicker = exports.__ui.ColorPicker({ name: 'marked-one', current: 'amber', onDone: () => {} })
+      const reset = findAllHost(markedPicker, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('不标记'))[0]
+      ok('[17f] an already-marked skill gets a reset control', reset !== undefined,
+        JSON.stringify(findAllHost(markedPicker, (n) => n.type === 'button').map((n) => n.props?.['aria-label']).filter(Boolean)))
+      const beforeReset = calls.length
+      reset.props.onClick()
+      await tick()
+      const cleared = calls.slice(beforeReset).find((call) => call.body?.action === 'color')
+      ok('[17f] the reset writes an EMPTY colour rather than omitting the field',
+        cleared !== undefined && cleared.body.color === '', JSON.stringify(cleared?.body))
+
+      // A read-only host must not offer a palette it cannot honour: a clickable avatar that silently fails
+      // is worse than no avatar, and that gate is the other reason the palette can be unreachable. Asserted
+      // on the AVATAR's own label, which is the affordance, rather than on a card that this harness cannot
+      // reliably expand.
+      const roTree = exports.__ui.SkillReportPanel({ snapshot: { ...paletteSnapshot, capability: { api: 1, writable: false } } })
+      ok('[17f] a read-only host renders no avatar button',
+        findAllHost(roTree, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('选择标记颜色')).length === 0)
+    }
+
     /* -- a NEEDS_CONFIRM reply is surfaced, not swallowed -- */
     clearToasts()
     needsConfirmOnce = true
@@ -1938,7 +2010,11 @@ await (async () => {
       }
       const stripState = { phase: 'ready', data: stats, error: null, fetchedAt: Date.now() }
       const findCounters = (view) => view.findAll((n) => String(n.props?.className ?? '').includes('sr-statcard--inline'))
-      const findBar = (view) => view.findAll((n) => n.type === 'button' && String(n.props?.className ?? '') === 'sr-strip')[0]
+      // The bar is a `div` with `role="button"` now, NOT a real `<button>`: the action icons moved inside
+      // it at the owner's request, and HTML forbids interactive content inside a button — an inner
+      // button's click would have fired the outer toggle too. Matched on the ROLE, so this keeps asserting
+      // that the element is still a control rather than merely present.
+      const findBar = (view) => view.findAll((n) => String(n.props?.className ?? '') === 'sr-strip' && n.props?.role === 'button')[0]
       try {
         // EXPANDED: four chips, on the bar line itself, in the report's order.
         await withMount(exports.__ui.SkillReportStrip, { state: stripState, onRefresh: () => {}, onUse: () => {}, now: Date.now(), initialOpen: true }, async (view) => {

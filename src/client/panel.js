@@ -1851,11 +1851,24 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
   const readyLabel = `${installedCount} 个 skill 已准备就绪`
 
   const bar = h(
-    'button',
+    // A `div` WITH A BUTTON ROLE, not a `<button>`.
+    //
+    // The action buttons now live INSIDE this element at the user's request ("我希望浮窗的这几个图标也是在
+    // 左边这个框里面的"), and a `<button>` cannot contain other buttons: HTML forbids interactive content
+    // inside a button, so clicking an inner one would fire the outer one's toggle as well and the browser
+    // may not even dispatch the inner click. `role="button"` plus explicit key handling gives the same
+    // semantics and the same keyboard behaviour without the nesting violation.
+    'div',
     {
-      type: 'button',
+      role: 'button',
+      tabIndex: 0,
       className: 'sr-strip',
       onClick: () => setOpen((value) => !value),
+      onKeyDown: (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        setOpen((value) => !value)
+      },
       title: `${summarize(latest)}（点击${open ? '收起' : '展开'}）`,
       'aria-expanded': open,
     },
@@ -1910,42 +1923,56 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
       // no counters to read it from — no turns yet, or the host unreachable.
       s.turns > 0 && !failed ? null : h('span', { className: 'sr-strip-n' }, String(s.turns ?? 0)),
       h(Icon, { name: 'caret', size: 11, className: open ? 'sr-strip-caret sr-strip-caret--open' : 'sr-strip-caret' }),
+      /**
+       * The action buttons, INSIDE the bar.
+       *
+       * They used to be siblings of it in `.sr-strip-row`, which put them outside the rounded box — the
+       * user's report was that they should be in the same frame. Nesting them is why the bar is now a
+       * `div` with `role="button"` rather than a real `<button>`: HTML forbids interactive content inside
+       * a button, so an inner button's click would also toggle the bar.
+       *
+       * `stopPropagation` on each is what keeps that contract explicit rather than relying on the browser
+       * to swallow it — the bar's own toggle must not fire when the user aimed at an icon.
+       */
+      h(
+        'span',
+        { className: 'sr-strip-actions', key: 'actions' },
+        api.canInstall(capability)
+          ? h(
+              'button',
+              {
+                type: 'button',
+                className: 'sr-btn sr-btn--icon',
+                onClick: (event) => { event.stopPropagation(); openInstall() },
+                title: '安装 skill（快捷键 n）',
+                'aria-label': '安装 skill',
+              },
+              h(Icon, { name: 'plus', size: 13 }),
+            )
+          : null,
+        s.turns > 0 && !failed
+          ? h(
+              'button',
+              {
+                type: 'button',
+                className: 'sr-btn sr-btn--icon',
+                onClick: (event) => { event.stopPropagation(); void api.performRescan() },
+                title: '重新扫描 skill 目录',
+                'aria-label': '重新扫描 skill 目录',
+              },
+              h(Icon, { name: 'refresh', size: 13 }),
+            )
+          : null,
+        // The plugin's own version controls, in the seat that is mounted while the user is in the
+        // conversation — the report panel is not, so without this row the only way to ask about the
+        // plugin's own version would be to leave the conversation first.
+        h(ReleaseButtons, { release: s.release ?? undefined, repo: s.release?.releases ?? undefined, view: 'strip' }),
+      ),
     ),
   )
 
   const shell = [
-    h(
-      'div',
-      { key: 'row', className: 'sr-strip-row' },
-      bar,
-      // Installing needs no composer access, so this seat can offer it too — and
-      // it is the affordance the user reaches for while writing a message.
-      api.canInstall(capability)
-        ? h(
-            'button',
-            {
-              key: 'install',
-              type: 'button',
-              className: 'sr-btn sr-btn--icon',
-              onClick: openInstall,
-              title: '安装 skill（快捷键 n）',
-              'aria-label': '安装 skill',
-            },
-            h(Icon, { name: 'plus', size: 13 }),
-          )
-        : null,
-      s.turns > 0 && !failed
-        ? h(
-            'button',
-            { key: 'rescan', type: 'button', className: 'sr-btn sr-btn--icon', onClick: () => void api.performRescan(), title: '重新扫描 skill 目录', 'aria-label': '重新扫描 skill 目录' },
-            h(Icon, { name: 'refresh', size: 13 }),
-          )
-        : null,
-      // The plugin's own version controls, in the seat that is mounted while the user is in
-      // the conversation — the report panel is not, so without this row the only way to ask
-      // about the plugin's own version would be to leave the conversation first.
-      h(ReleaseButtons, { key: 'release', release: s.release ?? undefined, repo: s.release?.releases ?? undefined, view: 'strip' }),
-    ),
+    h('div', { key: 'row', className: 'sr-strip-row' }, bar),
     h(LiveRail, { key: 'rail', className: 'sr-rail' }),
   ]
 
@@ -1965,6 +1992,10 @@ module.exports = {
   SkillReportPanel,
   SkillReportIcon,
   SkillReportStrip,
+  // Exported for the click-path test. The palette is the one control whose failure mode is SILENT — a
+  // click that does nothing looks exactly like a click that was never wired up — and it shipped for two
+  // releases with no test at all. Rendering it directly is what makes the write assertion possible.
+  ColorPicker,
   clock,
   ago,
   summarize,
