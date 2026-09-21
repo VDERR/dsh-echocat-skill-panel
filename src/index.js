@@ -531,7 +531,8 @@ const unknownProvenance = () => ({ known: false, source: '', changedSinceInstall
 /** Enabled state for a host with no installer — assume enabled, which is the truth. */
 const unknownEnabled = () => true
 
-async function listSkills({ skills, agents, sessionId, logger, translate, root = '', provenance = unknownProvenance, enabled = unknownEnabled }) {
+async function listSkills({ skills, agents, sessionId, logger, translate, root = '', provenance = unknownProvenance, enabled = unknownEnabled, diagnostics = null }) {
+  const skillDiagnostics = diagnostics
   loadTranslations()
   try {
     if (skills === undefined || typeof skills.snapshot !== 'function') {
@@ -575,6 +576,25 @@ async function listSkills({ skills, agents, sessionId, logger, translate, root =
       .map((skill) => {
         const skillName = String(skill?.name ?? '')
         const folder = typeof skill?.path === 'string' && skill.path !== '' ? dirname(skill.path) : ''
+        /**
+         * Record every field the service reported, so attribution is answerable from observation.
+         *
+         * Three rounds of fixes were written on inference while the authoritative value — what DSH actually
+         * says about a skill's origin — was right there in the response and never looked at. This keeps it on
+         * the payload. It costs a few bytes per skill and it is the difference between one observation and
+         * another guess, which is exactly the trade that was being made wrong.
+         */
+        if (skillDiagnostics !== null) {
+          skillDiagnostics.push({
+            name: skillName,
+            source: typeof skill?.source === 'string' ? skill.source : '(none)',
+            provider: typeof skill?.provider === 'string' ? skill.provider : '(none)',
+            path: typeof skill?.path === 'string' ? skill.path : '(none)',
+            hasPath: typeof skill?.path === 'string' && skill.path !== '',
+            underRoot: folder === '' ? false : underRoot(folder),
+            location: isUserSkill(skill, folder) ? 'user' : 'plugin',
+          })
+        }
         const description = typeof skill?.description === 'string' ? skill.description : ''
         // Chinese shipped with the skill wins; otherwise a cached machine
         // translation; otherwise kick one off and show the English until it lands.
@@ -949,14 +969,27 @@ function mount(ctx, config) {
                 // the disabled catalogue are computed ONCE here and closed over below.
                 const enabledNow = allowInstall === true ? installer().enabledMap() : null
                 const parked = allowInstall === true ? installer().onDisk().filter((entry) => entry.disabled === true) : []
+                // Collected by `listSkills` as it maps, so the evidence and the judgement are recorded in the
+                // same pass and cannot disagree.
+                const skillDiagnostics = []
                 payload = JSON.stringify({
                   plugin: name,
                   version: VERSION,
                   generatedAt: Date.now(),
                   pending: tracker.pending(),
-                  skills: await listSkills({
-                    skills: skillsService,
-                    agents: agentsService,
+                  /**
+                   * What the skill service reported for every skill, verbatim.
+                   *
+                   * Three rounds of attribution fixes were written by INFERENCE while the authoritative value —
+                   * what DSH says about a skill's origin — sat unread in this very response. Keeping it on the
+                   * payload is a few bytes per skill and turns the next question into one observation instead of
+                   * another guess. `location` is this plugin's judgement; `source` and `path` are the evidence.
+                   */
+                  skillDiagnostics,
+                    skills: await listSkills({
+                      skills: skillsService,
+                      agents: agentsService,
+                      diagnostics: skillDiagnostics,
                     // Live session first, then the newest the store knows: either
                     // one reaches the preset layer that owns local discovery.
                     sessionId: lastSessionId || newestSessionId() || store.snapshot().recent[0]?.sessionId,
