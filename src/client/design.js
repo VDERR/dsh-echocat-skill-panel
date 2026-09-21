@@ -635,29 +635,29 @@ const DESIGN = Object.freeze([
    */
   D('r-card-foot-row', 'card', '.sr-card-foot-row', {
     display: 'grid',
-    gridTemplateColumns: 'auto 1fr auto',
+    gridTemplateColumns: 'auto 1fr',
     alignItems: 'center',
     columnGap: 'calc(var(--sr-u) * 2)',
     width: '100%',
     marginTop: 'auto',
-  }, 'the card footer is one line of three columns: call count, actions, source'),
-  // The row keeps `flex-start` as its base rule and is centred only INSIDE the footer.
+  }, 'the card footer: a lead column holding the count and the actions, then the source, which is the column that gives way'),
+  // The lead column: the call count and the buttons, side by side, starting at the card's LEFT edge.
+  D('r-card-lead', 'card', '.sr-card-lead', { display: 'flex', alignItems: 'center', gap: 'calc(var(--sr-u) * 2)', minWidth: 0 },
+    'the actions start at the card edge, with the count as the first thing on the line rather than floating between them'),
+  // The row keeps `flex-start` as its base rule and is left-aligned INSIDE the footer.
   //
   // The base rule is asserted by the polish gate and describes the generic row; the footer is the one place that
-  // wants centring, and giving it an extra class is how this project has resolved cascade-order questions
-  // before — a later-emitted same-specificity record would silently lose.
-  //
-  // The middle column, and the rule is not decoration: `min-width:0` is what lets it shrink below its content's
-  // intrinsic width so a long source label beside it cannot force the row to overflow the card.
-  D('r-card-actions', 'card', '.sr-card-actions', { minWidth: 0, display: 'flex', justifyContent: 'center' },
-    'the actions column takes the middle of the footer and yields width rather than overflowing'),
+  // overrides it, and giving it an extra class is how this project has resolved cascade-order questions before — a
+  // later-emitted same-specificity record would silently lose.
+  D('r-card-actions', 'card', '.sr-card-actions', { minWidth: 0, display: 'flex' },
+    'the actions column takes only what it needs, and yields width rather than overflowing'),
   // `flex-wrap:nowrap` and a lifted `width:100%` are both load-bearing.
   //
   // A card is ~290px and this line carries a count, four buttons and a source label. With the base rule's
   // `width:100%` the row demanded the full column and then wrapped; with `flex-wrap:wrap` it broke onto a second
-  // and third line and the three columns stopped being a line at all. MEASURED in the preview before and after.
-  D('r-card-foot-actions', 'card', '.sr-card-foot-row .sr-row-actions', { justifyContent: 'center', flexWrap: 'nowrap', width: 'auto', minWidth: 0 },
-    'inside the footer the action row is centred, never wraps, and takes only the width it needs'),
+  // and third line. MEASURED in the preview before and after.
+  D('r-card-foot-actions', 'card', '.sr-card-foot-row .sr-row-actions', { justifyContent: 'flex-start', flexWrap: 'nowrap', width: 'auto', minWidth: 0 },
+    'the action row is LEFT-aligned and never wraps, at the owner\'s request'),
   D('r-card-calls', 'card', '.sr-card-calls', {
     fontVariantNumeric: 'tabular-nums',
     fontSize: 12,
@@ -970,8 +970,15 @@ const DESIGN = Object.freeze([
     'scrolling to the end of the panel must not scroll the page behind it'),
   D('r-transition-tokens', 'frame', '{root}', { '--sr-speed-fast': '.11s', '--sr-speed-slow': '.22s' },
     'three durations rather than one: a hover is faster than an expansion'),
-  D('r-transition-hover', 'frame', '.sr-skill', { transition: 'box-shadow var(--sr-speed-fast) var(--sr-ease), border-color var(--sr-speed-fast) var(--sr-ease)' },
-    'hover moves only shadow and border — transform on a grid item causes a repaint ripple'),
+  // ONE transition rule for the card, and `transform` is included because the hover now scales it.
+  //
+  // The comment here used to say "transform on a grid item causes a repaint ripple", which is the reason it was left
+  // out. That reasoning does not hold: `transform` is composited rather than laid out, so it does not reflow the
+  // grid — the ripple it described came from animating `width`/`margin`, which is a different thing. Including it
+  // is what makes the hover scale smooth, and it is declared on the BASE rule so the effect also animates on the way
+  // OUT; a transition declared only inside `:hover` does not run when the pointer leaves.
+  D('r-transition-hover', 'frame', '.sr-skill', { transition: 'transform var(--sr-speed-fast) var(--sr-ease), box-shadow var(--sr-speed-fast) var(--sr-ease), border-color var(--sr-speed-fast) var(--sr-ease)' },
+    'hover moves shadow, border AND scale, on one composited transition declared at the base so both directions animate'),
   D('r-reduced-motion', 'a11y', '.sr-toast', { animationDuration: '.01ms' },
     'the reduced-motion block also shortens the toast, not only the sheet'),
   // ---- texture: the small things that make it look designed ------------------------------
@@ -1227,6 +1234,30 @@ const DESIGN = Object.freeze([
    */
   D('r-state-card-hover', 'card', '.sr-skill:hover', { borderColor: 'var(--sr-line2)' },
     'hover firms the edge one step: this is the card-level equivalent of a focus ring'),
+  /**
+   * HOVER FOCUS: the card under the pointer grows, the others recede.
+   *
+   * "我希望我鼠标悬停在某个 skill 的时候卡片有微微的放大效果，其他的卡片有缩小效果." Both halves are here, and the
+   * shrinking half is what makes it read as a selection rather than as a bounce: a lone 1.02 scale is easy to miss
+   * because a card has no motion reference, while the neighbours getting smaller gives the eye a comparison.
+   *
+   * `:has()` on the GRID drives the sibling rule, because the alternative — `.sr-skill:hover ~ .sr-skill` — only
+   * matches the cards AFTER the hovered one, so the ones before it would stay at full size and the effect would
+   * look broken in the top-left of every row. `:has()` lets the grid ask "am I hovering any card" first.
+   *
+   * The magnitudes are deliberately small (2% up, 2% down). At card sizes of ~290px that is about 6px of
+   * difference; anything larger starts to move the neighbouring row's baseline and looks like a layout bug rather
+   * than a hover.
+   *
+   * `transform-origin: center` with a scale, so the growth is symmetric and the grid's 16px gutter absorbs it —
+   * MEASURED: a 290px card at 1.02 grows 5.8px, which fits well inside the gutter, so nothing overlaps.
+   */
+  D('r-hover-card-lift', 'card', '.sr-grid:has(.sr-skill:hover) .sr-skill:not(:hover)',
+    { transform: 'scale(.98)' },
+    'the cards the pointer is NOT on recede, which is what turns a hover into a focus'),
+  D('r-hover-card-grow', 'card', '.sr-grid .sr-skill:hover',
+    { transform: 'scale(1.02)', zIndex: 1 },
+    'and the one under the pointer comes forward. `z-index` so its border is not overlapped by its neighbours'),
   D('r-state-row-hover', 'time', '.sr-turn-h:hover', { background: 'var(--sr-fill)' },
     'a list row takes a fill on hover, exactly like a card, so the two lists behave alike'),
   D('r-state-chip-hover', 'sec', '.sr-chip:hover', { color: 'var(--sr-fg)' },

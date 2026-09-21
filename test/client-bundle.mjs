@@ -1128,16 +1128,86 @@ console.log('\n[16] install affordances follow the capability')
     exports.__ui.SkillRow({ skill, counts, onUse: () => {}, capability: CAP_FULL, onChanged: () => {}, update: undefined })
   const tree = card(snapshot.skills[0], exports.__ui.countMap(snapshot.perSkill))
 
-  // The footer exists, and it is the row that holds all three columns.
+  // The footer holds TWO columns now: a lead column with the count and the actions, then the source.
+  //
+  // It was three — count, actions, source — with the actions centred, until the owner asked for the buttons to be
+  // left-aligned ("这些按钮直接左对齐吧"). The count moved inside the lead column so it sits before the buttons on
+  // one left-aligned line rather than floating between them.
   const footRow = findAllHost(tree, (n) => String(n.props?.className ?? '') === 'sr-card-foot-row')
   ok('[29] the card has a footer row', footRow.length >= 1, String(footRow.length))
-  ok('[29] ...with the call count as its FIRST column',
-    String(footRow[0]?.props?.children?.[0]?.props?.className ?? '') === 'sr-card-calls',
+  ok('[29] ...whose FIRST column is the lead holding count + actions',
+    String(footRow[0]?.props?.children?.[0]?.props?.className ?? '') === 'sr-card-lead',
     JSON.stringify(footRow[0]?.props?.children?.map?.((c) => c?.props?.className)))
-  ok('[29] ...the actions as its middle column',
-    String(footRow[0]?.props?.children?.[1]?.props?.className ?? '') === 'sr-card-actions')
   ok('[29] ...and the source as its LAST column',
-    String(footRow[0]?.props?.children?.[2]?.props?.className ?? '') === 'sr-card-src')
+    String(footRow[0]?.props?.children?.[1]?.props?.className ?? '') === 'sr-card-src')
+  // The count comes BEFORE the buttons inside the lead, which is what makes the line read
+  // "what this skill has done, then what you can do with it".
+  const lead = footRow[0]?.props?.children?.[0]
+  ok('[29] the lead column runs count-then-actions, left to right',
+    String(lead?.props?.children?.[0]?.props?.className ?? '') === 'sr-card-calls' &&
+      String(lead?.props?.children?.[1]?.props?.className ?? '') === 'sr-card-actions',
+    JSON.stringify(lead?.props?.children?.map?.((c) => c?.props?.className)))
+
+  /**
+   * THE ACTION ROW IS LEFT-ALIGNED, asserted against the generated STYLESHEET.
+   *
+   * `justify-content` is a CSS outcome, so a tree assertion cannot see it — and this is the second time this exact
+   * row's alignment has changed, which is precisely when a written-down rule gets silently reverted.
+   *
+   * It has to be the SHEET and not `source`: `source` is the raw bundle, so a regex against it matches the JS record
+   * literal (`{ justifyContent: 'center' }`) rather than the CSS declaration. The first version of this check did
+   * exactly that and passed for the wrong reason.
+   *
+   * The sheet is produced the same way `test/client-css.mjs` produces it — by evaluating `theme.js` against its two
+   * generated-data modules — because the record tables are interpolated at runtime and neither the bundle text nor
+   * the raw source can show what the browser receives.
+   */
+  const sheet = (() => {
+    const clientDir = join(pkgRoot, 'src', 'client')
+    const generated = {}
+    const load = (file) => {
+      if (generated[file] !== undefined) return generated[file]
+      const holder = { exports: {} }
+      // eslint-disable-next-line no-new-func
+      new Function('module', 'exports', 'require', readFileSync(join(clientDir, file), 'utf8'))(holder, holder.exports, () => {
+        throw new Error(`${file} must not require anything`)
+      })
+      generated[file] = holder.exports
+      return generated[file]
+    }
+    const holder = { exports: {} }
+    // eslint-disable-next-line no-new-func
+    new Function('module', 'exports', 'require', readFileSync(join(clientDir, 'theme.js'), 'utf8'))(holder, holder.exports, (id) => {
+      if (id === 'react') return { createElement: () => null }
+      if (id.startsWith('./')) return load(id.slice(2))
+      throw new Error(`theme.js must not require ${id}`)
+    })
+    return String(holder.exports.CSS ?? '')
+  })()
+  ok('[29] the stylesheet was generated for these assertions', sheet.length > 10000, `${sheet.length} bytes`)
+  ok('[29] nothing centres the card action row any more',
+    !/\.sr-card-foot-row \.sr-row-actions\{[^}]*justify-content:center/u.test(sheet))
+
+  /**
+   * THE HOVER EFFECT: the hovered card grows, the others recede.
+   *
+   * Asserted on the sheet, with BOTH halves required. A lone `scale(1.02)` is half the request and is easy to miss
+   * by eye, which is how it would ship if only the first rule were checked.
+   */
+  ok('[29] hovering a card grows it', /\.sr-grid \.sr-skill:hover\{[^}]*scale\(1\.02\)/u.test(sheet),
+    'the hovered card must scale up')
+  ok('[29] ...and recedes the cards the pointer is NOT on',
+    /\.sr-grid:has\(\.sr-skill:hover\) \.sr-skill:not\(:hover\)\{[^}]*scale\(\.98\)/u.test(sheet),
+    'the shrinking half is what makes it read as a focus rather than a bounce')
+  // `:has()` on the grid, not a sibling combinator: `.sr-skill:hover ~ .sr-skill` matches only the cards AFTER the
+  // hovered one, so the ones before it would keep full size and the effect would look broken at the start of a row.
+  ok('[29] ...using :has() so the cards BEFORE the hovered one recede too',
+    sheet.includes(':has(.sr-skill:hover)') && !sheet.includes('.sr-skill:hover ~ .sr-skill'),
+    'a sibling combinator only reaches forwards')
+  // And the transition has to be on the base rule, or the effect animates in but snaps out.
+  ok('[29] ...with the transition declared at the base, so it animates BOTH ways',
+    /\.sr-skill\{[^}]*transition:[^}]*transform/u.test(sheet),
+    'a transition inside a :hover rule does not run when the pointer leaves')
 
   // The count, bottom-left, showing a real number for a skill that has been called.
   const rendered = textOf(tree)

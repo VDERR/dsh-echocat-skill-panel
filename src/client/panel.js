@@ -963,29 +963,28 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
         )
       : null,
     /**
-     * The card's FOOTER: three columns on one line — calls on the left, the actions centred, the source on
-     * the right.
+     * The card's FOOTER: the actions start at the LEFT edge, the source sits at the RIGHT.
      *
-     * The source line and the call count used to be rows of their own above this one, which put the provenance
-     * in the middle of the card and the count nowhere at all. The owner asked for the source in the bottom
-     * RIGHT, level with the action row ("希望显示在右下角和引用这一列对齐") and the count in the bottom LEFT,
-     * so both are columns of the same row as the buttons rather than rows above it.
+     * It was three columns — count, actions, source — with the middle one `1fr`, which CENTRED the buttons in the
+     * card. That was the previous request and it is now reversed: "这些按钮直接左对齐吧". The buttons and the call
+     * count share the first column, so the row reads left-to-right as "what this skill has done, then what you can
+     * do with it", and the source stays pinned to the right where it was asked for earlier.
      *
-     * The middle column is `1fr` with the side columns `auto`, so the ACTIONS are centred in the card rather
-     * than merely in the space the side columns leave over — with two equal side columns a long source label
-     * would push the buttons off centre.
+     * `auto 1fr` rather than `1fr auto`: the source column is the one that gives way, because a truncated source
+     * label is a footnote and a truncated button is a broken control. `.sr-card-src` carries the ellipsis.
      */
     h(
       'div',
       { className: 'sr-card-foot-row' },
-      // The call count, bottom-left. `used` is the per-skill invocation count the panel already tracks; when a
-      // skill has never been called the column renders nothing rather than a "0", so a quiet card stays quiet.
       h(
-        'span',
-        { className: 'sr-card-calls', title: `${title} 被调用 ${used} 次` },
-        used > 0 ? `${used} 次` : '',
+        'div',
+        { className: 'sr-card-lead' },
+        // The call count. `used` is the per-skill invocation count the panel already tracks; when a skill has never
+        // been called this renders nothing rather than a "0", so a quiet card stays quiet and the buttons simply
+        // start at the edge.
+        h('span', { className: 'sr-card-calls', title: `${title} 被调用 ${used} 次` }, used > 0 ? `${used} 次` : ''),
+        h('div', { className: 'sr-card-actions' }, h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update })),
       ),
-      h('div', { className: 'sr-card-actions' }, h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update })),
       h('div', { className: 'sr-card-src' }, h(SourceLine, { skill, update, usedCount: used, short: true })),
     ),
   )
