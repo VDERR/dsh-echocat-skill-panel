@@ -459,7 +459,14 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
           h(Icon, { name: 'link', size: 12 }),
         )
       : null,
-    writable
+    // Delete is offered ONLY for a skill inside the root this plugin manages.
+    //
+    // The host already refuses the rest — `skillDirOf` resolves only paths under the user's skills root, so
+    // a plugin's bundled skill cannot be deleted and the request comes back NOT_FOUND. But offering a button
+    // whose only outcome is an error is worse than not offering it: the user clicks 删除, is told the skill
+    // does not exist, and reasonably concludes the panel is broken. `location` is that distinction, and it
+    // reads 'plugin' for exactly these entries.
+    writable && skill?.location !== 'plugin'
       ? h(
           'button',
           {

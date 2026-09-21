@@ -929,6 +929,12 @@ function SourceLine({ skill, update, usedCount = 0 }) {
   // the whole card is in, so it is carried by the `sr-skill--off` modifier and the 已停用 group
   // heading, both of which are visible without reading a line of small print.
   const cues = []
+  // A skill a PLUGIN shipped rather than one the user installed. DSH's skill service folds a plugin's
+  // bundled skills into the same list as the user's own, so the catalogue showed "browser-skill",
+  // "cordis-plugin-development" and friends as though they had been installed here. Saying so is the
+  // honest fix: they are real, loadable skills and belong in the list, but deleting one is impossible and
+  // the user should not have to work out why.
+  if (skill?.location === 'plugin') cues.push('插件自带')
   if (skill?.modelInvocable === false) cues.push('仅 / 可调用')
   if (usedCount > 0) cues.push(`用过 ${usedCount} 次`)
   // No record at all: nothing true can be said about the source, and a "来源未知" line on every

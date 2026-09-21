@@ -86,7 +86,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { BlockAssembler, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { createTurnTracker, describeTurn, sessionIdOf } from './detect.js'
 import { createSkillReportStore, MAX_RECENT_TURNS } from './store.js'
 import { createInstaller, resolveSkillsRoot, toInstallError } from './install.js'
@@ -531,7 +531,7 @@ const unknownProvenance = () => ({ known: false, source: '', changedSinceInstall
 /** Enabled state for a host with no installer — assume enabled, which is the truth. */
 const unknownEnabled = () => true
 
-async function listSkills({ skills, agents, sessionId, logger, translate, provenance = unknownProvenance, enabled = unknownEnabled }) {
+async function listSkills({ skills, agents, sessionId, logger, translate, root = '', provenance = unknownProvenance, enabled = unknownEnabled }) {
   loadTranslations()
   try {
     if (skills === undefined || typeof skills.snapshot !== 'function') {
@@ -540,6 +540,19 @@ async function listSkills({ skills, agents, sessionId, logger, translate, proven
     }
     const scope = skillScope(agents, sessionId)
     const snapshot = await skills.snapshot(scope === undefined ? {} : { scope })
+    // The root THIS plugin installs into, so a skill can be attributed to the user or to a plugin package.
+    //
+    // PASSED IN, not looked up. `installer` is defined inside `apply` while this function is module-level, so
+    // referring to it here is a temporal-dead-zone `ReferenceError` — and it did not surface as a wrong
+    // attribution but as a THROWN skill listing, because every skill is mapped through this function. The
+    // `provenance` parameter already established the right seam for exactly this reason.
+    const skillsRoot = typeof root === 'string' ? root : ''
+    const underRoot = (dir) => {
+      if (skillsRoot === '' || dir === '') return true
+      const a = resolve(skillsRoot)
+      const b = resolve(dir)
+      return b === a || b.startsWith(`${a}${sep}`)
+    }
     const mapped = (snapshot.skills ?? [])
       .map((skill) => {
         const skillName = String(skill?.name ?? '')
@@ -582,6 +595,23 @@ async function listSkills({ skills, agents, sessionId, logger, translate, proven
           // to correct by hand.
           blurbSource: shipped !== '' ? 'skill' : cached !== '' ? 'machine' : 'none',
           dir: folder,
+          /**
+           * WHERE this skill lives, so the panel can say so.
+           *
+           * `location: 'plugin'` means the directory is NOT under the user's own skills root, which in
+           * practice means a PLUGIN shipped it: DSH's skill service folds a plugin's bundled skills into
+           * the same list as the user's own, so the catalogue was showing "browser-skill",
+           * "cordis-plugin-development", "editing-cordis-compositions" and "openviking-memory" as though
+           * the user had installed them. They are real, loadable skills and belong in the list — deleting
+           * one is impossible and the panel must not pretend otherwise — but the user has to be able to
+           * tell which are theirs.
+           *
+           * Decided by PATH rather than by a name list, because the service reports `source: 'bundled'`
+           * for its own directory and the host does not forward that field. "Is it under the root this
+           * plugin writes to" is the same question the installer already answers, and it stays correct
+           * when a new plugin ships a new skill.
+           */
+          location: underRoot(folder) ? 'user' : 'plugin',
           modifiedAt: dirMtime(folder),
           displayNameZh: folder === '' ? '' : yamlScalar(join(folder, 'meta.yaml'), 'display-name-zh'),
           tag: folder === '' ? '' : yamlScalar(join(folder, 'meta.yaml'), 'tag-cn'),
@@ -900,6 +930,33 @@ function mount(ctx, config) {
                     logger: ctx.logger,
                     provenance: (skillName) =>
                       allowInstall === true ? installer().provenance(skillName) : { known: false, source: '', changedSinceInstall: false },
+                    // The root this plugin manages, passed the same way `provenance` is.
+                    //
+                    // NOT gated on `allowInstall`, unlike `provenance` above: attribution is a read-only
+                    // question about where a skill lives, and it is exactly as useful when installs are
+                    // switched off. Gating it meant a read-only host attributed every skill to the user,
+                    // quietly, which is the failure mode this whole field exists to remove.
+                    //
+                    // It CANNOT be reached from `listSkills` directly: that function is module-level while
+                    // `installer` lives inside `apply`, and a module-level function referring to it is a
+                    // temporal-dead-zone `ReferenceError` — which is what happened when this was first
+                    // written, and it broke the whole skills listing rather than only the attribution. The
+                    // seam that already existed for `provenance` is the right one.
+                    // `root`, matching the parameter name in `listSkills`. Named `skillsRoot` here first and
+                    // the parameter was `root`, so the destructure silently produced `''` and every skill came
+                    // back attributed to the user — the exact failure this diagnostic logging was added to
+                    // surface, and it did.
+                    root: (() => {
+                      try {
+                        const cap = installer().capability()
+                        return typeof cap?.root === 'string' ? cap.root : ''
+                      } catch (error) {
+                        // Never silently: an unusable root means every skill is attributed to the user, which
+                        // is the safe default but is indistinguishable from a wiring mistake unless it says so.
+                        ctx.logger?.warn?.(`skill-report: cannot resolve the managed skills root (${error?.message ?? error}); attributing every skill to the user`)
+                        return ''
+                      }
+                    })(),
                     enabled: (skillName) => enabledNow === null || enabledNow[skillName] !== false,
                     translate: {
                       enabled: translateMissing,
