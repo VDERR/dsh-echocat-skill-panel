@@ -1087,7 +1087,9 @@ console.log('\n[16] install affordances follow the capability')
     copyLabels = findAllHost(full, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u590d\u5236\u540d\u79f0')).map((n) => n.props['aria-label'])
   })
   ok('a card offers NO per-skill copy button, at the owner\'s request',
-  copyLabels.length === 0, JSON.stringify(copyLabels))
+    copyLabels.length === 0, JSON.stringify(copyLabels))
+  ok('a writable catalog offers per-skill delete', deleteLabels.length === 3, JSON.stringify(deleteLabels))
+  ok('the delete control is unarmed until clicked', deleteLabels.every((label) => label.startsWith('\u5220\u9664')), JSON.stringify(deleteLabels))
 
 /* -- the card footer: calls | actions | source, and the plugin-skill switch -- */
 //
@@ -1166,6 +1168,32 @@ console.log('\n[16] install affordances follow the capability')
   // `location` is not evidence of a plugin, so a legacy payload must not be swallowed by the filter.
   ok('[29] a skill with no location is NOT treated as a plugin\'s',
     hidden.some((s) => s.name === 'legacy-unknown'), JSON.stringify(hidden.map((s) => s.name)))
+
+  /**
+   * THE CONTROL HAS TO SURVIVE ITS OWN ACTIVATION.
+   *
+   * The chip was gated on `skills.length - visible.length` — how many the switch is currently REMOVING — which is
+   * zero the instant the user reveals them. So ONE CLICK REMOVED THE VERY CONTROL THAT HAD JUST BEEN CLICKED and
+   * there was no way to hide them again. The owner found it immediately: "插件自带开关点一下就消失了".
+   *
+   * The number governing visibility has to be the number of plugin skills that EXIST. Those two quantities are
+   * equal only while the switch is OFF, which is exactly why the first version of this test passed while the
+   * control was broken.
+   */
+  const pluginTotal = (list) => list.filter((s) => s.location === 'plugin').length
+  ok('[29] the count gating the switch is the TOTAL, not the filtered-out number',
+    pluginTotal(catalogue) === 2, `total=${pluginTotal(catalogue)}`)
+  ok('[29] ...and the two differ exactly when the switch is ON, which is the case that broke',
+    pluginTotal(catalogue) !== catalogue.length - exports.__ui.visibleSkills(catalogue, true).length,
+    `total=${pluginTotal(catalogue)} filteredOutWhenShown=${catalogue.length - exports.__ui.visibleSkills(catalogue, true).length}`)
+  /**
+   * A NOTE ON WHAT THE ABOVE DOES AND DOES NOT PROVE.
+   *
+   * These are arithmetic checks on `visibleSkills`, and they passed 508/508 with the BROKEN gate restored — so
+   * they are NOT evidence that the switch survives being clicked. They pin the RULE, which is worth having, but
+   * the click itself needs a real hook runtime and is asserted in the [17] block below, where `withMount` is in
+   * scope. This note exists because the first version of this block claimed to catch the bug and did not.
+   */
 }
   ok('a writable catalog offers per-skill delete', deleteLabels.length === 3, JSON.stringify(deleteLabels))
   ok('the delete control is unarmed until clicked', deleteLabels.every((label) => label.startsWith('\u5220\u9664')), JSON.stringify(deleteLabels))
@@ -2083,6 +2111,58 @@ await (async () => {
         ok('[24] the store can be cleared', Object.keys(exports.__source.getUpdates().results).length === 0)
       } finally {
         behindOnce = ''
+        if (realDocument === undefined) delete globalThis.document
+        else globalThis.document = realDocument
+        if (realLocalStorage === undefined) delete globalThis.localStorage
+        else globalThis.localStorage = realLocalStorage
+      }
+    }
+
+    /* -- 48: the plugin-skill switch must survive being clicked -- */
+    console.log('\n[30] plugin-shipped skills hide by default, and the switch can be undone')
+    {
+      // A REAL mount, because this is the one assertion that cannot be made statically.
+      //
+      // The arithmetic version of this check — comparing the total against the filtered-out count — passed
+      // 508/508 with the BROKEN gate restored, so it proved nothing about the click. The bug was that the chip
+      // was gated on how many skills the filter was currently REMOVING, which is zero the instant they are
+      // revealed: one click and the control removed itself, with no way back. Only pressing it shows that.
+      const mine = { name: 'my-own-skill', description: 'mine', tag: '', modelInvocable: true, location: 'user', provenance: { known: false, source: '', changedSinceInstall: false } }
+      const bundled = { name: 'bundled-one', description: 'from a plugin', tag: '', modelInvocable: true, location: 'plugin', layer: 'bundled', provenance: { known: false, source: '', changedSinceInstall: false } }
+      const snapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: [mine, bundled], disabledSkills: [] }
+      const store = new Map()
+      const realDocument = globalThis.document
+      const realLocalStorage = globalThis.localStorage
+      globalThis.document = { addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, body: { style: {} } }
+      globalThis.localStorage = {
+        getItem: (key) => (store.has(key) ? store.get(key) : null),
+        setItem: (key, value) => store.set(key, value),
+      }
+      try {
+        store.set('echocat-skill-panel/sections', JSON.stringify({ skills: true }))
+        const chipIn = (view) =>
+          view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u63d2\u4ef6\u81ea\u5e26\u7684 skill'))[0]
+        await withMount(exports.__ui.SkillReportPanel, { snapshot, onRefresh: () => {} }, async (view) => {
+          ok('[30] a plugin-shipped skill is hidden by default', !view.text().includes('bundled-one'), view.text().slice(0, 220))
+          ok('[30] ...while the user\'s own skill is shown', view.text().includes('my-own-skill'))
+          const chip = chipIn(view)
+          ok('[30] ...with a switch offering to reveal them', chip !== undefined,
+            JSON.stringify(view.findAll((n) => n.type === 'button').map((n) => n.props?.['aria-label']).filter(Boolean)))
+          if (chip === undefined) return
+          ok('[30] ...whose pressed state says they are hidden', chip.props['aria-pressed'] === false, String(chip.props['aria-pressed']))
+          view.click(chip)
+          ok('[30] clicking it reveals them', view.text().includes('bundled-one'), view.text().slice(0, 220))
+          // THE ASSERTION THAT MATTERS — the reported bug is this line failing.
+          ok('[30] ...and the switch is STILL THERE, so the change can be undone', chipIn(view) !== undefined,
+            'the chip removed itself on the first click: 插件自带开关点一下就消失了')
+          const again = chipIn(view)
+          if (again === undefined) return
+          ok('[30] ...now reading as pressed', again.props['aria-pressed'] === true, String(again.props['aria-pressed']))
+          view.click(again)
+          ok('[30] clicking again hides them once more', !view.text().includes('bundled-one'), view.text().slice(0, 220))
+          ok('[30] ...and it is still there after the second click', chipIn(view) !== undefined)
+        })
+      } finally {
         if (realDocument === undefined) delete globalThis.document
         else globalThis.document = realDocument
         if (realLocalStorage === undefined) delete globalThis.localStorage

@@ -1141,7 +1141,15 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
    */
   const [showPluginSkills, setShowPluginSkills] = usePref('showPluginSkills', false)
   const visible = visibleSkills(skills, showPluginSkills)
-  const pluginSkillCount = skills.length - visible.length
+  /**
+   * HOW MANY plugin-shipped skills EXIST — not how many the switch is currently removing.
+   *
+   * Those are the same number only while the switch is OFF, and conflating them was a bug the owner found
+   * immediately: the chip was gated on the filtered-out count, so revealing the skills made that count zero and
+   * the chip REMOVED ITSELF. One click and there was no way back. This is the total, so the control survives its
+   * own activation.
+   */
+  const pluginSkillTotal = skills.filter((skill) => skill?.location === 'plugin').length
   const shown = sortSkills(filterSkills(visible, { query, onlySlash, onlyUsed, counts, tag, color }), sortKey, direction, counts)
   /**
    * The DISABLED half of the catalogue.
@@ -1234,14 +1242,15 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
               /**
                * The plugin-skill switch.
                *
-               * Rendered ONLY when there is something to toggle, because a chip that can never match anything
-               * is furniture — the same rule the 用过的 chip above follows. The count rides on it so the user
-               * can see that skills exist behind the switch rather than having to remember.
+               * Gated on how many plugin skills EXIST, never on how many are currently filtered out. Those are
+               * the same number only while the switch is off, and gating on the filtered-out count was a bug the
+               * owner found on the first click: revealing the skills made that count zero, so the chip REMOVED
+               * ITSELF and there was no way to hide them again. A control must survive its own activation.
                *
-               * `aria-pressed` carries the state, and the label states the ACTION rather than the state, which
-               * is the convention the rest of this row uses.
+               * The count shown is the total, and the label states the ACTION rather than the state — the
+               * convention the rest of this row uses. `aria-pressed` carries the state.
                */
-              pluginSkillCount > 0
+              pluginSkillTotal > 0
                 ? h(
                     'button',
                     {
@@ -1251,13 +1260,13 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
                       onClick: () => setShowPluginSkills(showPluginSkills !== true),
                       title:
                         showPluginSkills === true
-                          ? '隐藏插件自带的 skill，只留自己装的'
-                          : `显示 ${pluginSkillCount} 个插件自带的 skill（不是你安装的）`,
+                          ? `隐藏 ${pluginSkillTotal} 个插件自带的 skill，只留自己装的`
+                          : `显示 ${pluginSkillTotal} 个插件自带的 skill（不是你安装的）`,
                       'aria-label': showPluginSkills === true ? '隐藏插件自带的 skill' : '显示插件自带的 skill',
                     },
                     h(Icon, { name: 'spark', size: 10 }),
                     '插件自带',
-                    h('span', { className: 'sr-count' }, String(pluginSkillCount)),
+                    h('span', { className: 'sr-count' }, String(pluginSkillTotal)),
                   )
                 : null,
               /**
