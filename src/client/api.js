@@ -426,8 +426,19 @@ const toastTimers = new Map()
 
 /** The rail is a notification strip, not a log: three at a time. */
 const TOAST_LIMIT = 3
-/** How long a non-error toast stays before it clears itself. */
-const TOAST_TTL_MS = 5000
+/**
+ * How long a toast stays before it clears itself.
+ *
+ * ONE SECOND, for EVERY kind, at the owner's request: "希望不管是上面弹窗都直接在1秒后消失". The ✕ is still
+ * there for anyone who wants a message gone sooner.
+ *
+ * This REPLACES a deliberate asymmetry — `error` toasts used to never expire, on the reasoning that they carry
+ * the host's `message` and `hint`, which is the actionable half of a failure. That reasoning was wrong in
+ * practice, and the owner hit both halves of why: a failure whose text is missed is unreadable, but a failure
+ * that stays on screen FOREVER becomes a permanent fixture to dismiss by hand. The rail is a notification
+ * strip, not a log — anything worth keeping is in the panel or in the install history.
+ */
+const TOAST_TTL_MS = 1000
 
 const clearToastTimer = (id) => {
   const timer = toastTimers.get(id)
@@ -437,17 +448,12 @@ const clearToastTimer = (id) => {
 }
 
 /**
- * Arm — or disarm — the auto-dismiss for one toast.
+ * Arm the auto-dismiss for one toast, replacing any countdown already running.
  *
- * Deliberate asymmetry: `error` toasts NEVER expire. They carry the host's `message`
- * and `hint`, which is the actionable half of a failure (the EPERM instructions, for
- * instance), and a message that vanishes before it can be read is worse than a stack
- * the user clears by hand. Successes and progress notices are the ones worth
- * clearing automatically.
+ * EVERY kind is armed, `error` included — see the note on `TOAST_TTL_MS`.
  */
-const armToastTimer = (id, kind) => {
+const armToastTimer = (id) => {
   clearToastTimer(id)
-  if (kind === 'error') return
   if (typeof setTimeout !== 'function') return
   const timer = setTimeout(() => {
     toastTimers.delete(id)
@@ -499,18 +505,17 @@ function pushToast(toast) {
     next.splice(at, 1)
   }
   publishToasts(next)
-  armToastTimer(entry.id, entry.kind)
+  armToastTimer(entry.id)
   return entry.id
 }
 
 function updateToast(id, patch) {
   const current = toasts.find((toast) => toast.id === id)
   if (current === undefined) return
-  const kind = typeof patch?.kind === 'string' ? patch.kind : current.kind
   publishToasts(toasts.map((toast) => (toast.id === id ? { ...toast, ...patch } : toast)))
-  // The countdown follows the KIND: a pending toast that turns into an error must
-  // stop counting down, and one that succeeds must start.
-  armToastTimer(id, kind)
+  // The countdown is RE-ARMED on every update, so a toast that turns from pending into ok or error gets a full
+  // second from the moment it says something final, rather than whatever was left of the original.
+  armToastTimer(id)
 }
 
 function dismissToast(id) {

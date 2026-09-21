@@ -863,31 +863,38 @@ console.log('\n[13b] one rail, and toasts that clear themselves')
     }
   }
   try {
+    // ONE SECOND, for EVERY kind. This replaced a deliberate asymmetry: errors used to never expire, on the
+    // reasoning that they carry the actionable half of a failure. The owner's report was the opposite problem —
+    // a failure toast became a permanent fixture to dismiss by hand — so the tests now assert the rule that
+    // actually holds rather than the two that used to.
+    const TTL = 1000
     api.pushToast({ kind: 'pending', message: '\u8fdb\u884c\u4e2d' })
-    ok('a non-error toast gets a five-second countdown', timers.size === 1 && [...timers.values()][0].ms === 5000, JSON.stringify([...timers.values()].map((t) => t.ms)))
+    ok('a toast gets a one-second countdown', timers.size === 1 && [...timers.values()][0].ms === TTL, JSON.stringify([...timers.values()].map((t) => t.ms)))
     ok('the countdown is unref-ed, so it cannot hold a process open', unrefed.length === 1, JSON.stringify(unrefed))
     fireAll()
     ok('...and the toast clears itself when it elapses', api.getToasts().length === 0, JSON.stringify(api.getToasts()))
 
+    // The case the owner hit: an error used to stay forever.
     const errorId = api.pushToast({ kind: 'error', message: '\u5931\u8d25\u4e86' })
-    ok('an error toast arms NO countdown', timers.size === 0, String(timers.size))
-    ok('...so it is still on screen after the window', api.getToasts().some((t) => t.id === errorId))
+    ok('an ERROR toast is armed too, so it cannot become a permanent fixture', timers.size === 1, String(timers.size))
+    fireAll()
+    ok('...and it clears itself like everything else', !api.getToasts().some((t) => t.id === errorId), JSON.stringify(api.getToasts()))
 
-    // The countdown follows the KIND: pending arms one, turning it into an error
-    // must disarm it, or the message vanishes before it can be read.
+    // Pending to ok/error still re-arms, so a toast gets a full second from the moment it says something final
+    // rather than whatever was left of the original window.
     const flip = api.pushToast({ kind: 'pending', message: '\u5373\u5c06\u5931\u8d25' })
     ok('a pending toast arms one', timers.size === 1, String(timers.size))
     api.updateToast(flip, { kind: 'error', message: '\u5931\u8d25\u4e86' })
-    ok('turning it into an error disarms the countdown', timers.size === 0, String(timers.size))
+    ok('turning it into an error RE-arms rather than disarms', timers.size === 1 && [...timers.values()][0].ms === TTL, JSON.stringify([...timers.values()].map((t) => t.ms)))
 
     const gone = api.pushToast({ kind: 'ok', message: '\u5b8c\u6210' })
     api.dismissToast(gone)
-    ok('an explicit dismiss clears the pending countdown', timers.size === 0, String(timers.size))
+    ok('an explicit dismiss clears the pending countdown', timers.size === 1, String(timers.size))
 
     api.pushToast({ kind: 'error', message: '\u4fdd\u7559\u6211' })
     for (let i = 0; i < 4; i += 1) api.pushToast({ kind: 'ok', message: `s${i}` })
     const kinds = api.getToasts().map((t) => t.kind)
-    ok('errors are not evicted by successes piling up behind them', kinds.includes('error'), JSON.stringify(kinds))
+    ok('errors are still not evicted by successes piling up behind them', kinds.includes('error'), JSON.stringify(kinds))
     ok('the visible stack still stays at three', api.getToasts().length === 3, JSON.stringify(kinds))
 
     // Exactly ONE rail, and it belongs to the strip. The centre panel is unmounted
