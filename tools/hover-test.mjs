@@ -150,6 +150,53 @@ try {
   const anim = JSON.parse((await evaluate(`(() => { const cs = getComputedStyle(document.querySelectorAll('.sr-grid .sr-skill')[${target.i}]); return JSON.stringify({ name: cs.animationName, transform: cs.transform }) })()`)) ?? '{}')
   ok('...and no animation is overriding it', scaleOf(anim.transform) === hoveredScale, JSON.stringify(anim))
 
+  /**
+   * THE COMPOSER STRIP'S CORNERS, measured rather than read from the sheet.
+   *
+   * The owner's report was that ONE component showed four different corner roundings — the collapsed bar, its expanded
+   * shell, the floating row inside it, and the count chip — because the radius tokens still held the old three-step
+   * scale (12 / 9 / 999) while the design pass only corrected the elements it happened to name. The tokens are one
+   * value now, and this is the check that the RENDERING agrees: the strip, the row it sits in, the chip inside it and
+   * the cards must all resolve to `--sr-r`.
+   */
+  const radius = JSON.parse(
+    (await evaluate(`(() => {
+      const r = (sel) => { const el = document.querySelector(sel); return el === null ? 'MISSING' : getComputedStyle(el).borderTopLeftRadius }
+      const host = document.querySelector('.sr-root') ?? document.documentElement
+      return JSON.stringify({
+        token: getComputedStyle(host).getPropertyValue('--sr-r').trim(),
+        strip: r('.sr-strip'),
+        count: r('.sr-strip-count'),
+        panel: r('.sr-strip-panel'),
+        skill: r('.sr-grid .sr-skill'),
+        // The bar when the report is OPEN, which is a different element chain: the shell stops drawing the frame and the
+        // bar keeps its own. This is the pair that used to disagree — a pill closed and a rounded rectangle open.
+        openRule: (() => {
+          for (const sheet of document.styleSheets) {
+            let list = []
+            try { list = [...sheet.cssRules] } catch (e) { return 'unreadable' }
+            for (const rule of list) {
+              if (rule.selectorText !== undefined && rule.selectorText.includes('.sr-strip-shell--open .sr-strip') && !rule.selectorText.includes('.sr-strip-row')) {
+                return rule.style.borderRadius || '(none declared)'
+              }
+            }
+          }
+          return 'MISSING'
+        })(),
+      })
+    })()`)) ?? '{}',
+  )
+  ok('the strip, its chip, its panel and the cards all resolve to ONE radius',
+    [radius.strip, radius.count, radius.panel, radius.skill].every((value) => value === radius.token),
+    JSON.stringify(radius))
+  // The open state must name the same token rather than zeroing it, or the bar changes corner as the report opens.
+  ok('...and the OPEN bar names the same token rather than removing its radius',
+    radius.openRule === 'var(--sr-r)', `open rule radius: ${radius.openRule}`)
+  // A pill would sail past this. The point is that the corner is a corner and not a stadium.
+  ok('...and that radius is a real corner, not a pill',
+    radius.token !== '' && Number.parseFloat(radius.token) <= 10,
+    `--sr-r = ${radius.token}`)
+
   ws.close()
 } catch (error) {
   fail += 1

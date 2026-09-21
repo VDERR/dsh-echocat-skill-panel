@@ -689,7 +689,26 @@ console.log('\n[10] package identity')
     ok('the stylesheet has a no-backdrop-filter fallback', css.includes('@supports not'))
     ok('the stylesheet is responsive (item 40)', css.includes('max-width:560px'))
     ok('the stylesheet themes selection and caret (item 41)', css.includes('::selection') && css.includes('caret-color'))
-    ok('the stylesheet defines the 4px rhythm and one radius scale', css.includes('--sr-sp:4px') && css.includes('--sr-r:12px'))
+    /**
+     * ONE RADIUS, AND THE TOKENS ARE WHERE IT HAS TO HOLD.
+     *
+     * This asserted `--sr-r:12px` — the value from a three-step scale (12 / 9 / 999) that the design pass later
+     * replaced with 8 for the elements it happened to name. The ones it did not name kept reading these tokens, which
+     * is why a single component showed four different corner roundings: the collapsed bar at 999, its expanded shell at
+     * 12, its floating row at 8, and the count chip inside it at 6.
+     *
+     * Asserting the TOKENS rather than a list of elements is the point: an element is only at the right radius if
+     * somebody remembered to name it, and that is not a property a design system can have.
+     */
+    ok('the stylesheet defines the 4px rhythm', css.includes('--sr-sp:4px'))
+    ok('...and ONE radius scale, at the base of the cascade',
+      css.includes('--sr-r:8px') && css.includes('--sr-r-sm:8px'),
+      /--sr-r:[^;]+/u.exec(css)?.[0] + ' ' + /--sr-r-sm:[^;]+/u.exec(css)?.[0])
+    // The old values must be GONE, not merely overridden for some selectors: leaving them lets an unnamed element fall
+    // back to a different corner than everything around it.
+    ok('...with the old three-step values removed',
+      !css.includes('--sr-r:12px') && !css.includes('--sr-r-sm:9px') && !css.includes('--sr-r-pill:999px'),
+      'a surviving 12/9/999 token is a corner that disagrees with its neighbours')
     ok('the stylesheet styles the sheet, the rail and the drop target', ['.sr-sheet{', '.sr-toast{', '.sr-drop{', '.sr-seg-ind{', '.sr-share-fill{', '.sr-avatar{', '.sr-skel{'].every((token) => css.includes(token)))
   }
 }

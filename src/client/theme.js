@@ -150,9 +150,25 @@ ${SURFACES}{
 --sr-max:calc(var(--dsh-composer-card-max-width, 952px) - 16px);
 --sr-mono:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);
 --sr-sp:4px;
---sr-r:12px;
---sr-r-sm:9px;
---sr-r-pill:999px;
+/**
+ * ONE RADIUS, at the base of the cascade.
+ *
+ * This is the scale everything falls back to, and it still carried the OLD three-step values (12 / 9 / 999) after the
+ * design pass moved the whole sheet to 8. Elements the design pass happens to name were corrected; the ones it did not
+ * — .sr-strip, .sr-age, .sr-sort, .sr-strip-shell--open — kept reading these, which is why ONE component showed four
+ * different corner roundings: the collapsed bar at 999, its expanded shell at 12, its floating row at 8, and the install
+ * count inside it at 6.
+ *
+ * Fixing the tokens rather than the stragglers one at a time is deliberate: an element is only at the right radius if
+ * somebody remembered to name it, which is not a property a design system can have.
+ *
+ * --sr-r-pill is kept as a NAME because ~20 rules reference it and most are genuinely round — a 5px status dot, a 6px
+ * progress track, the switch. Its VALUE is what changes, so those keep their shape and everything else stops inheriting
+ * a pill by accident. The few that must stay circular say so with an explicit 999.
+ */
+--sr-r:8px;
+--sr-r-sm:8px;
+--sr-r-pill:8px;
 --sr-head-h:38px;
 --sr-shadow:0 12px 32px -20px rgba(0,0,0,.5);
 --sr-shadow-lg:0 28px 60px -28px rgba(0,0,0,.6);
@@ -372,7 +388,7 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
    material rather than content. The dot carries the state and the text stays
    neutral, so "an update exists" never reads as a warning. */
 .sr-src{display:flex;align-items:center;gap:calc(var(--sr-sp)*1.25);font-size:10px;color:var(--sr-fg3);min-width:0}
-.sr-src-dot{flex:none;width:5px;height:5px;border-radius:var(--sr-r-pill);background:var(--sr-line2)}
+.sr-src-dot{flex:none;width:5px;height:5px;border-radius:50%;background:var(--sr-line2)}
 .sr-src-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sr-src--new{color:var(--sr-accent)}
 .sr-src--new .sr-src-dot{background:var(--sr-accent)}
@@ -439,9 +455,17 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
    as wide as the row's first cell (the ＋ / ↻ buttons sit beside it). Putting a
    frame on each half instead produced an open-ended box: the bar's bottom border
    was suppressed and the report's top border removed, so no line existed at all. */
-.sr-strip-shell--open{gap:0;border:1px solid var(--sr-line);border-radius:var(--sr-r);overflow:hidden;background:var(--sr-card);box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.sr-strip-shell--open .sr-strip-row{padding:calc(var(--sr-sp)*1.5) calc(var(--sr-sp)*2.5);border-bottom:1px solid var(--sr-line)}
-.sr-strip-shell--open .sr-strip{border:0;border-radius:0;background:transparent}
+/* Open: the shell is a TRANSPARENT LAYOUT COLUMN and each float owns its own surface.
+   This rule used to put a border, a background, a radius and overflow:hidden on the shell, which wrapped BOTH the bar
+   and the report — so expanding merged them into one card instead of floating the report under the bar, and the
+   the overflow:hidden is what stopped the counters riding the bar. The design pass then neutralised all four, but the
+   declarations stayed here, and the shell's radius was still measurable at 12px while every other corner in the sheet
+   was 8. Removing them here rather than re-overriding them is the honest fix: the shell has no surface. */
+.sr-strip-shell--open{gap:calc(var(--sr-sp)*2)}
+/* The bar keeps its OWN frame when open, at the same radius as everything else — it is the SAME control in both states,
+   so it cannot be a pill closed and a rounded rectangle open. This line used to zero the radius because the shell was
+   drawing the frame; the shell no longer does. */
+.sr-strip-shell--open .sr-strip{border:0;border-radius:var(--sr-r);background:transparent}
 /* The bar row above already offers install and refresh. Without this the report's
    own header repeated the same two buttons a few pixels below them. */
 .sr-strip-shell--open .sr-strip-panel .sr-head .sr-btn{display:none}

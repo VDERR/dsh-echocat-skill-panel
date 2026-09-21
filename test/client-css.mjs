@@ -331,7 +331,26 @@ ok('...and so is the panel it opens into', RENDERED.includes('.sr-root{margin-in
 ok('...with neither of them stretched by the dock\'s column flex',
   RENDERED.includes('.sr-strip-shell{align-self:center}') && RENDERED.includes('.sr-root{align-self:center}'),
   JSON.stringify([...RENDERED.matchAll(/\.sr-(?:strip-shell|root)\{align-self[^}]*\}/gu)].map((m) => m[0])))
-ok('opening the strip removes the gap', /\.sr-strip-shell--open\{[^}]*gap:0/u.test(CSS))
+/**
+ * THE OPEN STRIP: the shell is a TRANSPARENT LAYOUT COLUMN and each float owns its own surface.
+ *
+ * These four assertions previously pinned the opposite — one frame on the shell, with `gap:0`, a radius, a shadow and
+ * `overflow:hidden` — on the reasoning that a frame per half left the box open-ended. That reasoning was overtaken: the
+ * design pass moved to two separate floats (the bar, then the report beneath it), so the shell's frame was neutralised
+ * while the declarations stayed behind. The consequence was measurable and is what the owner reported: the shell's
+ * radius was still 12px while the bar, the row inside it, the panel and every card were 8 — ONE component showing
+ * several different corner roundings.
+ *
+ * So these now assert the ABSENCE. `overflow:hidden` in particular is not cosmetic: it was what stopped the counters
+ * riding the bar in the open state.
+ */
+ok('opening the strip keeps a gap, because it is two floats not one card', /\.sr-strip-shell--open\{[^}]*gap:calc\(/u.test(CSS))
+ok('the shell draws NO frame of its own', !/\.sr-strip-shell--open\{[^}]*border:1px/u.test(CSS))
+ok('...no radius and no shadow either', !/\.sr-strip-shell--open\{[^}]*border-radius/u.test(CSS) && !/\.sr-strip-shell--open\{[^}]*box-shadow:(?!none)/u.test(CSS))
+ok('...and does NOT clip, so the counters can ride the bar', !/\.sr-strip-shell--open\{[^}]*overflow:hidden/u.test(CSS))
+// The bar keeps its own frame in BOTH states, at the same radius: it is one control, so it cannot be a pill closed and
+// a rounded rectangle open. The open rule names the token rather than zeroing the radius.
+ok('the bar keeps its radius when the report is open', /\.sr-strip-shell--open \.sr-strip\{[^}]*border-radius:var\(--sr-r\)/u.test(CSS))
 ok('the component marks the open state', componentSource.includes('sr-strip-shell--open'), 'the shell class never switches to the open modifier')
 ok('the strip panel adds no frame of its own', /\.sr-strip-panel\{[^}]*border:0;/u.test(CSS))
 ok('the report inside the card drops its frame too', /\.sr-strip-panel \.sr-root\{[^}]*border:0/u.test(CSS))
@@ -346,13 +365,13 @@ ok('the footer really is sticky to the bottom', /\.sr-foot\{[^}]*position:sticky
 // mid-list: flex:1 puts the footer's flow position at the container's bottom while
 // the overflowing content keeps painting below the footer's box.
 ok('the scrolling body is never compressed below its content', /\.sr-body\{flex:1\}/u.test(CSS) && !/\.sr-body\{[^}]*min-height:0/u.test(CSS))
-// ONE frame, on the shell, enclosing the bar row and the report: the bar is only as
-// wide as the row's first cell, so a frame per half left the box open-ended.
-ok('the open shell owns the frame', /\.sr-strip-shell--open\{[^}]*border:1px solid var\(--sr-line\)/u.test(CSS))
-ok('the open shell has rounded corners and a shadow', /\.sr-strip-shell--open\{[^}]*border-radius:var\(--sr-r\)/u.test(CSS) && /\.sr-strip-shell--open\{[^}]*box-shadow:/u.test(CSS))
-ok('the open shell clips its children to the frame', /\.sr-strip-shell--open\{[^}]*overflow:hidden/u.test(CSS))
-ok('the bar row is the card header, with a rule under it', /\.sr-strip-shell--open \.sr-strip-row\{[^}]*border-bottom:1px solid var\(--sr-line\)/u.test(CSS))
-ok('the bar itself gives up its own pill inside the card', /\.sr-strip-shell--open \.sr-strip\{[^}]*border:0/u.test(CSS))
+// The old single-card shape is GONE, and asserting its absence is the point: these rules were the shell's frame, its
+// radius, its clipping and the bar's row rule, and each one is now drawn by a float instead.
+ok('the bar row no longer doubles as a card header', !/\.sr-strip-shell--open \.sr-strip-row\{[^}]*border-bottom/u.test(CSS))
+// When open, `.sr-strip-row` is the float that carries the frame and the bar inside it is transparent. What the bar
+// must KEEP is its radius: it is one control in two states, and it cannot be a pill closed and square open.
+ok('the bar inside the open float is transparent, not framed twice', /\.sr-strip-shell--open \.sr-strip\{[^}]*background:transparent/u.test(CSS))
+ok('...but keeps its radius, so the corner does not change with the state', /\.sr-strip-shell--open \.sr-strip\{[^}]*border-radius:var\(--sr-r\)/u.test(CSS))
 // The bar row already has install + refresh; the report's header must not repeat them.
 ok('the report header is not duplicated inside the card', /\.sr-strip-shell--open \.sr-strip-panel \.sr-head \.sr-btn\{display:none\}/u.test(CSS))
 

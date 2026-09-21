@@ -1395,11 +1395,19 @@ const DESIGN = Object.freeze([
     fontWeight: 620,
     fontVariantNumeric: 'tabular-nums',
     padding: '1px 7px',
-    borderRadius: 6,
+    /**
+     * THE SAME RADIUS AS THE BAR IT SITS IN — "选中的时候高亮底的边缘也是同步的圆度".
+     *
+     * This was 6, the micro-label step, and that was the visible mismatch: a 6px chip floating inside a bar with a much
+     * larger corner puts two different curves a few pixels apart, which reads as sloppy rather than as hierarchy. A
+     * filled chip INSIDE a rounded container should share its container's corner; the hierarchy is already carried by
+     * the fill and the weight.
+     */
+    borderRadius: 'var(--sr-r)',
     background: 'var(--sr-sunken)',
     color: 'var(--sr-fg2)',
     flex: 'none',
-  }, 'the install count in a quiet chip where a static label used to be — it is a fact, so it is styled like one. Radius 6, the micro-label step'),
+  }, 'the install count in a quiet chip where a static label used to be — it is a fact, so it is styled like one, and it shares the bar\'s corner'),
   D('r-strip-count-hover', 'stat', '.sr-strip:hover .sr-strip-count', { background: 'var(--sr-fill)', color: 'var(--sr-fg)' },
     'and it responds with the bar, so the whole control moves as one surface'),
   // ---- the brand mark, centred on the ROW ---------------------------------------------------
@@ -1827,17 +1835,18 @@ const DESIGN = Object.freeze([
   D('r-round-textarea', 'sheet', '.sr-textarea', { borderRadius: 8 },
     'a textarea is a field, and every field is 8'),
   //
-  // THE INSTALL COUNT AS AN OVAL. It was a rounded rectangle at radius 999 already, but only 20px tall
-  // against a wide label, which is what made it read as a box rather than a lozenge: the fix is height
-  // and horizontal padding, so the curve has room to be seen.
-  D('r-count-oval', 'stat', '.sr-strip-count', {
-    borderRadius: 6,
+  // THE INSTALL COUNT, sized so its corner is legible.
+  //
+  // This used to be a second record whose whole job was to re-declare the radius as 999 — which is why changing the
+  // FIRST record's radius did nothing: same selector, same specificity, later wins. The height and padding are the part
+  // that was actually doing something, so they stay and the radius is left to the record above.
+  D('r-count-size', 'stat', '.sr-strip-count', {
     paddingInline: 10,
     minHeight: 20,
     lineHeight: '18px',
     display: 'inline-flex',
     alignItems: 'center',
-  }, 'the install count as a true lozenge: a pill radius on a short box still reads as a rectangle'),
+  }, 'enough height and horizontal padding for the corner to be visible at all — a radius on a 16px box cannot be seen'),
   D('r-count-soft-bg', 'stat', '.sr-strip-count', { background: 'var(--sr-accent-weak)', color: 'var(--sr-accent)' },
     'and it is tinted with the accent rather than sunk into grey, so the counts read as information rather than as a disabled control'),
   D('r-count-soft-bg-hover', 'stat', '.sr-strip:hover .sr-strip-count', { background: 'color-mix(in srgb, var(--sr-accent) 20%, transparent)' },
@@ -1857,13 +1866,16 @@ const DESIGN = Object.freeze([
     alignItems: 'center',
     gap: 4,
     padding: '2px 7px 2px 4px',
-    borderRadius: 999,
+    // 6, not 999: this is a micro-label chip like every other one in the sheet. Its DOT stays a circle (declared
+    // separately below at an explicit 999) because the colour is what the control is for, and a square swatch reads as
+    // a checkbox.
+    borderRadius: 6,
     border: '1px solid transparent',
     background: 'transparent',
     cursor: 'pointer',
     color: 'var(--sr-fg2)',
     minHeight: 20,
-  }, 'one colour as a small capsule: the dot identifies it, the number sizes it'),
+  }, 'one colour as a small chip: the dot identifies it, the number sizes it'),
   D('r-cf-dot', 'sec', '.sr-cf-dot', {
     width: 11,
     height: 11,
