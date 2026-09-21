@@ -1902,7 +1902,15 @@ await (async () => {
           const text = view.text()
           // The label is the SHORT form: a card is ~200px and a clone URL is 60 chars.
           ok('[24] a git-backed skill names its repository', text.includes('owner/repo'), text.slice(0, 300))
-          ok('[24] a claimed source is labelled as claimed', text.includes('\u6807\u8bb0\u6765\u6e90'), text.slice(0, 300))
+          // Every provenance line now NAMES ITS FIELD — "来源：owner/repo" — instead of running a bare label
+          // together with an optional 标记来源 prefix.
+          //
+          // The prefix was the confusing part: it reads as a VERDICT that the source was asserted, when it is
+          // really a note that the USER typed the address. The owner asked for the plain form ("标记来源改为只要
+          // 来源：xxx就行"). Whether the claim is user-supplied still rides in the `title`, where the full
+          // address already lived, so nothing is hidden — it is only out of the way of a ~200px card.
+          ok('[24] the source line names its field', text.includes('\u6765\u6e90\uff1a'), text.slice(0, 300))
+          ok('[24] ...and the old 标记来源 verdict prefix is gone', !text.includes('\u6807\u8bb0\u6765\u6e90'), text.slice(0, 300))
           ok('[24] a pasted skill is labelled by kind', text.includes('\u7c98\u8d34\u5185\u5bb9'), text.slice(0, 300))
 
           const updateButtons = view.findAll((n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').startsWith('\u66f4\u65b0'))
@@ -2045,6 +2053,23 @@ await (async () => {
             switches.some((n) => n.props['aria-label'] === '\u505c\u7528 live-skill') &&
             switches.some((n) => n.props['aria-label'] === '\u542f\u7528 parked-skill'),
             JSON.stringify(switches.map((n) => n.props['aria-label'])))
+          // The switch belongs to the card's HEAD, on the name's line, not to the footer's action row.
+          //
+          // It was the first item of `.sr-row-actions`, where it sat among buttons that act ON the skill while
+          // it decides whether the model can see the skill at all. The owner asked for it top-right and level
+          // with the name ("卡片的开关按钮统一到右上角和名字对齐"), so this pins the ROW it lives in — the thing
+          // that was actually requested, and the thing a later refactor could silently undo.
+          const headSwitches = view.findAll((n) => String(n.props?.className ?? '') === 'sr-skill-head' &&
+            n.props.children !== undefined)
+          ok('[26] the switch is inside the card HEAD, not the footer',
+            switches.every((n) => String(n.props.className).includes('sr-toggle-head')),
+            JSON.stringify(switches.map((n) => n.props.className)))
+          ok('[26] ...and no switch remains in the action row',
+            view.findAll((n) => String(n.props?.className ?? '') === 'sr-row-actions').every((row) => {
+              const kids = Array.isArray(row.props.children) ? row.props.children : [row.props.children]
+              return !kids.some((kid) => String(kid?.props?.className ?? '').includes('sr-btn--toggle'))
+            }))
+          ok('[26] ...and every card has a head to hold it', headSwitches.length === 3, String(headSwitches.length))
 
           const before = calls.length
           const liveSwitch = switches.find((n) => n.props['aria-label'] === '\u505c\u7528 live-skill')

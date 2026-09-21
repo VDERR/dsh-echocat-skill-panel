@@ -315,23 +315,6 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
     }).then(() => setBusy(false))
   }, [claimDraft, capability, name, onChanged])
 
-  /**
-   * Enable / disable — ONE step, and it destroys nothing.
-   *
-   * The host moves the directory out of (or back into) the root DSH watches, so this is
-   * the control that actually decides whether the model can load the skill. It is not
-   * destructive, so unlike delete and update it needs no second click; the button's own
-   * label and state carry what will happen.
-   */
-  const onToggleEnabled = React.useCallback(() => {
-    setBusy(true)
-    void performSetEnabled(name, disabled, {
-      onDone: () => {
-        if (typeof onChanged === 'function') onChanged()
-      },
-    }).then(() => setBusy(false))
-  }, [disabled, name, onChanged])
-
   // Every action on this row writes, so one predicate gates them all.
   const writable = canInstall(capability)
   // The claim field is a ROW, not a cell in the button row: it used to be a
@@ -377,24 +360,12 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
     h(
       'div',
       { className: 'sr-row-actions' },
-      // Enable / disable sits FIRST among the row actions: it is the one control that
-      // changes what the model can do, and it is a switch, not a destructive verb.
-      writable
-        ? h(
-            'button',
-            {
-              type: 'button',
-              className: disabled ? 'sr-btn sr-btn--sm sr-btn--toggle' : 'sr-btn sr-btn--sm sr-btn--toggle sr-btn--on',
-              onClick: onToggleEnabled,
-              disabled: busy,
-              role: 'switch',
-              'aria-checked': disabled ? 'false' : 'true',
-              title: disabled ? `启用 ${name}（移回 skills 目录，模型就能用它）` : `停用 ${name}（移出 skills 目录，模型不再加载它；文件保留，随时可恢复）`,
-              'aria-label': disabled ? `启用 ${name}` : `停用 ${name}`,
-            },
-            h('span', { className: 'sr-switch', 'aria-hidden': 'true' }, h('span', { className: 'sr-switch-knob' })),
-          )
-        : null,
+      // The enable/disable switch is NOT here any more.
+      //
+      // It was the first item of this row, alongside 引用 and the icon buttons, but it is not that kind of
+      // control: those act ON the skill, while the switch decides whether the model can see the skill at all.
+      // It now sits in the card's head row, top-right and on the name's line, where the owner asked for it —
+      // see `SkillToggle`.
       typeof onUse === 'function' && !disabled
         ? h(
             'button',

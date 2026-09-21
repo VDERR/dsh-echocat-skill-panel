@@ -734,6 +734,50 @@ function ColorPicker({ name, current, onDone }) {
   )
 }
 
+/**
+ * The enable/disable switch, for the card's HEAD row.
+ *
+ * It lived at the front of the footer's action row, next to 引用 and the icon buttons, and that was the wrong
+ * group: those buttons act ON the skill's content, while this decides whether the model can see the skill at
+ * all. The owner asked for it on the name's line, top-right — "卡片的开关按钮统一到右上角和名字对齐" — which is
+ * also where a reader looks for the state of the thing the name labels.
+ *
+ * Self-contained rather than threaded down as a rendered node from `SkillRowActions`: the card head and the
+ * card foot are siblings, so a node built in the foot could not be placed in the head without hoisting the
+ * whole action row's state up. It owns its own `busy` because the footer's flag does not reach here.
+ */
+function SkillToggle({ skill, capability, onChanged }) {
+  const [busy, setBusy] = React.useState(false)
+  const name = String(skill?.name ?? '')
+  const disabled = skill?.disabled === true
+  if (!api.canInstall(capability)) return null
+  return h(
+    'button',
+    {
+      type: 'button',
+      className: disabled ? 'sr-btn sr-btn--sm sr-btn--toggle sr-toggle-head' : 'sr-btn sr-btn--sm sr-btn--toggle sr-btn--on sr-toggle-head',
+      disabled: busy,
+      role: 'switch',
+      'aria-checked': disabled ? 'false' : 'true',
+      onClick: () => {
+        setBusy(true)
+        void api
+          .performSetEnabled(name, disabled, {
+            onDone: () => {
+              if (typeof onChanged === 'function') onChanged()
+            },
+          })
+          // `finally`, so a refused write cannot leave the switch stuck disabled — the same mistake the colour
+          // palette made, and not worth making twice in one file's worth of controls.
+          .finally(() => setBusy(false))
+      },
+      title: disabled ? `启用 ${name}（移回 skills 目录，模型就能用它）` : `停用 ${name}（移出 skills 目录，模型不再加载它；文件保留，随时可恢复）`,
+      'aria-label': disabled ? `启用 ${name}` : `停用 ${name}`,
+    },
+    h('span', { className: 'sr-switch', 'aria-hidden': 'true' }, h('span', { className: 'sr-switch-knob' })),
+  )
+}
+
 function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
   const chinese = typeof skill.descriptionZh === 'string' && skill.descriptionZh !== ''
   const blurb = chinese ? skill.descriptionZh : skill.description
@@ -867,6 +911,12 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
         h('span', { className: 'sr-skill-name', title: zh === '' ? skill.name : `${zh}（/${skill.name}）` }, title),
         zh === '' ? null : h('div', { className: 'sr-skill-slug', title: `代号 ${skill.name}` }, `/${skill.name}`),
       ),
+      // The on/off switch, on the NAME'S LINE and pushed to the far edge.
+      //
+      // It sits after the text column so `margin-left:auto` sends it to the corner, and it is a sibling of the
+      // text rather than of the avatar so it stays top-aligned with the title instead of centring against a
+      // wrapped two-line name.
+      h(SkillToggle, { skill, capability, onChanged }),
       // The tag row is GONE, deliberately, and the state moved into the text column below.
       //
       // It was the one element in the card that could not be made to behave: three attempts at
@@ -882,10 +932,13 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
       typeof blurb === 'string' && blurb !== ''
         ? h('div', { className: chinese ? 'sr-blurb' : 'sr-blurb sr-blurb--en', title: blurb }, blurb)
         : null,
-      // Where the skill came from, and — when the source has been compared — whether it
-      // moved on. `usedCount` rides along so the cues live on one line instead of in pills.
-      h(SourceLine, { skill, update, usedCount: used }),
     ),
+    // Where the skill came from, and — when the source has been compared — whether it moved on.
+    //
+    // A DIRECT child of the card, not a row inside `.sr-skill-main`. The card is a column with
+    // `justify-content:space-between`, so a direct child can be pushed into the bottom corner; nested inside the
+    // text block it would simply follow the blurb and leave the corner empty.
+    h(SourceLine, { skill, update, usedCount: used, short: true }),
     // The palette occupies its own row, like the claim field: a `flex-basis:100%` child of the
     // button row would resolve against the row's shrink-to-fit width and overflow the card.
     palette
@@ -918,7 +971,7 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
  * `claimed` sources are shown as such: the address is what the USER typed, and
  * presenting it as a fact would be the dishonest version of this line.
  */
-function SourceLine({ skill, update, usedCount = 0 }) {
+function SourceLine({ skill, update, usedCount = 0, short = false }) {
   const provenance = skill?.provenance
   const checkbox = update?.result
   const known = provenance !== null && typeof provenance === 'object' && provenance.known === true
@@ -941,6 +994,20 @@ function SourceLine({ skill, update, usedCount = 0 }) {
   }
   if (skill?.modelInvocable === false) cues.push('仅 / 可调用')
   if (usedCount > 0) cues.push(`用过 ${usedCount} 次`)
+
+  /**
+   * The source, as `来源：<label>`.
+   *
+   * It used to be a bare phrase with an optional 标记来源 prefix, the two run together with a middot:
+   * "标记来源 · 上传文件 · 已是最新". The label was the problem — it reads as a VERDICT that the source was
+   * asserted rather than as the provenance it is, and the owner asked for the plain form ("标记来源改为只要
+   * 来源：xxx就行"). Naming the field costs one word and removes the ambiguity; whether the claim is
+   * user-supplied stays honest by riding in the `title`, where the full address already lives.
+   */
+  const claimed = known && provenance.claimed === true
+  const label = known ? api.sourceLabel(provenance) : ''
+  const sourceText = label === '' ? '' : `来源：${label}`
+
   // No record at all: nothing true can be said about the source, and a "来源未知" line on every
   // hand-installed skill would be noise — but the cues above are still true, so the line renders
   // with them alone rather than disappearing.
@@ -948,8 +1015,6 @@ function SourceLine({ skill, update, usedCount = 0 }) {
     if (cues.length === 0) return null
     return h('div', { className: 'sr-src sr-src--bare' }, h('span', { className: 'sr-src-text' }, cues.join(' · ')))
   }
-  const label = api.sourceLabel(provenance)
-  const claimed = provenance.claimed === true
   const comparable = api.hasSource(provenance) === true
   const checked = update?.phase === 'done' && checkbox !== undefined && checkbox !== null
   const hasUpdate = checked && checkbox.hasUpdate === true
@@ -959,8 +1024,7 @@ function SourceLine({ skill, update, usedCount = 0 }) {
   else if (failed) classes.push('sr-src--warn')
 
   const parts = []
-  if (claimed) parts.push('标记来源')
-  if (label !== '') parts.push(label)
+  if (sourceText !== '') parts.push(sourceText)
   let verdict = ''
   if (hasUpdate) verdict = '可更新'
   else if (failed) verdict = checkbox.note === '' ? '检查失败' : checkbox.note

@@ -861,8 +861,9 @@ ok('the slug is not truncated either',
   ruleFor('.sr-skill-slug'))
 ok('the actions own their own full-width row',
   /width:100%/u.test(ruleFor('.sr-card-foot .sr-row-actions')), ruleFor('.sr-card-foot .sr-row-actions').slice(0, 140))
-ok('...starting at the card edge rather than right-aligned under the text',
-  /justify-content:flex-start/u.test(ruleFor('.sr-card-foot .sr-row-actions')))
+ok('...CENTRED in the row, not left-aligned under the text',
+  /justify-content:center/u.test(ruleFor('.sr-card-foot .sr-row-actions')),
+  ruleFor('.sr-card-foot .sr-row-actions').slice(0, 140))
 ok('the old side-by-side row is gone from the sheet', !/\.sr-skill-top[{,]/u.test(RENDERED),
   'the name must not share a row with the actions')
 

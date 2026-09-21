@@ -618,8 +618,16 @@ const DESIGN = Object.freeze([
     'and the slug under it, for the same reason'),
   D('card-main-full', 'card', '.sr-skill-main', { flex: '0 0 auto', minWidth: 0 },
     'the text block no longer shares a row with the actions, so it must not stretch'),
-  D('card-actions-row', 'card', '.sr-card-foot .sr-row-actions', { width: '100%', justifyContent: 'flex-start', flexWrap: 'wrap', rowGap: 'calc(var(--sr-u) * 1.5)', columnGap: 'calc(var(--sr-u) * 1.5)' },
-    'the actions own the last row and start at the card edge, which is what makes it read as a footer'),
+  D('card-actions-row', 'card', '.sr-card-foot .sr-row-actions', { width: '100%', justifyContent: 'center', flexWrap: 'wrap', rowGap: 'calc(var(--sr-u) * 1.5)', columnGap: 'calc(var(--sr-u) * 1.5)' },
+    'the actions own the last row and are CENTRED in it, at the owner\'s request: with the switch gone the row is 引用 plus three or four icons, and left-aligned it read as a stranded fragment under a full-width blurb'),
+  // The on/off switch in the card's head row, pushed to the far edge.
+  //
+  // `margin-left:auto` rather than `justify-content:space-between` on the head: the head also holds the avatar
+  // and the text column, and space-between would spread all three apart instead of only sending the last one to
+  // the corner. `align-self:flex-start` keeps it level with the NAME rather than centred against a name that
+  // has wrapped to two lines — "和名字对齐" is the request, and centring is what it did before.
+  D('r-toggle-head', 'card', '.sr-toggle-head', { marginLeft: 'auto', alignSelf: 'flex-start', flex: 'none' },
+    'the switch sits in the name row, hard against the card\'s right edge, level with the title'),
   // Five labelled buttons do not fit a ~290px card at the base size, and a wrapped button row
   // is what made the card look like a toolbar. The compact size is the fix.
   D('card-actions-compact', 'card', '.sr-card-foot .sr-btn', { fontSize: 11, paddingInline: 'calc(var(--sr-u) * 2.25)' },
