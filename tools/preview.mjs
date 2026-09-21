@@ -466,6 +466,10 @@ window.addEventListener('load', () => {
     '.sr-group-head', '.sr-group-title', '.sr-skill--off',
     '.sr-btn--toggle', '.sr-switch', '.sr-switch-knob',
     '.sr-card-foot', '.sr-card-foot .sr-row-actions',
+    // The card footer: three columns on ONE line — calls, actions, source. Probed by name so `--measure`
+    // answers the question directly (is it one line, and are the three level?) instead of leaving it to be
+    // squinted at in a screenshot of a 290px card inside a 2100px page.
+    '.sr-card-foot-row', '.sr-card-calls', '.sr-card-actions', '.sr-card-src',
     '.sr-sec-h', '.sr-sec-b', '.sr-pill',
     // `.sr-skill-tags` is deliberately absent: the tag row was removed from the card, so listing it
     // here made the measure tool print "not rendered" for every card and hid real regressions in
@@ -512,6 +516,61 @@ window.addEventListener('load', () => {
   }
   const out = {}
   for (const sel of probes) out[sel] = read(sel)
+  /**
+   * The card footer, as COORDINATES.
+   *
+   * "Is the source in the bottom-right, level with the actions, and is the count bottom-left" is a question
+   * about three boxes' x/y, and the size reader above reports only sizes. This reports the first card's footer
+   * row plus its three columns, and states the two things that were actually asked for: whether the three share
+   * ONE line, and whether the middle column sits at the card's centre.
+   *
+   * Built with plain concatenation, never a nested template literal: this whole probe is a string inside a
+   * template literal in this file, and a backtick here would end it silently.
+   */
+  const foot = document.querySelector('.sr-card-foot-row')
+  // Wrapped, and the failure is PRINTED.
+  //
+  // The first version ran bare and produced no FOOT line at all: an exception anywhere in this block kills the
+  // whole load handler, so the size report survived (it is built first) and the footer report vanished with no
+  // trace. A probe that can fail silently is worth less than no probe — the whole reason for adding it was that
+  // a screenshot could not settle the question.
+  try {
+  if (foot !== null) {
+    const box = (el) => {
+      if (el === null) return null
+      const r = el.getBoundingClientRect()
+      return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }
+    }
+    const row = foot.getBoundingClientRect()
+    const cells = ['.sr-card-calls', '.sr-card-actions', '.sr-card-src'].map((sel) => box(foot.querySelector(sel)))
+    const live = cells.filter((c) => c !== null)
+    const sameLine = live.length > 0 && live.every((c) => Math.abs(c.y + c.h / 2 - (row.top + row.height / 2)) <= 2)
+    const centre = box(foot.querySelector('.sr-card-actions'))
+    // Kept in its OWN element rather than as a key of the measured set.
+    //
+    // The printer formats every collected entry as the size shape (pad, radius, parent), so a differently
+    // shaped entry crashes it — which is exactly what happened on the first attempt.
+    const footPre = document.createElement('pre')
+    footPre.id = 'foot-measure'
+    footPre.textContent = 'FOOT:' + JSON.stringify({
+      row: box(foot),
+      calls: cells[0],
+      actions: cells[1],
+      source: cells[2],
+      oneLine: sameLine,
+      // How far the actions' centre sits from the row's centre, in px. 0 means centred in the card.
+      actionOffsetFromCentre: centre === null ? null : Math.round(centre.x + centre.w / 2 - (row.left + row.width / 2)),
+      // True when the row is taller than its tallest column, i.e. something wrapped onto another line.
+      wraps: Math.round(row.height) > Math.round(Math.max(...live.map((c) => c.h))) + 6,
+    }, null, 1)
+    document.body.appendChild(footPre)
+  }
+  } catch (error) {
+    const bad = document.createElement('pre')
+    bad.id = 'foot-measure'
+    bad.textContent = 'FOOT-ERROR:' + String(error && error.message ? error.message : error)
+    document.body.appendChild(bad)
+  }
   const pre = document.createElement('pre')
   pre.id = 'measure'
   pre.textContent = 'MEASURE:' + JSON.stringify(out, null, 1)

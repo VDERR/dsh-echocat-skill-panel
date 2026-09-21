@@ -373,11 +373,14 @@ function SkillRowActions({ skill, onUse, capability, onChanged, onEdit, update }
             '引用',
           )
         : null,
-      h(
-        'button',
-        { type: 'button', className: 'sr-btn sr-btn--sm sr-btn--icon', onClick: onCopy, title: copied ? '已复制' : `复制名称 ${name}`, 'aria-label': `复制名称 ${name}` },
-        h(Icon, { name: copied ? 'check' : 'copy', size: 12 }),
-      ),
+      // The 复制名称 button is GONE, at the owner's request ("删除每个卡片的复制名称按钮").
+      //
+      // It was the least load-bearing control on the card: the name it copied is printed at the top of the very
+      // card the button sits on, and the slug is selectable text. It cost a button's width in a row that now
+      // shares its line with the call count and the source label, which is where that width is worth spending.
+      //
+      // `onCopy` and the `copied` state are kept: the live rail's own copy affordance uses the same helper, and
+      // the confirmation pill below still renders if anything else sets `copied`.
       copied ? h('span', { className: 'sr-pill', style: { color: 'var(--sr-ok)' } }, '已复制') : null,
       typeof onEdit === 'function' && canInstall(capability)
         ? h(

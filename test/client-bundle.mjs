@@ -1086,7 +1086,87 @@ console.log('\n[16] install affordances follow the capability')
     deleteLabels = findAllHost(full, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u5220\u9664')).map((n) => n.props['aria-label'])
     copyLabels = findAllHost(full, (n) => n.type === 'button' && String(n.props?.['aria-label'] ?? '').includes('\u590d\u5236\u540d\u79f0')).map((n) => n.props['aria-label'])
   })
-  ok('an expanded catalog offers per-skill copy', copyLabels.length === 3, JSON.stringify(copyLabels))
+  ok('a card offers NO per-skill copy button, at the owner\'s request',
+  copyLabels.length === 0, JSON.stringify(copyLabels))
+
+/* -- the card footer: calls | actions | source, and the plugin-skill switch -- */
+//
+// Every one of these is a request the owner made in one message, so each is pinned separately rather than
+// left to be noticed on the next screenshot.
+{
+  const skillRow = (name, extra = {}) => ({
+    name,
+    description: 'x',
+    descriptionZh: '描述',
+    modelInvocable: true,
+    provenance: { known: true, source: 'git', repo: 'owner/repo', url: 'https://github.com/owner/repo', color: '', claimed: false, changedSinceInstall: false },
+    ...extra,
+  })
+  // `snapshot` IS the data object — the panel does `snapshot ?? state.data`. Wrapping it in `{data: …}` (the
+  // first two attempts here) leaves the panel with no `skills` at all, and it silently renders "0 个 skill"
+  // rather than complaining. `perSkill` is a LIST of `{name, count}`, which `countMap` turns into the lookup.
+  const snapshot = {
+    ...HOST_SNAPSHOT,
+    capability: CAP_FULL,
+    skills: [
+      skillRow('mine', { location: 'user' }),
+      skillRow('bundled-one', { location: 'plugin', layer: 'bundled' }),
+    ],
+    disabledSkills: [],
+    perSkill: [{ name: 'mine', count: 7 }],
+  }
+  // Rendered through `SkillRow` DIRECTLY, and that is not a shortcut.
+  //
+  // The card is only reachable through the panel, whose skills section is collapsed by default, and the harness
+  // cannot expand it: `withExpanded` patches `useState` only while `currentComponent === 'Section'`, a name that
+  // only the harness's `invoke()` sets, so calling a component directly leaves it collapsed. `SkillRow` is the
+  // component that renders a card, so this drives the real code rather than a stand-in for it — the same route
+  // the colour palette is tested by.
+  const card = (skill, counts) =>
+    exports.__ui.SkillRow({ skill, counts, onUse: () => {}, capability: CAP_FULL, onChanged: () => {}, update: undefined })
+  const tree = card(snapshot.skills[0], exports.__ui.countMap(snapshot.perSkill))
+
+  // The footer exists, and it is the row that holds all three columns.
+  const footRow = findAllHost(tree, (n) => String(n.props?.className ?? '') === 'sr-card-foot-row')
+  ok('[29] the card has a footer row', footRow.length >= 1, String(footRow.length))
+  ok('[29] ...with the call count as its FIRST column',
+    String(footRow[0]?.props?.children?.[0]?.props?.className ?? '') === 'sr-card-calls',
+    JSON.stringify(footRow[0]?.props?.children?.map?.((c) => c?.props?.className)))
+  ok('[29] ...the actions as its middle column',
+    String(footRow[0]?.props?.children?.[1]?.props?.className ?? '') === 'sr-card-actions')
+  ok('[29] ...and the source as its LAST column',
+    String(footRow[0]?.props?.children?.[2]?.props?.className ?? '') === 'sr-card-src')
+
+  // The count, bottom-left, showing a real number for a skill that has been called.
+  const rendered = textOf(tree)
+  ok('[29] the call count is shown for a used skill', rendered.includes('7 次'), rendered.slice(0, 400))
+  ok('[29] ...and nothing is shown for an unused one',
+    !rendered.includes('0 次'), 'a quiet card must stay quiet rather than print a zero')
+
+  // The source line, in the footer rather than in the text block.
+  ok('[29] the source line names its field', rendered.includes('\u6765\u6e90\uff1a'), rendered.slice(0, 400))
+
+  // THE SWITCH. Hidden by default is the whole point of the request, and the rule is a pure function so it is
+  // stated directly rather than inferred from what a render happened to omit.
+  const catalogue = [
+    { name: 'mine', location: 'user' },
+    { name: 'bundled-one', location: 'plugin' },
+    { name: 'bundled-two', location: 'plugin' },
+    { name: 'legacy-unknown' },
+  ]
+  const hidden = exports.__ui.visibleSkills(catalogue, false)
+  ok('[29] plugin-shipped skills are hidden by default',
+    hidden.map((s) => s.name).join(',') === 'mine,legacy-unknown',
+    JSON.stringify(hidden.map((s) => s.name)))
+  ok('[29] ...so the count offered to the user is the number hidden',
+    catalogue.length - hidden.length === 2, String(catalogue.length - hidden.length))
+  ok('[29] ...and the switch reveals them when asked',
+    exports.__ui.visibleSkills(catalogue, true).length === catalogue.length)
+  // Defaulting to VISIBLE is what the first version of the check would have done by accident: an unknown
+  // `location` is not evidence of a plugin, so a legacy payload must not be swallowed by the filter.
+  ok('[29] a skill with no location is NOT treated as a plugin\'s',
+    hidden.some((s) => s.name === 'legacy-unknown'), JSON.stringify(hidden.map((s) => s.name)))
+}
   ok('a writable catalog offers per-skill delete', deleteLabels.length === 3, JSON.stringify(deleteLabels))
   ok('the delete control is unarmed until clicked', deleteLabels.every((label) => label.startsWith('\u5220\u9664')), JSON.stringify(deleteLabels))
 }

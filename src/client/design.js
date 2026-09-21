@@ -620,6 +620,52 @@ const DESIGN = Object.freeze([
     'the text block no longer shares a row with the actions, so it must not stretch'),
   D('card-actions-row', 'card', '.sr-card-foot .sr-row-actions', { width: '100%', justifyContent: 'center', flexWrap: 'wrap', rowGap: 'calc(var(--sr-u) * 1.5)', columnGap: 'calc(var(--sr-u) * 1.5)' },
     'the actions own the last row and are CENTRED in it, at the owner\'s request: with the switch gone the row is 引用 plus three or four icons, and left-aligned it read as a stranded fragment under a full-width blurb'),
+  /* ---- the card footer: calls | actions | source, on ONE line ----
+   *
+   * "来源说明...希望显示在右下角和引用这一列对齐" and "卡片左下角显示调用次数". Both were rows of their own above
+   * the actions, which put the provenance in the middle of the card and the count nowhere.
+   *
+   * `auto 1fr auto` rather than three equal columns: the side columns are sized by their content, and the middle
+   * takes the rest — so the ACTIONS end up centred in the CARD, not merely in whatever space the side columns
+   * leave over. With equal columns a long source label would push the buttons off centre.
+   */
+  D('r-card-foot-row', 'card', '.sr-card-foot-row', {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr auto',
+    alignItems: 'center',
+    columnGap: 'calc(var(--sr-u) * 2)',
+    width: '100%',
+    marginTop: 'auto',
+  }, 'the card footer is one line of three columns: call count, actions, source'),
+  // The row keeps `flex-start` as its base rule and is centred only INSIDE the footer.
+  //
+  // The base rule is asserted by the polish gate and describes the generic row; the footer is the one place that
+  // wants centring, and giving it an extra class is how this project has resolved cascade-order questions
+  // before — a later-emitted same-specificity record would silently lose.
+  //
+  // The middle column, and the rule is not decoration: `min-width:0` is what lets it shrink below its content's
+  // intrinsic width so a long source label beside it cannot force the row to overflow the card.
+  D('r-card-actions', 'card', '.sr-card-actions', { minWidth: 0, display: 'flex', justifyContent: 'center' },
+    'the actions column takes the middle of the footer and yields width rather than overflowing'),
+  // `flex-wrap:nowrap` and a lifted `width:100%` are both load-bearing.
+  //
+  // A card is ~290px and this line carries a count, four buttons and a source label. With the base rule's
+  // `width:100%` the row demanded the full column and then wrapped; with `flex-wrap:wrap` it broke onto a second
+  // and third line and the three columns stopped being a line at all. MEASURED in the preview before and after.
+  D('r-card-foot-actions', 'card', '.sr-card-foot-row .sr-row-actions', { justifyContent: 'center', flexWrap: 'nowrap', width: 'auto', minWidth: 0 },
+    'inside the footer the action row is centred, never wraps, and takes only the width it needs'),
+  D('r-card-calls', 'card', '.sr-card-calls', {
+    fontVariantNumeric: 'tabular-nums',
+    fontSize: 11.5,
+    color: 'var(--sr-fg3)',
+    whiteSpace: 'nowrap',
+  }, 'the call count sits in the card\'s bottom-left, small and quiet'),
+  D('r-card-src', 'card', '.sr-card-src', { display: 'flex', justifyContent: 'flex-end', minWidth: 0, overflow: 'hidden', flex: '1 1 auto' },
+    'and the source is hard against the right edge, level with the action row, giving way when the line is tight'),
+  // The source label gives way rather than pushing the row apart: it is the one item here that can be shortened
+  // without losing meaning, and its full text is in the element's `title`.
+  D('r-card-src-clip', 'card', '.sr-card-src .sr-src', { minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+    'the source label ellipsises instead of wrapping the footer onto a second line'),
   // The on/off switch in the card's head row, pushed to the far edge.
   //
   // `margin-left:auto` rather than `justify-content:space-between` on the head: the head also holds the avatar

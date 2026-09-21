@@ -735,6 +735,19 @@ function ColorPicker({ name, current, onDone }) {
 }
 
 /**
+ * Which skills the catalogue shows, given the plugin-skill switch.
+ *
+ * A FUNCTION rather than an inline filter, because the rule is the part worth pinning: "hide what a plugin
+ * shipped, unless asked" is one line of logic with a default that the owner specified, and a test can state it
+ * without rendering anything. The component keeps the switch and the count.
+ */
+function visibleSkills(skills, showPluginSkills) {
+  const list = Array.isArray(skills) ? skills : []
+  if (showPluginSkills === true) return list
+  return list.filter((skill) => skill?.location !== 'plugin')
+}
+
+/**
  * The enable/disable switch, for the card's HEAD row.
  *
  * It lived at the front of the footer's action row, next to 引用 and the icon buttons, and that was the wrong
@@ -933,12 +946,6 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
         ? h('div', { className: chinese ? 'sr-blurb' : 'sr-blurb sr-blurb--en', title: blurb }, blurb)
         : null,
     ),
-    // Where the skill came from, and — when the source has been compared — whether it moved on.
-    //
-    // A DIRECT child of the card, not a row inside `.sr-skill-main`. The card is a column with
-    // `justify-content:space-between`, so a direct child can be pushed into the bottom corner; nested inside the
-    // text block it would simply follow the blurb and leave the corner empty.
-    h(SourceLine, { skill, update, usedCount: used, short: true }),
     // The palette occupies its own row, like the claim field: a `flex-basis:100%` child of the
     // button row would resolve against the row's shrink-to-fit width and overflow the card.
     palette
@@ -955,7 +962,32 @@ function SkillRow({ skill, counts, onUse, capability, onChanged, update }) {
           }),
         )
       : null,
-    h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update }),
+    /**
+     * The card's FOOTER: three columns on one line — calls on the left, the actions centred, the source on
+     * the right.
+     *
+     * The source line and the call count used to be rows of their own above this one, which put the provenance
+     * in the middle of the card and the count nowhere at all. The owner asked for the source in the bottom
+     * RIGHT, level with the action row ("希望显示在右下角和引用这一列对齐") and the count in the bottom LEFT,
+     * so both are columns of the same row as the buttons rather than rows above it.
+     *
+     * The middle column is `1fr` with the side columns `auto`, so the ACTIONS are centred in the card rather
+     * than merely in the space the side columns leave over — with two equal side columns a long source label
+     * would push the buttons off centre.
+     */
+    h(
+      'div',
+      { className: 'sr-card-foot-row' },
+      // The call count, bottom-left. `used` is the per-skill invocation count the panel already tracks; when a
+      // skill has never been called the column renders nothing rather than a "0", so a quiet card stays quiet.
+      h(
+        'span',
+        { className: 'sr-card-calls', title: `${title} 被调用 ${used} 次` },
+        used > 0 ? `${used} 次` : '',
+      ),
+      h('div', { className: 'sr-card-actions' }, h(SkillRowActions, { skill, onUse, capability, onChanged, onEdit: startEdit, update })),
+      h('div', { className: 'sr-card-src' }, h(SourceLine, { skill, update, usedCount: used, short: true })),
+    ),
   )
 }
 
@@ -1096,7 +1128,21 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
     return out
   }, [skills])
   const direction = sortDir === '' ? DEFAULT_DIR[sortKey] ?? 'asc' : sortDir
-  const shown = sortSkills(filterSkills(skills, { query, onlySlash, onlyUsed, counts, tag, color }), sortKey, direction, counts)
+  /**
+   * Plugin-shipped skills are HIDDEN by default, with a switch to reveal them.
+   *
+   * "这种插件自带都统一隐藏，可以给一个显示隐藏开关，默认只显示自己安装的 skill". DSH's skill service folds a
+   * plugin's own skills into the same list as the user's — `browser-skill`, `cordis-plugin-development`,
+   * `openviking-memory` and friends — so the catalogue opened with entries the user never installed and could
+   * not delete. Marking them was not enough: they were still in the way of the list the user actually curates.
+   *
+   * The preference PERSISTS under the same store key the other view options use, so a user who wants to see
+   * them does not have to ask again on every mount. It defaults to hidden, which is what was asked for.
+   */
+  const [showPluginSkills, setShowPluginSkills] = usePref('showPluginSkills', false)
+  const visible = visibleSkills(skills, showPluginSkills)
+  const pluginSkillCount = skills.length - visible.length
+  const shown = sortSkills(filterSkills(visible, { query, onlySlash, onlyUsed, counts, tag, color }), sortKey, direction, counts)
   /**
    * The DISABLED half of the catalogue.
    *
@@ -1185,6 +1231,35 @@ function SkillsSection({ skills, disabledSkills, capability, counts, onUse, onIn
                 h(Icon, { name: 'check', size: 10 }),
                 '仅可 / 调用',
               ),
+              /**
+               * The plugin-skill switch.
+               *
+               * Rendered ONLY when there is something to toggle, because a chip that can never match anything
+               * is furniture — the same rule the 用过的 chip above follows. The count rides on it so the user
+               * can see that skills exist behind the switch rather than having to remember.
+               *
+               * `aria-pressed` carries the state, and the label states the ACTION rather than the state, which
+               * is the convention the rest of this row uses.
+               */
+              pluginSkillCount > 0
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: showPluginSkills === true ? 'sr-chip sr-chip--on' : 'sr-chip',
+                      'aria-pressed': showPluginSkills === true,
+                      onClick: () => setShowPluginSkills(showPluginSkills !== true),
+                      title:
+                        showPluginSkills === true
+                          ? '隐藏插件自带的 skill，只留自己装的'
+                          : `显示 ${pluginSkillCount} 个插件自带的 skill（不是你安装的）`,
+                      'aria-label': showPluginSkills === true ? '隐藏插件自带的 skill' : '显示插件自带的 skill',
+                    },
+                    h(Icon, { name: 'spark', size: 10 }),
+                    '插件自带',
+                    h('span', { className: 'sr-count' }, String(pluginSkillCount)),
+                  )
+                : null,
               /**
                * The COLOUR FILTER, which replaced the tag/category chips at the user's request
                * ("右边就不要这些分类了，直接改成颜色分类的颜色块儿").
@@ -2083,6 +2158,13 @@ module.exports = {
   // click that does nothing looks exactly like a click that was never wired up — and it shipped for two
   // releases with no test at all. Rendering it directly is what makes the write assertion possible.
   ColorPicker,
+  // Exported for the card tests, for the same reason the palette is: the card is only reachable through the
+  // panel, whose sections are collapsed by default and whose expansion the harness cannot drive (its
+  // `withExpanded` keys on a `currentComponent` that only `invoke()` sets). `SkillRow` is the component that
+  // actually renders a card, so testing it directly drives the real code rather than a stand-in.
+  SkillRow,
+  SkillsSection,
+  visibleSkills,
   clock,
   ago,
   summarize,
