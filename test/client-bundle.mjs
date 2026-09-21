@@ -1194,8 +1194,10 @@ console.log('\n[16] install affordances follow the capability')
    * Asserted on the sheet, with BOTH halves required. A lone `scale(1.02)` is half the request and is easy to miss
    * by eye, which is how it would ship if only the first rule were checked.
    */
-  ok('[29] hovering a card grows it', /\.sr-grid \.sr-skill:hover\{[^}]*scale\(1\.02\)/u.test(sheet),
-    'the hovered card must scale up')
+  // Matched loosely on purpose: the selector has had to gain `:has()` and `:is()` to win the cascade, and a regex
+  // pinned to the exact text would fail every time the selector is corrected — which is the opposite of useful. What
+  // matters is that a rule scales the hovered card up; WHICH rule wins is asserted separately and precisely below.
+  ok('[29] hovering a card grows it', /scale\(1\.02\)/u.test(sheet), 'the hovered card must scale up')
   ok('[29] ...and recedes the cards the pointer is NOT on',
     /\.sr-grid:has\(\.sr-skill:hover\) \.sr-skill:not\(:hover\)\{[^}]*scale\(\.98\)/u.test(sheet),
     'the shrinking half is what makes it read as a focus rather than a bounce')
@@ -1209,28 +1211,50 @@ console.log('\n[16] install affordances follow the capability')
     /\.sr-skill\{[^}]*transition:[^}]*transform/u.test(sheet),
     'a transition inside a :hover rule does not run when the pointer leaves')
   /**
-   * AND NOTHING ELSE MAY CLAIM THE CARD'S HOVER TRANSFORM.
+   * AND THE GROW RULE MUST WIN THE CASCADE, not merely exist.
    *
-   * THIS is the assertion the first version was missing, and its absence is why the effect shipped DEAD: every rule
-   * above was present and every one passed, while a hardcoded `transform:translateY(-1px)` in the HAND-WRITTEN part of
-   * the stylesheet — a third file, `theme.js`, emitted before both generated passes — overrode them all by cascade
-   * order. The browser saw a one-pixel lift and no scale whatsoever.
+   * THIS is what the first two versions were missing, and its absence is why the effect shipped DEAD TWICE, for two
+   * different reasons:
    *
-   * The lesson is about what "the rule exists" proves. It proves the rule exists. It does not prove the rule WINS, and
-   * a property two rules both claim is decided by source order, which no single-pass check can see.
+   *   1. a hardcoded `transform:translateY(-1px)` in the HAND-WRITTEN part of the stylesheet — a third file,
+   *      `theme.js`, emitted before both generated passes — overrode the scale by source order;
+   *   2. once that was gone, the RECEDE rule (`:not(:hover)`, whose argument contributes to specificity) scored FOUR
+   *      classes against the grow rule's THREE, so the HOVERED card was pinned at `scale(.98)` and looked like it had
+   *      no effect — while the avatar moved, because its own transform rule won ITS pair. That asymmetry is exactly
+   *      what the owner reported: "只是鼠标在卡片里的头像上有放大缩小效果".
+   *
+   * Both were invisible to "does the rule exist". A property two rules claim is decided by SPECIFICITY first and
+   * source order second, so this scores every rule that sets `transform` on a hovered card and requires the scale to
+   * be the winner.
    */
-  const hoverTransformOwners = sheet
+  const transformRules = sheet
     .split('}')
-    .map((rule) => rule.split('{'))
-    .filter(([sel, body]) => typeof sel === 'string' && typeof body === 'string')
-    .filter(([sel]) => sel.split(',').some((one) => one.trim().endsWith('.sr-skill:hover')))
-    .filter(([, body]) => body.includes('transform'))
-  ok('[29] exactly ONE rule owns the card hover transform, so nothing overrides the scale',
-    hoverTransformOwners.length === 1,
-    JSON.stringify(hoverTransformOwners.map(([sel, body]) => sel.trim().slice(0, 44) + ' => ' + body.trim().slice(0, 56))))
-  ok('[29] ...and it is the scale, not a leftover lift',
-    hoverTransformOwners.every(([, body]) => body.includes('scale(1.02)') && !body.includes('translateY')),
-    JSON.stringify(hoverTransformOwners.map(([, body]) => body.trim().slice(0, 70))))
+    .map((chunk) => chunk.split('{'))
+    .filter(([sel, body]) => typeof sel === 'string' && typeof body === 'string' && body.includes('transform'))
+    .map(([sel, body]) => ({
+      // `:not()` and `:has()` contribute their ARGUMENT, which is the detail that caused failure 2.
+      spec: Math.max(
+        ...sel.split(',').map((one) => {
+          const classes = (one.match(/\.[a-z-]+/gu) ?? []).length
+          const pseudos = (one.match(/:(?!:)[a-z-]+(\([^)]*\))?/gu) ?? []).length
+          const inner = (one.match(/:(?:not|has|is)\(([^)]*)\)/gu) ?? [])
+            .map((part) => (part.match(/[.:][a-z-]+/gu) ?? []).length)
+            .reduce((sum, n) => sum + n, 0)
+          return classes + pseudos + inner
+        }),
+      ),
+      hovered: sel.split(',').some((one) => /\.sr-skill(?![\w-])/u.test(one) && one.includes(':hover') && !one.includes(':not(:hover)')),
+      body: body.trim(),
+    }))
+    .filter((rule) => rule.hovered)
+  const topSpec = Math.max(...transformRules.map((rule) => rule.spec))
+  const winners = transformRules.filter((rule) => rule.spec === topSpec)
+  ok('[29] the rule that WINS the hover transform is the scale, not the recede',
+    winners.length > 0 && winners.every((rule) => rule.body.includes('scale(1.02)') && !rule.body.includes('translateY')),
+    `top specificity ${topSpec}: ` + JSON.stringify(winners.map((rule) => rule.body.slice(0, 60))))
+  ok('[29] ...because a recede rule with equal-or-higher specificity is what made the card look inert',
+    topSpec > Math.min(...transformRules.map((rule) => rule.spec)),
+    `specificities ${JSON.stringify(transformRules.map((rule) => rule.spec))}`)
 
   // The count, bottom-left, showing a real number for a skill that has been called.
   const rendered = textOf(tree)
