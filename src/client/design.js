@@ -704,7 +704,7 @@ const DESIGN = Object.freeze([
   D('release-dot', 'btn', '.sr-release-dot', { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 999, background: 'var(--sr-accent)', boxShadow: '0 0 0 1.5px var(--sr-card)' },
     'a 6px accent dot on the check button, ringed in the card colour so it reads on any surface'),
   D('release-note', 'frame', '.sr-release-note', { fontSize: 12, fontWeight: 600, letterSpacing: '.02em', color: 'var(--sr-accent)', whiteSpace: 'nowrap' },
-    'the header has room to SAY "可更新 4.1.0" instead of making the user hover to find out'),
+    'the header has room to SAY "可更新 4.2.0" instead of making the user hover to find out'),
   D('release-note-ok', 'frame', '.sr-release-note--ok', { color: 'var(--sr-ok)' },
     '"已是最新" is good news and wears the success colour, not the accent'),
 

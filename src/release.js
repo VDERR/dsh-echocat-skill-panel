@@ -163,7 +163,7 @@ export function createReleaseChecker({ version = VERSION, fetchImpl, allowNetwor
       const rawTag = github.ok === true && typeof github.body?.tag_name === 'string' ? github.body.tag_name : ''
       // Normalised for COMPARISON and for display: `compareVersions` tolerates a leading
       // `v`, but the panel shows this string next to the running version, and
-      // "有新版本 v4.1.0（当前 4.0.0）" mixes two conventions in one sentence.
+      // "有新版本 v4.2.0（当前 4.0.0）" mixes two conventions in one sentence.
       const tagVersion = rawTag.replace(/^v/iu, '')
       // Prefer whichever source reports the HIGHER version: a release can be tagged before
       // the package is published, and the user wants to know about the newer of the two.
