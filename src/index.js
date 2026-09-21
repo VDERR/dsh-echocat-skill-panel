@@ -548,10 +548,28 @@ async function listSkills({ skills, agents, sessionId, logger, translate, root =
     // `provenance` parameter already established the right seam for exactly this reason.
     const skillsRoot = typeof root === 'string' ? root : ''
     const underRoot = (dir) => {
-      if (skillsRoot === '' || dir === '') return true
+      if (skillsRoot === '' || dir === '') return false
       const a = resolve(skillsRoot)
       const b = resolve(dir)
       return b === a || b.startsWith(`${a}${sep}`)
+    }
+    /**
+     * Is this skill the user's own?
+     *
+     * The service reports which LAYER a skill came from, and that is the authoritative signal — a plugin can
+     * register a skill at runtime with no file behind it at all, which is exactly what
+     * `@wxg-prc-cpg/browser-skill-dsh-plugin` does (`skills.register({ name: 'browser-skill', source:
+     * 'bundled' })`, with no path). A rule that only inspects the filesystem cannot see that skill, and the
+     * first version of this treated a missing path as "the user's", so the one skill with no path was the one
+     * it got wrong.
+     */
+    const isUserSkill = (skill, dir) => {
+      const source = typeof skill?.source === 'string' ? skill.source : ''
+      // Anything the service attributes to a non-user layer is not the user's, whatever it says about paths.
+      if (source !== '' && source !== 'user-dsh' && source !== 'user-agents' && source !== 'custom') return false
+      // And with no usable path, it cannot be shown to be the user's either — so it is not claimed as theirs.
+      if (dir === '') return false
+      return underRoot(dir)
     }
     const mapped = (snapshot.skills ?? [])
       .map((skill) => {
@@ -598,20 +616,25 @@ async function listSkills({ skills, agents, sessionId, logger, translate, root =
           /**
            * WHERE this skill lives, so the panel can say so.
            *
-           * `location: 'plugin'` means the directory is NOT under the user's own skills root, which in
-           * practice means a PLUGIN shipped it: DSH's skill service folds a plugin's bundled skills into
-           * the same list as the user's own, so the catalogue was showing "browser-skill",
-           * "cordis-plugin-development", "editing-cordis-compositions" and "openviking-memory" as though
-           * the user had installed them. They are real, loadable skills and belong in the list — deleting
-           * one is impossible and the panel must not pretend otherwise — but the user has to be able to
-           * tell which are theirs.
+           * `location: 'plugin'` means DSH reports the skill as something other than the user's own, which in
+           * practice means a PLUGIN shipped it. The service folds a plugin's skills into the same list as the
+           * user's, so the catalogue was showing "browser-skill", "cordis-plugin-development",
+           * "editing-cordis-compositions" and "openviking-memory" as though they had been installed here.
            *
-           * Decided by PATH rather than by a name list, because the service reports `source: 'bundled'`
-           * for its own directory and the host does not forward that field. "Is it under the root this
-           * plugin writes to" is the same question the installer already answers, and it stays correct
-           * when a new plugin ships a new skill.
+           * TWO signals, and BOTH are needed:
+           *
+           *   * `source` — the layer the service says the skill came from. `@wxg-prc-cpg` registers
+           *     `browser-skill` with `source: 'bundled'` and NO path, because it is a runtime REGISTRATION
+           *     rather than a file. A path-only rule cannot see it at all.
+           *   * the path — for a skill that IS a file, "is its directory under the root this plugin manages"
+           *     is the question the installer already answers, and it stays correct when a new plugin ships a
+           *     new skill.
+           *
+           * The first version used the path ALONE and treated an absent one as the user's, which is precisely
+           * backwards for the one skill that has no path — so `browser-skill` came back 'user', which is the
+           * bug the owner reported twice.
            */
-          location: underRoot(folder) ? 'user' : 'plugin',
+          location: isUserSkill(skill, folder) ? 'user' : 'plugin',
           modifiedAt: dirMtime(folder),
           displayNameZh: folder === '' ? '' : yamlScalar(join(folder, 'meta.yaml'), 'display-name-zh'),
           tag: folder === '' ? '' : yamlScalar(join(folder, 'meta.yaml'), 'tag-cn'),

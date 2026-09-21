@@ -4,7 +4,7 @@
 // stands up a real cordis Context with a recording `connection` service, mounts
 // the real plugin, feeds the real session-event stream, and then invokes the
 // registered handler exactly as the connection service would. The only fake is
-// the connection service itself — everything else is the shipping code path.
+// the connection service itself 鈥?everything else is the shipping code path.
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { join } from 'node:path'
@@ -202,19 +202,30 @@ console.log('\n[5] the installed-skill list')
     { name: 'gpt-image', description: '\u51fa\u56fe', invocation: { modelInvocable: true } },
     { name: 'manual-only', description: '\u4ec5\u624b\u52a8', invocation: { modelInvocable: false } },
     {
-      // A skill that ships inside a PLUGIN package. DSH's skill service folds these into the same list as
-      // the user's own, so the catalogue showed "browser-skill" and friends as though they had been
-      // installed here. The `path` is what distinguishes them: it is not under the root this plugin manages.
+      // A skill a plugin REGISTERS AT RUNTIME, with no file behind it. `@wxg-prc-cpg/browser-skill-dsh-plugin`
+      // does exactly this 鈥?`skills.register({ name: 'browser-skill', source: 'bundled' })`, no path 鈥?and the
+      // first version of the attribution rule treated a MISSING path as "the user's", so the one skill with no
+      // path was the one it got wrong. That is the bug the owner reported twice.
+      name: 'registered-one',
+      description: '\u8fd0\u884c\u65f6\u6ce8\u518c',
+      source: 'bundled',
+      invocation: { modelInvocable: true },
+    },
+    {
+      // A skill that ships inside a PLUGIN package as a FILE: `source` says so, and the path confirms it is
+      // not under the root this plugin manages. Both signals are covered, which is why there are two fixtures.
       name: 'bundled-one',
       description: '\u63d2\u4ef6\u81ea\u5e26',
+      source: 'bundled',
       path: join('C:\\somewhere\\else\\node_modules\\a-plugin\\skills\\bundled-one', 'SKILL.md'),
       invocation: { modelInvocable: true },
     },
     {
-      // And one that IS under the managed root, so the attribution is proved to be per-skill rather than a
-      // blanket 'plugin' for everything the service reports.
+      // And one that IS the user's, so the attribution is proved per-skill rather than being a blanket
+      // 'plugin' for everything the service reports.
       name: 'mine',
       description: '\u81ea\u5df1\u88c5\u7684',
+      source: 'user-dsh',
       path: join('C:\\Users\\Administrator\\.dsh-beta\\skills\\mine', 'SKILL.md'),
       invocation: { modelInvocable: true },
     },
@@ -228,7 +239,7 @@ console.log('\n[5] the installed-skill list')
   new Skills(withSkills, summaries())
   withSkills.logger = { info: () => {}, warn: () => {} }
   // `skillsRoot` is passed explicitly. Attribution is decided by asking whether a skill's directory sits
-  // under the root this plugin manages, and with no root configured every skill comes back 'user' — which is
+  // under the root this plugin manages, and with no root configured every skill comes back 'user' 鈥?which is
   // the safe default and is exactly why the fixture has to state the root for the check to mean anything.
   const rootWarnings = []
   withSkills.logger = { info: () => {}, warn: (m) => rootWarnings.push(String(m)) }
@@ -236,7 +247,7 @@ console.log('\n[5] the installed-skill list')
   await settle()
   const skillsRoute = withSkills.connection.routes[0]
   const payload = await (await skillsRoute.fetch(new Request('http://dsh.internal' + skillsRoute.path))).json()
-  ok('the payload carries the installed skills', Array.isArray(payload.skills) && payload.skills.length === 4, JSON.stringify(payload.skills.map((s) => s.name)))
+  ok('the payload carries the installed skills', Array.isArray(payload.skills) && payload.skills.length === 5, JSON.stringify(payload.skills.map((s) => s.name)))
   ok('a nameless summary is dropped', payload.skills.every((s) => s.name !== ''))
   ok('descriptions survive', payload.skills[0]?.description === '\u51fa\u56fe', JSON.stringify(payload.skills[0]))
   ok('modelInvocable is carried through', payload.skills.find((s) => s.name === 'manual-only')?.modelInvocable === false)
@@ -250,14 +261,21 @@ console.log('\n[5] the installed-skill list')
   ok('...and one inside it is attributed to the user',
     payload.skills.find((s) => s.name === 'mine')?.location === 'user',
     JSON.stringify(payload.skills.find((s) => s.name === 'mine')?.location))
+  // THE case that shipped broken: a skill a plugin REGISTERS at runtime has no path, and treating a missing
+  // path as "the user's" made exactly that skill come back 'user'. Asserted on its own so a regression cannot
+  // hide behind the two fixtures that do have paths.
+  ok('a skill with NO path is not claimed as the user\'s',
+    payload.skills.find((s) => s.name === 'registered-one')?.location === 'plugin',
+    `location=${JSON.stringify(payload.skills.find((s) => s.name === 'registered-one')?.location)} ` +
+      `dir=${JSON.stringify(payload.skills.find((s) => s.name === 'registered-one')?.dir)}`)
   ok('...so the two are not all labelled the same',
     new Set(payload.skills.map((s) => s.location)).size >= 1 && payload.skills.some((s) => s.location === 'user'))
   ok('the usage report is unaffected', payload.turns === 0 && Array.isArray(payload.recent))
 
   // The real host provides `skills` from a plugin mounted ELSEWHERE in the tree,
   // not from a service constructed on the same context. Resolution must not depend
-  // on that — resolving it with ctx.get() from the connection inject child came
-  // back undefined exactly here, which showed up as "已安装 skill（0）".
+  // on that 鈥?resolving it with ctx.get() from the connection inject child came
+  // back undefined exactly here, which showed up as "宸插畨瑁?skill锛?锛?.
   const nested = new Context()
   new Sessions(nested)
   new Connection(nested)
@@ -274,11 +292,11 @@ console.log('\n[5] the installed-skill list')
   const nestedRoute = nested.connection.routes[0]
   const nestedPayload = await (await nestedRoute.fetch(new Request('http://dsh.internal' + nestedRoute.path))).json()
   ok('skills resolve when provided by a plugin elsewhere in the tree',
-    nestedPayload.skills.length === 4, JSON.stringify(nestedPayload.skills))
+    nestedPayload.skills.length === 5, JSON.stringify(nestedPayload.skills))
 
   // Scope: the desktop composition disables the HOST skill-filesystem row, so an
   // unscoped snapshot legitimately returns nothing. The panel must pass the scope
-  // whose layer chain owns local discovery — the agent, exactly as dsh-tool-skill does.
+  // whose layer chain owns local discovery 鈥?the agent, exactly as dsh-tool-skill does.
   {
     const scoped = new Context()
     new Sessions(scoped)
