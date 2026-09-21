@@ -38,3 +38,8 @@ tools/preview-*.png
 # shipped.
 
 dist/
+
+# `npm pack` output. Regenerable in seconds, and the copies that matter are the tarball on npm and the
+# asset attached to the GitHub Release. It was never committed, but it showed up as untracked noise
+# after every release, which is how a real untracked change gets missed.
+*.tgz
