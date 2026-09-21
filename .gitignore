@@ -36,3 +36,5 @@ tools/preview-*.png
 # commit the rebuilt bundle in the SAME commit. `verify-install.mjs` fails when the
 # bundle does not match the package, so a forgotten rebuild is caught rather than
 # shipped.
+
+dist/
