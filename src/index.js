@@ -958,6 +958,8 @@ function mount(ctx, config) {
       connectionCtx.effect(() => {
         const disposers = []
         try {
+          // Remembers the last logged attribution so the polled route does not repeat itself every few seconds.
+          let lastDiagnosticSignature = ''
           const dispose = connectionCtx.connection.fetch.register({
             path,
             methods: ['GET', 'HEAD'],
@@ -1062,6 +1064,23 @@ function mount(ctx, config) {
                   release: { ...releases.base, cached: releases.peek() },
                   ...store.snapshot(),
                 })
+                /**
+                 * Write the attribution evidence to the host log, once per CHANGE.
+                 *
+                 * The state route is polled every few seconds, so this must not log per request — it compares a
+                 * signature and only speaks when the catalogue's shape changes. That turns "which skills are
+                 * attributed to a plugin, and on what evidence" into something readable from
+                 * `<appdata>/DSH Desktop Beta/logs/host/dsh-<date>.log` by whoever is debugging, including an agent
+                 * with no browser. Three rounds of this were fixed by inference while the service's own answer sat
+                 * unread; a line in the log is what makes that impossible to repeat.
+                 */
+                const signature = skillDiagnostics.map((d) => `${d.name}:${d.source}:${d.hasPath}:${d.location}`).join('|')
+                if (signature !== lastDiagnosticSignature) {
+                  lastDiagnosticSignature = signature
+                  const rows = skillDiagnostics.map((d) => `${d.name}=${d.location}(${d.source}${d.hasPath ? '' : ',no-path'})`)
+                  ctx.logger?.info?.(`skill-report: skills root ${(allowInstall === true ? installer().capability().root : '') || '(unknown)'}`)
+                  ctx.logger?.info?.(`skill-report: attribution ${rows.join(' ')}`)
+                }
               } catch (error) {
                 return Response.json({ error: String(error?.message ?? error) }, { status: 500 })
               }
