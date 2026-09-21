@@ -60,68 +60,64 @@ const D = (id, group, at, props, why, extra = {}) => ({ id, group, at, props, wh
 const DESIGN = Object.freeze([
   /* ============================ 1. tokens ============================ */
   //
-  // THE PALETTE IS VAPOR CHROME, from the reference card the user supplied: a Y2K periwinkle-aqua
-  // system built on #818CF8 (periwinkle, the 主色), #67E8F9 (aqua), #A5F3FC (ice) and #C4B5FD (lilac).
-  // It replaces the Bondi Blue scale, and the reasoning that chose that one still holds — separate the
-  // surfaces by TEMPERATURE as well as luminance, and keep the steps far enough apart that a card reads
-  // as a card without a border doing the work. Only the hue family changed again.
+  // NEUTRAL TOOL PALETTE, at the owner's request: "去掉老旧粗糙感，改成现代、精致、紧凑的工具面板风格".
   //
-  // The card's own tones are DISPLAY weights. Contrast is re-solved after every palette swap rather
-  // than assumed: three of the four reference colours are too light to carry text, so the accent and the
-  // inks are computed to clear AA on the surfaces they actually sit on.
-  D('color-canvas', 'token', '{root}', { '--sr-canvas': '#f6f7fe' },
-    'a periwinkle-tinted near-white: it separates from a white card by temperature, not only brightness'),
+  // It replaces Vapor Chrome (a periwinkle-aqua Y2K system) and Bondi Blue before it. Both were built to
+  // separate surfaces by TEMPERATURE; this one deliberately does not. The brief names exact values — a
+  // low-saturation grey canvas, white surfaces, near-black neutral ink and ONE blue — and a tinted canvas is
+  // what made the panel read as decorative rather than as a tool. Neutral surfaces plus a single accent is the
+  // convention every current tool UI shares, and it is what "现代" means here in practice.
+  //
+  // Contrast is still SOLVED rather than assumed. Every ink below is checked against the surface it actually
+  // sits on, because the failure mode of a neutral palette is a grey that looks tasteful on white and fails on
+  // the sunken step.
+  D('color-canvas', 'token', '{root}', { '--sr-canvas': '#f5f5f7' },
+    'the low-saturation grey the brief names: it separates from a white card by LIGHTNESS alone, which is what keeps the surface neutral'),
   D('color-card', 'token', '{root}', { '--sr-card': '#ffffff' },
-    'the panel surface itself, one deliberate step above the canvas — the card\'s white band'),
-  D('color-raised', 'token', '{root}', { '--sr-raised': '#f1f3fd' },
-    'cards and inputs: a cool step ~5% from white, so a card reads as a card'),
-  D('color-sunken', 'token', '{root}', { '--sr-sunken': '#e8ebfa' },
-    'tracks, wells and code: the only place that goes BELOW the surface, and visibly so'),
-  D('color-fill', 'token', '{root}', { '--sr-fill': 'rgba(30,32,72,.055)' },
-    'hover fills are the ink at low alpha, so they tint toward the palette instead of greying it'),
-  D('color-fill2', 'token', '{root}', { '--sr-fill2': 'rgba(30,32,72,.03)' },
-    'the faintest wash, for large quiet areas'),
-  D('color-line', 'token', '{root}', { '--sr-line': 'color-mix(in srgb, #1e2048 12%, transparent)' },
-    'hairline derived from the ink colour, so it is the right weight on every surface'),
-  D('color-line2', 'token', '{root}', { '--sr-line2': 'color-mix(in srgb, #1e2048 22%, transparent)' },
-    'the stronger hairline, for hover edges and control borders'),
-  D('color-ink', 'token', '{root}', { '--sr-ink-base': '#1e2048' },
-    'the ink the hairlines and fills derive from: the card\'s periwinkle family, taken to a near-black indigo'),
-  D('color-fg', 'token', '{root}', { '--sr-fg': '#1e2048' },
-    'primary text at 13.1:1 on white — the reference card has no ink of its own, so this is that family'),
-  D('color-ink2', 'token', '{root}', { '--sr-fg2': '#4c5178' },
-    'secondary text, readable at 11.5px rather than merely present'),
-  D('color-ink3', 'token', '{root}', { '--sr-fg3': '#62678c' },
-    'tertiary text clears AA on the SUNKEN step as well as white, which is the surface that constrains it'),
-  D('color-accent', 'token', '{root}', { '--sr-accent': '#4f46c8' },
-    'the card\'s periwinkle #818CF8 deepened until it clears AA BOTH as text on white and for white on top of it. The reference colour is kept as --sr-display for fills and graphics'),
+    'the panel surface itself: the one true white in the system, so white always means "content"'),
+  D('color-raised', 'token', '{root}', { '--sr-raised': '#fafafa' },
+    'raised fills a hair above the card, for a row that needs to sit ON white without a border doing the work'),
+  D('color-sunken', 'token', '{root}', { '--sr-sunken': '#ececee' },
+    'tracks, wells and code blocks: the only step BELOW the canvas, and it is the surface the tertiary ink is solved against — which is why it is a shade deeper than the first draft, so a 6px track is visible against the canvas while small print on it still clears AA'),
+  D('color-fill', 'token', '{root}', { '--sr-fill': 'rgba(29,29,31,.05)' },
+    'hover fills are the INK at low alpha, so every wash belongs to the text colour instead of to a hue of its own'),
+  D('color-fill2', 'token', '{root}', { '--sr-fill2': 'rgba(29,29,31,.028)' },
+    'the faintest wash, for large quiet areas — zebra rows and disabled surfaces'),
+  D('color-line', 'token', '{root}', { '--sr-line': '#e5e7eb' },
+    'THE hairline, in the value the brief names. A flat neutral rather than a mix of the ink, so it stays 1px-pale on every surface instead of darkening over the sunken step'),
+  D('color-line2', 'token', '{root}', { '--sr-line2': '#d1d5db' },
+    'the stronger hairline, for a hover edge and a control border that has to be seen'),
+  D('color-ink', 'token', '{root}', { '--sr-ink-base': '#1d1d1f' },
+    'the ink the fills derive from: the primary text colour, so every wash tints toward the text'),
+  D('color-fg', 'token', '{root}', { '--sr-fg': '#1d1d1f' },
+    'primary text. 15.4:1 on white — NOT pure black, which the brief forbids and which reads as a default rather than a choice'),
+  D('color-ink2', 'token', '{root}', { '--sr-fg2': '#4b5563' },
+    'secondary text: 7.6:1 on white and 6.6:1 on the sunken step, so it is AA everywhere rather than only where it was checked'),
+  D('color-ink3', 'token', '{root}', { '--sr-fg3': '#646973' },
+    'tertiary text. The brief names #6b7280 for the secondary grey, and it FAILS as text on this palette: it measures 4.25:1 on the sunken step, under AA. That is not a matter of taste — solving for the background that would make it pass gives a NEGATIVE luminance, i.e. no light surface can satisfy it, so the ink is what has to move. #646973 is the nearest step that clears AA on every surface this panel puts small print on (sunken 4.84, white 5.51) while staying visibly lighter than the secondary ink above it'),
+  D('color-accent', 'token', '{root}', { '--sr-accent': '#2563eb' },
+    'the single accent the brief allows, for primary actions and selected state and nothing else. 5.2:1 as text on white AND 5.2:1 for white on top of it, so one value serves both directions'),
   D('color-accent-ink', 'token', '{root}', { '--sr-accent-ink': '#ffffff' },
-    'the ink that sits ON the accent; white clears AA on this accent, which is what the solver checked'),
-  D('color-accent-weak', 'token', '{root}', { '--sr-accent-weak': 'color-mix(in srgb, var(--sr-accent) 12%, transparent)' },
+    'the ink that sits ON the accent; white clears AA on this blue, which is why one accent value is enough'),
+  D('color-accent-weak', 'token', '{root}', { '--sr-accent-weak': 'color-mix(in srgb, var(--sr-accent) 10%, transparent)' },
     'tinted fills follow the accent automatically instead of being a second hardcoded rgba'),
-  D('color-accent-line', 'token', '{root}', { '--sr-accent-line': 'color-mix(in srgb, var(--sr-accent) 36%, transparent)' },
+  D('color-accent-line', 'token', '{root}', { '--sr-accent-line': 'color-mix(in srgb, var(--sr-accent) 32%, transparent)' },
     'the accent as a border weight, for selected and pending states'),
-  D('color-display', 'token', '{root}', { '--sr-display': '#818cf8' },
-    'the CARD\'S OWN 主色, kept for fills and large shapes where AA-as-text does not apply. Dropping it would have lost the colour actually asked for'),
-  D('color-display-aqua', 'token', '{root}', { '--sr-display-aqua': '#67e8f9' },
-    'the card\'s aqua, used with the periwinkle for the two-colour gradient the reference leads with'),
-  D('color-display-ice', 'token', '{root}', { '--sr-display-ice': '#a5f3fc' },
-    'and its ice tone, for the lightest end of a wash'),
-  D('color-display-lilac', 'token', '{root}', { '--sr-display-lilac': '#c4b5fd' },
-    'and the lilac, for the warm end of the same family'),
-  D('color-danger', 'token', '{root}', { '--sr-danger': '#be123c' },
-    'a deep rose-red: the palette is cool throughout, so the error tone is pulled toward magenta rather than being a pure signal red'),
-  D('color-danger-weak', 'token', '{root}', { '--sr-danger-weak': 'color-mix(in srgb, var(--sr-danger) 10%, transparent)' },
+  D('color-display', 'token', '{root}', { '--sr-display': '#2563eb' },
+    'the accent again, under the name the graphics already use for it. Kept as an alias rather than duplicated so a large fill and a button cannot drift apart'),
+  D('color-danger', 'token', '{root}', { '--sr-danger': '#c81e1e' },
+    'a plain red rather than the old rose-red, and one step darker than the brief\'s #dc2626: that value measures 4.24:1 on the sunken step, under AA, and this panel puts destructive text on it. #c81e1e clears AA on every surface (sunken 5.04, white 5.74) while still reading as a signal red'),
+  D('color-danger-weak', 'token', '{root}', { '--sr-danger-weak': 'color-mix(in srgb, var(--sr-danger) 9%, transparent)' },
     'destructive fills, kept quiet: delete is available, not urgent'),
-  D('color-ok', 'token', '{root}', { '--sr-ok': '#0f766e' },
-    'a teal-leaning green, so "everything is fine" belongs to the same cool family as the accent'),
-  D('color-ok-weak', 'token', '{root}', { '--sr-ok-weak': 'color-mix(in srgb, var(--sr-ok) 10%, transparent)' },
+  D('color-ok', 'token', '{root}', { '--sr-ok': '#0e7c5a' },
+    'a standard green, one step darker than the brief\'s #059669 for the same reason as the danger: 3.31:1 on the sunken step is not readable, and success text appears in the rail and on cards. #0e7c5a clears AA on all four surfaces'),
+  D('color-ok-weak', 'token', '{root}', { '--sr-ok-weak': 'color-mix(in srgb, var(--sr-ok) 9%, transparent)' },
     'success fills, same construction as the others'),
-  D('color-warn', 'token', '{root}', { '--sr-warn': '#b45309' },
-    'amber: the "no skill this turn" signal is informational and must not look like an error'),
-  D('color-warn-weak', 'token', '{root}', { '--sr-warn-weak': 'color-mix(in srgb, var(--sr-warn) 11%, transparent)' },
-    'its weak companion, for the chip the plugin exists to show'),
-  D('color-scrim', 'token', '{root}', { '--sr-scrim': 'rgba(19,20,26,.34)' },
+  D('color-warn', 'token', '{root}', { '--sr-warn': '#92400e' },
+    'amber-darkened. The brief\'s #d97706 is 2.80:1 on the sunken step, and this is the plugin\'s CORE signal — the amber chip that says no skill was used this turn — so it has to be readable, not merely warm. #92400e is the deepest step of the same amber family and clears AA everywhere'),
+  D('color-warn-weak', 'token', '{root}', { '--sr-warn-weak': 'color-mix(in srgb, var(--sr-warn) 10%, transparent)' },
+    'its weak companion, for the chip the plugin exists to show. As a FILL it stays light: the raw hue is what a tinted background wants, and only the text-bearing token had to move'),
+  D('color-scrim', 'token', '{root}', { '--sr-scrim': 'rgba(17,17,19,.32)' },
     'the modal scrim: dark enough to isolate, light enough to keep context'),
 
   /* ============================ 2. type ============================ */
@@ -176,19 +172,27 @@ const DESIGN = Object.freeze([
     'the modal is where a form lives; generous padding is what makes it look considered'),
 
   /* ============================ 4. depth ============================ */
-  D('depth-raise', 'depth', '{root}', { '--sr-e1': '0 1px 1px rgba(19,20,26,.04), 0 2px 4px -2px rgba(19,20,26,.06)' },
-    'elevation 1 is a STACK of two low-alpha layers; one dark blur reads as dirt, not depth'),
-  D('depth-hover', 'depth', '{root}', { '--sr-e2': '0 2px 4px -1px rgba(19,20,26,.06), 0 8px 16px -8px rgba(19,20,26,.14)' },
-    'elevation 2 is directional: it grows downward, the way a lifted object casts'),
-  D('depth-overlay', 'depth', '{root}', { '--sr-e3': '0 4px 8px -2px rgba(19,20,26,.08), 0 24px 48px -16px rgba(19,20,26,.24)' },
-    'elevation 3 is for the modal, which floats above everything and must say so'),
-  D('depth-ring', 'depth', '{root}', { '--sr-ring': '0 0 0 1px color-mix(in srgb, #111113 7%, transparent)' },
+  //
+  // FLATTENED, at the owner's request: "去除浓重的黑阴影". The old scale stacked two low-alpha layers per step and
+  // justified it as depth; on a neutral canvas the stacking is what reads as 老旧粗糙感, because two overlapping
+  // blurs produce a visible dark halo rather than a gradient.
+  //
+  // One shallow layer per step now. Elevation is carried by the SURFACES — canvas grey, card white, hairline
+  // border — and shadow only lifts an element that genuinely floats. This is the same principle the dark palette
+  // already had to follow, for the same reason.
+  D('depth-raise', 'depth', '{root}', { '--sr-e1': '0 1px 2px rgba(17,17,19,.05)' },
+    'elevation 1: one shallow layer. The border and the surface step do the rest of the work'),
+  D('depth-hover', 'depth', '{root}', { '--sr-e2': '0 2px 4px -1px rgba(17,17,19,.07)' },
+    'elevation 2: still one layer, a little lower and a little wider'),
+  D('depth-overlay', 'depth', '{root}', { '--sr-e3': '0 8px 24px -8px rgba(17,17,19,.16)' },
+    'elevation 3 is for the modal, which floats above everything and has to say so — the one place a real shadow earns its keep'),
+  D('depth-ring', 'depth', '{root}', { '--sr-ring': '0 0 0 1px rgba(17,17,19,.06)' },
     'a 1px ring as a shadow: it follows the border radius exactly, which a border cannot do on a hover state'),
-  D('depth-accent-glow', 'depth', '{root}', { '--sr-glow': '0 1px 2px color-mix(in srgb, var(--sr-accent) 34%, transparent)' },
-    'the accent button casts a coloured shadow; a neutral one makes a primary action look flat'),
+  D('depth-accent-glow', 'depth', '{root}', { '--sr-glow': 'none' },
+    'the accent button casts NO shadow. A coloured glow under a primary action is the single clearest tell of an older interface, and the flat fill is what makes the one accent colour read as deliberate'),
 
   /* ============================ 5. frame ============================ */
-  D('frame-radius', 'frame', '.sr-root', { borderRadius: 16 },
+  D('frame-radius', 'frame', '.sr-root', { borderRadius: 8 },
     '16px: large surfaces need a larger radius or they look like boxes with rounded corners'),
   D('frame-border', 'frame', '.sr-root', { borderColor: 'color-mix(in srgb, #111113 8%, transparent)' },
     'the frame hairline is lighter than a card border: the shadow does the separating'),
@@ -208,11 +212,11 @@ const DESIGN = Object.freeze([
     'the footer carries numbers, so it gets slightly more opacity than the header'),
   D('frame-foot-blur', 'frame', '.sr-foot', { WebkitBackdropFilter: 'saturate(1.6) blur(10px)', backdropFilter: 'saturate(1.6) blur(10px)' },
     'same treatment as the header; the two sticky bands must match'),
-  D('frame-title-size', 'frame', '.sr-title', { fontSize: 13, fontWeight: 600, letterSpacing: '-.01em' },
+  D('frame-title-size', 'frame', '.sr-title', { fontSize: 14, fontWeight: 600, letterSpacing: '-.01em' },
     'the panel title is a heading and was set at 12.5px like a label'),
-  D('frame-status-size', 'frame', '.sr-status', { fontSize: 10.5, letterSpacing: '.005em' },
+  D('frame-status-size', 'frame', '.sr-status', { fontSize: 12, letterSpacing: '.005em' },
     'the freshness readout is metadata and should be quiet but not microscopic'),
-  D('frame-foot-size', 'frame', '.sr-foot', { fontSize: 10.5 },
+  D('frame-foot-size', 'frame', '.sr-foot', { fontSize: 11 },
     'one step up: 10px in a footer was unreadable at a glance'),
   D('frame-fade-t', 'frame', '.sr-fade--t', { height: 14, background: 'linear-gradient(var(--sr-card), color-mix(in srgb, var(--sr-card) 0%, transparent))' },
     'a taller fade that resolves to true transparency, so it works over the blurred header'),
@@ -224,15 +228,15 @@ const DESIGN = Object.freeze([
     'the conclusion gets its own surface: it is the answer the panel exists to give'),
   D('hero-border', 'hero', '.sr-hero', { borderColor: 'color-mix(in srgb, #111113 8%, transparent)' },
     'a lighter edge, because the fill already separates it'),
-  D('hero-radius', 'hero', '.sr-hero', { borderRadius: 14 },
+  D('hero-radius', 'hero', '.sr-hero', { borderRadius: 8 },
     'one step inside the frame radius, so corners nest concentrically'),
-  D('hero-rail', 'hero', '.sr-hero:before', { width: 3, background: 'linear-gradient(var(--sr-accent), color-mix(in srgb, var(--sr-accent) 45%, transparent))' },
-    'the accent rail graduates to transparent: a flat 3px bar reads as a rendering artifact'),
-  D('hero-rail-inset', 'hero', '.sr-hero:before', { left: 0, borderTopLeftRadius: 14, borderBottomLeftRadius: 14 },
+  D('hero-rail', 'hero', '.sr-hero:before', { width: 3, background: 'var(--sr-accent)' },
+    'a FLAT accent rail. The gradient was added because a flat 3px bar "reads as a rendering artifact" — what actually read that way was a bar with no radius sitting in a square corner, which is fixed below by matching the card corner instead of fading the colour out'),
+  D('hero-rail-inset', 'hero', '.sr-hero:before', { left: 0, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
     'clipped to the card radius so the rail never leaves the corner'),
-  D('hero-meta-size', 'hero', '.sr-hero-meta', { fontSize: 10.5, letterSpacing: '.01em', color: 'var(--sr-fg3)' },
+  D('hero-meta-size', 'hero', '.sr-hero-meta', { fontSize: 12, letterSpacing: '.01em', color: 'var(--sr-fg3)' },
     'the timestamp line under the headline is metadata and should look like it'),
-  D('hero-empty-size', 'hero', '.sr-hero-empty', { fontSize: 13, lineHeight: 1.45, color: 'var(--sr-fg2)' },
+  D('hero-empty-size', 'hero', '.sr-hero-empty', { fontSize: 12, lineHeight: 1.45, color: 'var(--sr-fg2)' },
     'a sentence the user must actually read, not a 12px whisper'),
   D('hero-line-gap', 'hero', '.sr-hero-line', { gap: 'calc(var(--sr-u) * 1.5)' },
     'the skill chips wrap on a narrow panel and need consistent gutters'),
@@ -242,7 +246,7 @@ const DESIGN = Object.freeze([
     'stat cells are cards, not filled rectangles: the raised fill made them look disabled'),
   D('stat-border', 'stat', '.sr-stat', { borderColor: 'color-mix(in srgb, #111113 9%, transparent)' },
     'a visible hairline, since the fill is now the same as the panel'),
-  D('stat-radius', 'stat', '.sr-stat', { borderRadius: 12 },
+  D('stat-radius', 'stat', '.sr-stat', { borderRadius: 8 },
     'smaller blocks take smaller radii; matching the hero would look inflated'),
   D('stat-pad', 'stat', '.sr-stat', { padding: 'calc(var(--sr-u) * 2.5) calc(var(--sr-u) * 3)' },
     'each cell needs room for a 26px number and a label beside it'),
@@ -254,7 +258,7 @@ const DESIGN = Object.freeze([
     'a big tabular number: this is the single largest visual change, and the one that creates hierarchy'),
   D('stat-value-num', 'stat', '.sr-stat-v', { fontVariantNumeric: 'tabular-nums' },
     'so a counter going 9 -> 10 does not shift the cell'),
-  D('stat-label-size', 'stat', '.sr-stat-l', { fontSize: 10.5, letterSpacing: '.04em', textTransform: 'uppercase', fontWeight: 550 },
+  D('stat-label-size', 'stat', '.sr-stat-l', { fontSize: 12, letterSpacing: '.04em', textTransform: 'uppercase', fontWeight: 550 },
     'micro-labels in caps are what make a big number read as a metric'),
 
   /* ============================ 8. sections ============================ */
@@ -262,7 +266,7 @@ const DESIGN = Object.freeze([
     'section rules are the quietest line in the panel: structure, not content'),
   D('sec-head-pad', 'sec', '.sr-sec-h', { padding: 'calc(var(--sr-u) * 3) calc(var(--sr-u) * 4)' },
     'the header is a click target and needs a real row height'),
-  D('sec-head-size', 'sec', '.sr-sec-h', { fontSize: 10.5, fontWeight: 700, letterSpacing: 'var(--sr-track-loose)' },
+  D('sec-head-size', 'sec', '.sr-sec-h', { fontSize: 12, fontWeight: 700, letterSpacing: 'var(--sr-track-loose)' },
     'bold caps at 10.5px: the standard treatment for a section label that is not a heading'),
   D('sec-head-color', 'sec', '.sr-sec-h', { color: 'var(--sr-fg2)' },
     'ink2 rather than ink3: a section header is structure, and ink3 is for metadata'),
@@ -272,7 +276,7 @@ const DESIGN = Object.freeze([
     'so a sticky section header never shows text sliding beneath it'),
   D('sec-hover-accent', 'sec', '.sr-sec-h:hover', { color: 'var(--sr-fg)', boxShadow: 'inset 2px 0 0 var(--sr-accent)' },
     'the inset accent bar marks WHICH section is hovered, and matches the hero rail language'),
-  D('sec-pill-size', 'sec', '.sr-pill', { fontSize: 10, fontWeight: 600, minWidth: 22, lineHeight: '17px' },
+  D('sec-pill-size', 'sec', '.sr-pill', { fontSize: 11, fontWeight: 600, minWidth: 22, lineHeight: '17px', borderRadius: 8 },
     'a count chip is a number first: semibold and tabular, with a floor on the width'),
   D('sec-pill-bg', 'sec', '.sr-pill', { background: 'var(--sr-sunken)', color: 'var(--sr-fg2)' },
     'sunken rather than filled, so it reads as a counter attached to the label'),
@@ -284,11 +288,11 @@ const DESIGN = Object.freeze([
     'the header action buttons need visible separation or they read as one control'),
 
   /* ============================ 9. buttons ============================ */
-  D('btn-radius', 'btn', '.sr-btn', { borderRadius: 9 },
+  D('btn-radius', 'btn', '.sr-btn', { borderRadius: 8 },
     '9px: pills are for chips. Buttons in a dense tool panel are rectangles with soft corners'),
   D('btn-height', 'btn', '.sr-btn', { lineHeight: '26px', paddingInline: 'calc(var(--sr-u) * 3)' },
     '26px tall: below that a button is not a comfortable click target'),
-  D('btn-size', 'btn', '.sr-btn', { fontSize: 11.5, fontWeight: 550, letterSpacing: '.005em' },
+  D('btn-size', 'btn', '.sr-btn', { fontSize: 12, fontWeight: 550, letterSpacing: '.005em' },
     'one step up and slightly heavier than body: this is the fix for "buttons look like links"'),
   D('btn-border', 'btn', '.sr-btn', { borderColor: 'color-mix(in srgb, #111113 13%, transparent)' },
     'a control border must be visible against the raised fill it sits on'),
@@ -320,9 +324,9 @@ const DESIGN = Object.freeze([
     'an armed destructive button is SOLID: the second click must be unmistakable'),
   D('btn-icon-size', 'btn', '.sr-btn--icon', { width: 28, height: 28, borderRadius: 8 },
     '28px: a 24px icon button is under the comfortable target for a mouse-dense panel'),
-  D('btn-sm-height', 'btn', '.sr-btn--sm', { lineHeight: '22px', fontSize: 10.5, paddingInline: 'calc(var(--sr-u) * 2.25)', borderRadius: 7 },
+  D('btn-sm-height', 'btn', '.sr-btn--sm', { lineHeight: '22px', fontSize: 12, paddingInline: 'calc(var(--sr-u) * 2.25)', borderRadius: 8 },
     'the small variant steps down in all four dimensions together, not only in font size'),
-  D('btn-block-height', 'btn', '.sr-btn--block', { lineHeight: '32px', fontSize: 12, borderRadius: 10 },
+  D('btn-block-height', 'btn', '.sr-btn--block', { lineHeight: '32px', fontSize: 12, borderRadius: 8 },
     'the sheet\'s primary action is a full-width row and should look like one'),
   D('btn-accent-soft', 'btn', '.sr-btn--accent', { background: 'var(--sr-accent-weak)', color: 'var(--sr-accent)', borderColor: 'var(--sr-accent-line)' },
     'the conditional update button: tinted, because it is offered, not demanded'),
@@ -330,7 +334,7 @@ const DESIGN = Object.freeze([
     'and it commits to solid on hover, so the offer is obvious at the moment of intent'),
 
   /* ============================ 10. cards ============================ */
-  D('card-radius', 'card', '.sr-skill', { borderRadius: 14 },
+  D('card-radius', 'card', '.sr-skill', { borderRadius: 8 },
     'one step inside the panel radius: concentric corners are what make nesting look deliberate'),
   D('card-bg', 'card', '.sr-skill', { background: 'var(--sr-card)' },
     'cards are surfaces now, not a fill step'),
@@ -340,15 +344,15 @@ const DESIGN = Object.freeze([
     'the same elevation as a stat cell and a button: one system, three components'),
   D('card-hover', 'card', '.sr-skill:hover', { background: 'var(--sr-card)', borderColor: 'var(--sr-line2)', boxShadow: 'var(--sr-e2)', transform: 'translateY(-1px)' },
     'hover raises rather than tints, which is what makes a grid feel alive'),
-  D('card-avatar-size', 'card', '.sr-avatar', { width: 30, height: 30, borderRadius: 9, fontSize: 13, fontWeight: 650 },
+  D('card-avatar-size', 'card', '.sr-avatar', { width: 30, height: 30, borderRadius: 8, fontSize: 12, fontWeight: 650 },
     'a 30px tile with a 13px initial: the old 26px tile made every card look like a table row'),
   D('card-avatar-ring', 'card', '.sr-avatar', { boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.28), var(--sr-e1)' },
     'an inner ring plus the raise, so a saturated tile does not look printed on the card'),
-  D('card-name-size', 'card', '.sr-skill-name', { fontSize: 12, fontWeight: 600, letterSpacing: 'var(--sr-track-tight)' },
+  D('card-name-size', 'card', '.sr-skill-name', { fontSize: 14, fontWeight: 600, letterSpacing: 'var(--sr-track-tight)' },
     '12px semibold: the card title must outrank its own body text, and at 11.5/500 it did not'),
-  D('card-slug-size', 'card', '.sr-skill-slug', { fontSize: 10.5, letterSpacing: '.02em' },
+  D('card-slug-size', 'card', '.sr-skill-slug', { fontSize: 12, letterSpacing: '.02em' },
     'the slug is an identifier: mono, letterspaced, and clearly secondary'),
-  D('card-blurb-size', 'card', '.sr-blurb', { fontSize: 11.5, lineHeight: 1.5, color: 'var(--sr-fg2)' },
+  D('card-blurb-size', 'card', '.sr-blurb', { fontSize: 13, lineHeight: 1.5, color: 'var(--sr-fg2)' },
     'body text on a card gets a readable size and leading; two clamped lines must not look squeezed'),
   D('card-blurb-lead', 'card', '.sr-blurb', { marginTop: 'var(--sr-u-half)' },
     'a half-step of separation from the title, so the card has internal rhythm'),
@@ -364,55 +368,55 @@ const DESIGN = Object.freeze([
     'the hover still gives them a hit area, which is why they can afford to be frameless'),
 
   /* ============================ 11. meta ============================ */
-  D('tag-size', 'meta', '.sr-tag', { fontSize: 10, fontWeight: 550, lineHeight: '17px', letterSpacing: '.01em' },
-    'tags are micro-labels: slightly heavier and letterspaced so they read at 10px'),
+  D('tag-size', 'meta', '.sr-tag', { fontSize: 11, fontWeight: 550, lineHeight: '17px', letterSpacing: '.01em', borderRadius: 6 },
+    'tags are micro-labels: slightly heavier and letterspaced so they read at 10px. Radius 6 rather than 8, because a 17px-tall chip at 8 is already half-round and reads as a pill again'),
   D('tag-bg', 'meta', '.sr-tag', { background: 'var(--sr-sunken)', borderColor: 'transparent', color: 'var(--sr-fg2)' },
     'sunken, not outlined: a row of outlined chips looks like a form'),
   D('tag-used', 'meta', '.sr-tag--used', { background: 'var(--sr-accent-weak)', color: 'var(--sr-accent)', fontWeight: 600 },
     'the one tag that carries good news gets the accent, and semibold with it'),
-  D('badge-size', 'meta', '.sr-badge', { fontSize: 10.5, fontWeight: 550, lineHeight: '20px', paddingInline: 'calc(var(--sr-u) * 2.25)' },
-    'badges sit in the hero and must be legible at a glance'),
+  D('badge-size', 'meta', '.sr-badge', { fontSize: 11, fontWeight: 550, lineHeight: '20px', paddingInline: 'calc(var(--sr-u) * 2.25)', borderRadius: 6 },
+    'badges sit in the hero and must be legible at a glance. Radius 6, the micro-label step'),
   D('badge-user', 'meta', '.sr-badge--user', { background: 'var(--sr-accent-weak)', color: 'var(--sr-accent)' },
     'the "you did this" badge is tinted with the accent rather than grey'),
   D('badge-none', 'meta', '.sr-badge--none', { background: 'var(--sr-warn-weak)', color: 'var(--sr-warn)', fontWeight: 600 },
     'the plugin\'s core signal: amber, semibold, and never the error colour'),
   D('share-track', 'meta', '.sr-share-track', { height: 8, borderRadius: 999, background: 'var(--sr-sunken)', boxShadow: 'none' },
     'a sunken well rather than a bordered bar: the track is a container, not a control'),
-  D('share-fill', 'meta', '.sr-share-fill', { background: 'linear-gradient(90deg, color-mix(in srgb, var(--sr-accent) 55%, transparent), var(--sr-accent))', opacity: 1, borderRadius: 999 },
-    'a gradient fill at full opacity: the old 75%-opacity flat bar looked like a loading state'),
-  D('share-name-size', 'meta', '.sr-share-name', { fontSize: 11.5, fontWeight: 550, letterSpacing: 'var(--sr-track-tight)' },
+  D('share-fill', 'meta', '.sr-share-fill', { background: 'var(--sr-accent)', opacity: 1, borderRadius: 999 },
+    'a FLAT accent fill. The gradient ran from 55% accent to full and was kept because a flat 75%-opacity bar read as a loading state — but the fix for that is opacity, not a gradient, and a two-stop ramp on a 6px bar is invisible detail that reads as a film-era UI'),
+  D('share-name-size', 'meta', '.sr-share-name', { fontSize: 12, fontWeight: 550, letterSpacing: 'var(--sr-track-tight)' },
     'share names are skill slugs and should match the card titles'),
-  D('share-n-size', 'meta', '.sr-share-n', { fontSize: 11, fontWeight: 550, color: 'var(--sr-fg2)' },
+  D('share-n-size', 'meta', '.sr-share-n', { fontSize: 12, fontWeight: 550, color: 'var(--sr-fg2)' },
     'the count beside a bar needs to be readable as a number, not as a footnote'),
   D('share-row-pad', 'meta', '.sr-share', { padding: 'calc(var(--sr-u) * 1.75) 0' },
     'rows need a step more air now that the bar is thicker'),
-  D('seg-track', 'meta', '.sr-seg', { background: 'var(--sr-sunken)', borderColor: 'transparent', borderRadius: 10, padding: 3 },
+  D('seg-track', 'meta', '.sr-seg', { background: 'var(--sr-sunken)', borderColor: 'transparent', borderRadius: 8, padding: 3 },
     'the segmented control is a well with a thumb in it'),
   D('seg-thumb', 'meta', '.sr-seg-ind', { borderRadius: 8, background: 'var(--sr-card)', boxShadow: 'var(--sr-e1)' },
     'the thumb is a raised card: that is what makes the selection readable as a position'),
-  D('seg-btn-size', 'meta', '.sr-seg button', { fontSize: 10.5, lineHeight: '20px', fontWeight: 550, borderRadius: 8 },
+  D('seg-btn-size', 'meta', '.sr-seg button', { fontSize: 13, lineHeight: '20px', fontWeight: 550, borderRadius: 8 },
     'segments step down in every dimension together, like the small button'),
 
   /* ============================ 12. timeline ============================ */
   D('time-rail', 'time', '.sr-time-rail:before', { width: 2, background: 'color-mix(in srgb, #111113 8%, transparent)' },
     'a 2px spine at 8%: a timeline rail is the quietest structure in the panel'),
-  D('time-dot', 'time', '.sr-turn:before', { width: 9, height: 9, borderWidth: 2, borderColor: 'var(--sr-line2)', background: 'var(--sr-card)' },
-    'a 9px dot with a 2px ring: at 7px it read as a speck beside the timestamps'),
+  D('time-dot', 'time', '.sr-turn:before', { width: 9, height: 9, borderWidth: 1, borderColor: 'var(--sr-line2)', background: 'var(--sr-card)' },
+    'a 9px dot with a 1px ring. It was 2px, which the brief removes: a thick ring on a 9px dot is a blob, and the hairline the rest of the sheet uses reads as precision at the same size'),
   D('time-dot-hot', 'time', '.sr-turn--hot:before', { borderColor: 'var(--sr-accent)', background: 'var(--sr-accent)', boxShadow: '0 0 0 3px var(--sr-card)' },
     'a turn that used a skill is filled and ringed, so the timeline is scannable without reading'),
-  D('time-row-pad', 'time', '.sr-turn-h', { padding: 'calc(var(--sr-u) * 1.5) calc(var(--sr-u) * 2)', borderRadius: 9 },
+  D('time-row-pad', 'time', '.sr-turn-h', { padding: 'calc(var(--sr-u) * 1.5) calc(var(--sr-u) * 2)', borderRadius: 8 },
     'rows are click targets and now have a shape and real padding'),
   D('time-row-hover', 'time', '.sr-turn-h:hover', { background: 'var(--sr-fill2)', boxShadow: 'inset 2px 0 0 var(--sr-accent)' },
     'the same inset-accent hover as a section header, so the panel has one interaction language'),
-  D('time-age-size', 'time', '.sr-age', { fontSize: 10, fontWeight: 550, lineHeight: '18px' },
+  D('time-age-size', 'time', '.sr-age', { fontSize: 11, fontWeight: 550, lineHeight: '18px' },
     'outcome chips are the second thing the eye should find on a row'),
-  D('time-title-size', 'time', '.sr-turn-title', { fontSize: 11.5, color: 'var(--sr-fg)' },
+  D('time-title-size', 'time', '.sr-turn-title', { fontSize: 12, color: 'var(--sr-fg)' },
     'the session title is CONTENT and was set in ink2 like metadata'),
-  D('time-call-name', 'time', '.sr-call-name', { fontSize: 11.5, fontWeight: 550 },
+  D('time-call-name', 'time', '.sr-call-name', { fontSize: 11, fontWeight: 550 },
     'the skill name in a call row is the content; the count is the annotation'),
 
   /* ============================ 13. toasts ============================ */
-  D('toast-radius', 'toast', '.sr-toast', { borderRadius: 12, fontSize: 11.5, padding: 'calc(var(--sr-u) * 2.5) calc(var(--sr-u) * 3)' },
+  D('toast-radius', 'toast', '.sr-toast', { borderRadius: 8, fontSize: 12, padding: 'calc(var(--sr-u) * 2.5) calc(var(--sr-u) * 3)' },
     'matching the card radius, and a font size and padding to match the rest of the panel'),
   D('toast-shadow', 'toast', '.sr-toast', { boxShadow: 'var(--sr-e3)' },
     'toasts float above the panel and use the overlay elevation'),
@@ -424,13 +428,13 @@ const DESIGN = Object.freeze([
     'same for errors: colouring the whole message red made it harder to read than the failure warranted'),
   D('toast-pending', 'toast', '.sr-toast--pending', { borderLeft: '3px solid var(--sr-line2)' },
     'pending is neutral: nothing is wrong yet'),
-  D('toast-msg-size', 'toast', '.sr-toast-msg', { fontSize: 11.5, fontWeight: 550 },
+  D('toast-msg-size', 'toast', '.sr-toast-msg', { fontSize: 12, fontWeight: 550 },
     'the message is the payload'),
-  D('toast-hint-size', 'toast', '.sr-toast-hint', { fontSize: 10.5, lineHeight: 1.5 },
+  D('toast-hint-size', 'toast', '.sr-toast-hint', { fontSize: 12, lineHeight: 1.5 },
     'hints contain paths and wrap to two or three lines'),
 
   /* ============================ 14. sheet ============================ */
-  D('sheet-radius', 'sheet', '.sr-sheet', { borderRadius: 20 },
+  D('sheet-radius', 'sheet', '.sr-sheet', { borderRadius: 8 },
     'the largest surface in the plugin takes the largest radius, or it looks like a dialog from 2012'),
   D('sheet-shadow', 'sheet', '.sr-sheet', { boxShadow: 'var(--sr-e3)' },
     'the overlay elevation, on the one thing that genuinely overlays'),
@@ -442,33 +446,33 @@ const DESIGN = Object.freeze([
     'the header sets the modal rhythm, and 20px is the matching inset'),
   D('sheet-title-size', 'sheet', '.sr-sheet-title', { fontSize: 14, fontWeight: 650, letterSpacing: 'var(--sr-track-tight)' },
     'a modal title is a title: it was 12.5px, the same as a card name'),
-  D('sheet-sub-size', 'sheet', '.sr-sheet-sub', { fontSize: 10.5, lineHeight: 1.5, color: 'var(--sr-fg3)' },
+  D('sheet-sub-size', 'sheet', '.sr-sheet-sub', { fontSize: 12, lineHeight: 1.5, color: 'var(--sr-fg3)' },
     'the root path under the title is metadata, and it wraps, so it needs leading'),
   D('sheet-tabs-pad', 'sheet', '.sr-tabs', { padding: 'calc(var(--sr-u) * 2) calc(var(--sr-u) * 5) 0' },
     'the tabs align with the header inset, so the modal has one left edge'),
-  D('sheet-tab-size', 'sheet', '.sr-tab', { fontSize: 11.5, fontWeight: 550, lineHeight: '30px', borderRadius: 8 },
+  D('sheet-tab-size', 'sheet', '.sr-tab', { fontSize: 13, fontWeight: 550, lineHeight: '30px', borderRadius: 8 },
     'tabs are the modal\'s navigation and need to look like a control row'),
   D('sheet-tab-underline', 'sheet', '.sr-tab[aria-selected="true"]::after', { height: 2, left: 'calc(var(--sr-u) * 2.5)', right: 'calc(var(--sr-u) * 2.5)' },
     'an inset underline reads as part of the tab rather than as a border on the track'),
-  D('sheet-label-size', 'sheet', '.sr-label', { fontSize: 11, fontWeight: 600, letterSpacing: '.01em' },
+  D('sheet-label-size', 'sheet', '.sr-label', { fontSize: 12, fontWeight: 600, letterSpacing: '.01em' },
     'form labels at 10.5px were the smallest text in the plugin, in the one place a mistake is costly'),
-  D('sheet-input-size', 'sheet', '.sr-input, .sr-textarea', { fontSize: 12, lineHeight: '22px', padding: 'calc(var(--sr-u) * 2.25) calc(var(--sr-u) * 3)', borderRadius: 10 },
+  D('sheet-input-size', 'sheet', '.sr-input, .sr-textarea', { fontSize: 13, lineHeight: '22px', padding: 'calc(var(--sr-u) * 2.25) calc(var(--sr-u) * 3)', borderRadius: 8 },
     'inputs at 12px with real padding: this is the field a user types a URL into'),
   D('sheet-input-bg', 'sheet', '.sr-input, .sr-textarea', { background: 'var(--sr-raised)', borderColor: 'color-mix(in srgb, #111113 13%, transparent)' },
     'a field must look like a field: the raised step plus a control-weight border'),
   D('sheet-input-focus', 'sheet', '.sr-input:focus, .sr-textarea:focus', { borderColor: 'var(--sr-accent)', boxShadow: '0 0 0 3px var(--sr-accent-weak)', background: 'var(--sr-card)' },
     'a 3px tinted ring plus the accent border: the strongest focus signal in the plugin, where it matters most'),
-  D('sheet-note-pad', 'sheet', '.sr-note', { padding: 'calc(var(--sr-u) * 2.5) calc(var(--sr-u) * 3)', borderRadius: 10, borderLeftWidth: 3 },
+  D('sheet-note-pad', 'sheet', '.sr-note', { padding: 'calc(var(--sr-u) * 2.5) calc(var(--sr-u) * 3)', borderRadius: 8, borderLeftWidth: 3 },
     'notes are typed by a left rule and need padding to look deliberate'),
-  D('sheet-drop-dash', 'sheet', '.sr-drop', { borderWidth: 2, borderStyle: 'dashed', borderRadius: 14, background: 'var(--sr-raised)' },
-    'a 2px dashed target at the card radius: a drop zone should look like a place'),
+  D('sheet-drop-dash', 'sheet', '.sr-drop', { borderWidth: 1, borderStyle: 'dashed', borderRadius: 8, background: 'var(--sr-raised)' },
+    'a 1px dashed target at the one radius: the brief removes thick borders, and a dashed hairline still reads as a place rather than as a surface'),
   D('sheet-drop-over', 'sheet', '.sr-drop--over', { borderColor: 'var(--sr-accent)', background: 'var(--sr-accent-weak)', boxShadow: '0 0 0 3px var(--sr-accent-weak)' },
     'drag-over gets a tinted fill AND a ring, because it is a state the user must not miss'),
-  D('sheet-preview', 'sheet', '.sr-preview', { borderRadius: 12, background: 'var(--sr-raised)', borderColor: 'color-mix(in srgb, #111113 9%, transparent)' },
+  D('sheet-preview', 'sheet', '.sr-preview', { borderRadius: 8, background: 'var(--sr-raised)', borderColor: 'color-mix(in srgb, #111113 9%, transparent)' },
     'the preview block groups what is about to be installed and is styled as a card'),
   D('sheet-foot-bg', 'sheet', '.sr-sheet-foot', { background: 'var(--sr-raised)', padding: 'calc(var(--sr-u) * 3.5) calc(var(--sr-u) * 5)' },
     'the action row is separated by a fill step and matches the header inset'),
-  D('sheet-hist-size', 'sheet', '.sr-hist-row', { fontSize: 10.5, fontWeight: 500 },
+  D('sheet-hist-size', 'sheet', '.sr-hist-row', { fontSize: 12, fontWeight: 500 },
     'the history is a log: small, but not the smallest text in the modal'),
 
   /* ============================ 15. a11y ============================ */
@@ -496,33 +500,33 @@ const DESIGN = Object.freeze([
     'explanatory prose gets reading leading; labels get tight leading'),
 
   /* ============================ 16. remaining surfaces ============================ */
-  D('guide-radius', 'sec', '.sr-guide', { borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, background: 'var(--sr-raised)' },
+  D('guide-radius', 'sec', '.sr-guide', { borderRadius: 8, borderStyle: 'dashed', borderWidth: 1.5, background: 'var(--sr-raised)' },
     'the cold-start block is an invitation, so a dashed edge reads as "space for you"'),
   D('guide-pad', 'sec', '.sr-guide', { padding: 'calc(var(--sr-u) * 5)', margin: 'calc(var(--sr-u) * 4)' },
     'the one block that replaces three placeholders deserves real air'),
   D('guide-title', 'sec', '.sr-guide-title', { fontSize: 13, fontWeight: 650, letterSpacing: 'var(--sr-track-tight)' },
     'it is a heading, not a caption'),
-  D('guide-text', 'sec', '.sr-guide-text', { fontSize: 11.5, color: 'var(--sr-fg2)' },
+  D('guide-text', 'sec', '.sr-guide-text', { fontSize: 13, color: 'var(--sr-fg2)' },
     'the explanation is body copy'),
   D('guide-icon', 'sec', '.sr-guide .sr-ic', { color: 'var(--sr-accent)', width: 18, height: 18 },
     'one accent mark makes the block feel like a starting point rather than an error'),
-  D('empty-pad', 'sec', '.sr-empty', { padding: 'calc(var(--sr-u) * 3) 0', fontSize: 11.5 },
+  D('empty-pad', 'sec', '.sr-empty', { padding: 'calc(var(--sr-u) * 3) 0', fontSize: 11 },
     'an empty state occupies a block; a single 11px line makes the panel look truncated'),
-  D('hint-size', 'sec', '.sr-hint', { fontSize: 10.5, lineHeight: 1.55 },
+  D('hint-size', 'sec', '.sr-hint', { fontSize: 11, lineHeight: 1.55 },
     'hints wrap in the narrow strip expansion and need leading'),
-  D('skeleton-radius', 'sec', '.sr-skel--card', { height: 62, borderRadius: 14 },
+  D('skeleton-radius', 'sec', '.sr-skel--card', { height: 62, borderRadius: 8 },
     'the placeholder must match the card it stands in for, or the panel jumps when data lands'),
   D('skeleton-color', 'sec', '.sr-skel', { background: 'linear-gradient(90deg, var(--sr-sunken) 0%, var(--sr-fill) 50%, var(--sr-sunken) 100%)' },
     'a shimmer built from the surface ramp rather than an arbitrary grey'),
-  D('kbd-radius', 'sec', '.sr-kbd', { borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 550, background: 'var(--sr-sunken)', borderColor: 'color-mix(in srgb, #111113 12%, transparent)' },
+  D('kbd-radius', 'sec', '.sr-kbd', { borderRadius: 6, padding: '1px 6px', fontSize: 11, fontWeight: 550, background: 'var(--sr-sunken)', borderColor: 'color-mix(in srgb, #111113 12%, transparent)' },
     'a key cap is a physical object: sunken, bordered, and its border-bottom does the thickness'),
   D('kbd-color', 'sec', '.sr-kbd', { color: 'var(--sr-fg2)' },
     'key caps are legible, unlike the 9.5px ink3 they used to be'),
-  D('filter-bg', 'sec', '.sr-filter input', { background: 'var(--sr-raised)', borderColor: 'color-mix(in srgb, #111113 12%, transparent)', borderRadius: 10, fontSize: 12, lineHeight: '28px' },
+  D('filter-bg', 'sec', '.sr-filter input', { background: 'var(--sr-raised)', borderColor: 'color-mix(in srgb, #111113 12%, transparent)', borderRadius: 8, fontSize: 12, lineHeight: '28px' },
     'the filter is a field and matches the sheet inputs'),
   D('filter-focus', 'sec', '.sr-filter input:focus', { borderColor: 'var(--sr-accent)', background: 'var(--sr-card)', boxShadow: '0 0 0 3px var(--sr-accent-weak)' },
     'one focus treatment across every field in the plugin'),
-  D('chip-radius', 'sec', '.sr-chip', { borderRadius: 8, lineHeight: '22px', fontSize: 10.5, fontWeight: 550, paddingInline: 'calc(var(--sr-u) * 2.5)' },
+  D('chip-radius', 'sec', '.sr-chip', { borderRadius: 8, lineHeight: '22px', fontSize: 12, fontWeight: 550, paddingInline: 'calc(var(--sr-u) * 2.5)' },
     'chips are filters, not pills: a chip row of rounded pills reads as decoration'),
   D('chip-bg', 'sec', '.sr-chip', { background: 'var(--sr-card)', borderColor: 'color-mix(in srgb, #111113 12%, transparent)' },
     'an unselected chip is a small control and needs a surface'),
@@ -530,7 +534,7 @@ const DESIGN = Object.freeze([
     'the selected filter is SOLID: a tinted chip among outlined chips is too easy to miss'),
   D('chip-hover', 'sec', '.sr-chip:hover', { background: 'var(--sr-raised)', borderColor: 'var(--sr-line2)' },
     'hover steps the fill up, leaving the accent for selection only'),
-  D('count-size', 'sec', '.sr-count', { fontSize: 10.5, fontWeight: 550 },
+  D('count-size', 'sec', '.sr-count', { fontSize: 11, fontWeight: 550 },
     'the result tally is a readout and should look like one'),
   D('status-dot-glow', 'frame', '.sr-status-dot', { boxShadow: '0 0 0 3px var(--sr-ok-weak)' },
     'a live connection indicator with a halo: a bare 6px dot reads as dirt on the screen'),
@@ -538,7 +542,7 @@ const DESIGN = Object.freeze([
     'the footer status dots are the smallest signal and get a step up'),
   D('foot-gap', 'frame', '.sr-foot', { columnGap: 'calc(var(--sr-u) * 3)', rowGap: 'calc(var(--sr-u) * 1.5)' },
     'the footer wraps on a narrow panel and needs gutters in both directions'),
-  D('foot-mono-size', 'frame', '.sr-foot-mono', { fontSize: 10.5 },
+  D('foot-mono-size', 'frame', '.sr-foot-mono', { fontSize: 11 },
     'the write path is shown for copying and must be readable'),
   D('share-weight', 'meta', '.sr-share-n', { fontVariantNumeric: 'tabular-nums' },
     'per-skill counts change while polling'),
@@ -558,17 +562,17 @@ const DESIGN = Object.freeze([
     'history rows are dense; a three-quarter step keeps them scannable without padding them out'),
   D('hist-icon', 'sheet', '.sr-hist-row .sr-ic', { opacity: 1 },
     'the outcome icon carries the row status and should not be dimmed'),
-  D('preview-name-size', 'sheet', '.sr-preview-name', { fontSize: 12.5, fontWeight: 600 },
+  D('preview-name-size', 'sheet', '.sr-preview-name', { fontSize: 13, fontWeight: 600 },
     'the name about to be installed is the most important text in the preview'),
-  D('preview-desc-size', 'sheet', '.sr-preview-desc', { fontSize: 11.5, color: 'var(--sr-fg2)' },
+  D('preview-desc-size', 'sheet', '.sr-preview-desc', { fontSize: 13, color: 'var(--sr-fg2)' },
     'the description is body copy'),
-  D('preview-meta-size', 'sheet', '.sr-preview-meta', { fontSize: 10.5 },
+  D('preview-meta-size', 'sheet', '.sr-preview-meta', { fontSize: 13 },
     'the file count and size are metadata'),
-  D('label-opt', 'sheet', '.sr-label .sr-opt', { fontSize: 10.5, letterSpacing: 0, fontWeight: 450 },
+  D('label-opt', 'sheet', '.sr-label .sr-opt', { fontSize: 12, letterSpacing: 0, fontWeight: 450 },
     'the optional marker must not inherit the label weight it sits beside'),
-  D('counter-size', 'sheet', '.sr-counter', { fontSize: 10.5, fontWeight: 550 },
+  D('counter-size', 'sheet', '.sr-counter', { fontSize: 11, fontWeight: 550 },
     'the character counter is checked against a limit and should be readable'),
-  D('check-size', 'sheet', '.sr-check', { fontSize: 11.5, lineHeight: 1.5 },
+  D('check-size', 'sheet', '.sr-check', { fontSize: 12, lineHeight: 1.5 },
     'the overwrite confirmation is a sentence next to a checkbox'),
   D('panel-title-weight', 'frame', '.sr-title', { textWrap: 'balance' },
     'a long panel title wraps evenly instead of leaving one word on the second line'),
@@ -656,7 +660,7 @@ const DESIGN = Object.freeze([
     'inside the footer the action row is centred, never wraps, and takes only the width it needs'),
   D('r-card-calls', 'card', '.sr-card-calls', {
     fontVariantNumeric: 'tabular-nums',
-    fontSize: 11.5,
+    fontSize: 12,
     color: 'var(--sr-fg3)',
     whiteSpace: 'nowrap',
   }, 'the call count sits in the card\'s bottom-left, small and quiet'),
@@ -676,7 +680,7 @@ const DESIGN = Object.freeze([
     'the switch sits in the name row, hard against the card\'s right edge, level with the title'),
   // Five labelled buttons do not fit a ~290px card at the base size, and a wrapped button row
   // is what made the card look like a toolbar. The compact size is the fix.
-  D('card-actions-compact', 'card', '.sr-card-foot .sr-btn', { fontSize: 11, paddingInline: 'calc(var(--sr-u) * 2.25)' },
+  D('card-actions-compact', 'card', '.sr-card-foot .sr-btn', { fontSize: 12, paddingInline: 'calc(var(--sr-u) * 2.25)' },
     'inside a card the buttons step down one size so the row fits on one or two lines, not four'),
   D('card-actions-icon', 'card', '.sr-card-foot .sr-btn--icon', { width: 26, height: 26 },
     'and the icon buttons match that step, so the row has one height'),
@@ -695,7 +699,7 @@ const DESIGN = Object.freeze([
   // number in a tooltip is not discoverable.
   D('release-dot', 'btn', '.sr-release-dot', { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 999, background: 'var(--sr-accent)', boxShadow: '0 0 0 1.5px var(--sr-card)' },
     'a 6px accent dot on the check button, ringed in the card colour so it reads on any surface'),
-  D('release-note', 'frame', '.sr-release-note', { fontSize: 10.5, fontWeight: 600, letterSpacing: '.02em', color: 'var(--sr-accent)', whiteSpace: 'nowrap' },
+  D('release-note', 'frame', '.sr-release-note', { fontSize: 12, fontWeight: 600, letterSpacing: '.02em', color: 'var(--sr-accent)', whiteSpace: 'nowrap' },
     'the header has room to SAY "可更新 4.1.0" instead of making the user hover to find out'),
   D('release-note-ok', 'frame', '.sr-release-note--ok', { color: 'var(--sr-ok)' },
     '"已是最新" is good news and wears the success colour, not the accent'),
@@ -720,27 +724,17 @@ const DESIGN = Object.freeze([
   }, 'the header floats over the list instead of being an opaque bar: 62% + a 14px blur'),
   // ---- the wash behind the glass -------------------------------------------------------
   //
-  // THE thing that makes a frosted surface readable AS frosted. `backdrop-filter` can only blur
-  // what is behind it, and the panel's background was one flat colour — so the blur had nothing
-  // to work on and the earlier attempt at glassmorphism looked like plain translucency. (The
-  // aesthetics reference puts a gradient behind the glass for exactly this reason.)
+  // FLATTENED. This was three very low-opacity radial washes — accent, amber and accent again — placed so the
+  // frosted header had something to blur. It worked, and it is exactly the decoration the brief removes: a
+  // coloured haze behind the glass is the single most recognisable mark of the 2021-era frosted panel, and on a
+  // neutral canvas three tinted washes also reintroduce the colour the palette just gave up.
   //
-  // Three very low-opacity radial washes in the accent's own hue and the warm neutrals, at
-  // 62% alpha they tint the header as it scrolls and give the blur a gradient to smear. They are
-  // fixed so they do not scroll with the content — a background that moves under a blur reads as
-  // a smear, a fixed one reads as depth.
-  D('wash-backdrop', 'frame', '.sr-body', {
-    backgroundImage:
-      'radial-gradient(1100px 420px at 12% -8%, color-mix(in srgb, var(--sr-accent) 7%, transparent), transparent 62%),' +
-      'radial-gradient(760px 380px at 96% 4%, color-mix(in srgb, var(--sr-warn) 5%, transparent), transparent 60%),' +
-      'radial-gradient(900px 500px at 60% 104%, color-mix(in srgb, var(--sr-accent) 5%, transparent), transparent 65%)',
-    backgroundAttachment: 'fixed',
-    backgroundRepeat: 'no-repeat',
-  }, 'three near-invisible washes: this is what the header and footer actually blur'),
-  D('wash-root', 'frame', '.sr-root', {
-    backgroundImage: 'linear-gradient(180deg, color-mix(in srgb, var(--sr-display) 10%, transparent), transparent 240px)',
-    backgroundRepeat: 'no-repeat',
-  }, 'a wash of the CARD\'S OWN Bondi Blue at the top of the panel, where it is a large soft shape and AA does not apply'),
+  // The header is still frosted, and it still has something to blur: the CONTENT scrolling under it. That is what
+  // a translucent surface is FOR, and it does not need a gradient behind it to prove the point.
+  D('wash-backdrop', 'frame', '.sr-body', { backgroundImage: 'none' },
+    'the decorative radial washes are gone: a translucent header blurs the content under it, which is the real thing glass is for'),
+  D('wash-root', 'frame', '.sr-root', { backgroundImage: 'none' },
+    'and the panel takes the flat canvas, so the surface steps are the only thing separating the regions'),
   D('hero-display', 'hero', '.sr-hero-spark', { color: 'var(--sr-display)' },
     'the sparkline is a graphic, not text, so it can carry the card\'s full-chroma blue that the accent cannot'),
   D('frost-foot', 'frame', '.sr-foot', {
@@ -752,7 +746,7 @@ const DESIGN = Object.freeze([
   D('float-card', 'card', '.sr-skill', {
     boxShadow: 'var(--sr-e2)',
     borderColor: 'color-mix(in srgb, var(--sr-line) 72%, transparent)',
-    borderRadius: 14,
+    borderRadius: 8,
   }, 'a softer border and a deeper shadow, so a card floats instead of being outlined'),
   D('float-hero', 'hero', '.sr-hero', {
     boxShadow: 'none',
@@ -766,11 +760,11 @@ const DESIGN = Object.freeze([
   // is not the content.
   D('type-stat-v', 'stat', '.sr-stat-v', { fontSize: 20, fontWeight: 650, lineHeight: 1.1 },
     '20px, not 26px: the counters summarise the list, they are not the thing being read'),
-  D('type-name', 'card', '.sr-skill-name', { fontSize: 13.5, lineHeight: 1.4, fontWeight: 600 },
+  D('type-name', 'card', '.sr-skill-name', { fontSize: 14, lineHeight: 1.4, fontWeight: 600 },
     'the skill name is what gets scanned, and 12px made it the same size as its own description'),
-  D('type-blurb', 'card', '.sr-blurb', { fontSize: 12.5, lineHeight: 1.5 },
+  D('type-blurb', 'card', '.sr-blurb', { fontSize: 13, lineHeight: 1.5 },
     'the description is how you choose between skills, so it is content, not a footnote'),
-  D('type-src', 'meta', '.sr-src', { fontSize: 11.5, lineHeight: 1.6, color: 'var(--sr-fg2)' },
+  D('type-src', 'meta', '.sr-src', { fontSize: 11, lineHeight: 1.6, color: 'var(--sr-fg2)' },
     'provenance was the smallest, faintest text on the card while being the reason to trust or update it'),
   D('type-src-bare', 'meta', '.sr-src--bare', { color: 'var(--sr-fg3)' },
     'with no recorded source the line carries only the cues, so it steps back a notch'),
@@ -800,7 +794,7 @@ const DESIGN = Object.freeze([
     border: 0,
     background: 'none',
     cursor: 'pointer',
-    borderRadius: 10,
+    borderRadius: 8,
     lineHeight: 0,
   }, 'the avatar is the colour affordance, so it is clickable without looking like a button'),
   D('avatar-btn-tile', 'card', '.sr-avatar-btn .sr-avatar', { flex: 'none' },
@@ -831,8 +825,8 @@ const DESIGN = Object.freeze([
    * count in test/ui-polish.mjs, so this block cannot quietly shrink.
    */
   // ---- spacing: tight inside a card, loose between cards (the single most-cited rule) -----
-  D('r-space-card-pad', 'space', '.sr-skill', { padding: 14 },
-    'one padding value inside a card, so every card has the same inner rhythm'),
+  D('r-space-card-pad', 'space', '.sr-skill', { padding: 12 },
+    'card padding 12, not 14: with the type scale tightened, 14 left the card reading loose against its own contents'),
   // The card's rows are spread over its full height rather than stacked at the top.
   //
   // The grid stretches every card in a row to the tallest, and one card carries 3–4 blurb lines where its
@@ -852,15 +846,24 @@ const DESIGN = Object.freeze([
     'the body inset matches the header padding, so the left edge is one straight line'),
   D('r-space-sec', 'space', '.sr-sec', { marginTop: 20 },
     'a section break is smaller than a group break: nesting is communicated by spacing alone'),
-  // ---- radii: three values, not six ------------------------------------------------------
-  D('r-radius-card', 'card', '.sr-skill', { borderRadius: 14 },
-    'cards and the panel share 14; controls take 9; pills stay 999 — three radii, not six'),
-  D('r-radius-control', 'btn', '.sr-btn', { borderRadius: 9 },
-    'controls at 9, deliberately not the card value: a control is not a card'),
-  D('r-radius-input', 'sheet', '.sr-input', { borderRadius: 9 },
+  // ---- radii: ONE value, at the owner's request --------------------------------------------
+  //
+  // "圆角统一为 6px-8px". The system had three (card 14 / control 9 / pill 999) and the pill family had grown to
+  // roughly thirty records — buttons, inputs, chips, tabs, swatches, tabs' thumbs, counters, badges. It arrived
+  // there legitimately (the owner asked for the buttons to be 椭圆, and the rest followed), but a pill button beside
+  // a 14px card is two systems, and "统一" is the point of this pass.
+  //
+  // 8 for everything, because it is the top of the range and it is what reads as a considered control at a 28px
+  // height, where 6 would look sharp. The exceptions are round by NATURE rather than by style — the switch track,
+  // a circular swatch, a progress bar — and each one says so where it is declared.
+  D('r-radius-card', 'card', '.sr-skill', { borderRadius: 8 },
+    'the single radius: cards, the panel, controls, fields and chips all take 8'),
+  D('r-radius-control', 'btn', '.sr-btn', { borderRadius: 8 },
+    'controls share the card value now — that sameness IS the request'),
+  D('r-radius-input', 'sheet', '.sr-input', { borderRadius: 8 },
     'inputs match controls, so a field and a button in one row have the same corner'),
-  D('r-radius-tile', 'card', '.sr-avatar', { borderRadius: 9 },
-    'the avatar tile joins the control radius, so the card has two corner sizes total'),
+  D('r-radius-tile', 'card', '.sr-avatar', { borderRadius: 8 },
+    'the avatar tile is a square control with the one radius, not a circle'),
   // ---- borders: fewer of them, and lighter where they stay -------------------------------
   D('r-border-card', 'card', '.sr-skill', { borderColor: 'color-mix(in srgb, var(--sr-line) 60%, transparent)' },
     'a card border at 60% of the hairline: the shadow does the separating, not the line'),
@@ -929,11 +932,11 @@ const DESIGN = Object.freeze([
     'a "something is available" button is tinted, not filled — it must not outrank 引用'),
   D('r-ctrl-toggle-off', 'btn', '.sr-btn--toggle:not(.sr-btn--on)', { background: 'transparent', borderColor: 'var(--sr-line)' },
     'the OFF switch is an outline: an unpressed control should not carry a fill'),
-  D('r-ctrl-chip', 'sec', '.sr-chip', { borderRadius: 999 },
+  D('r-ctrl-chip', 'sec', '.sr-chip', { borderRadius: 8 },
     'filter chips are pills while buttons are not, which is how the two read differently'),
   D('r-ctrl-chip-on', 'sec', '.sr-chip--on', { background: 'var(--sr-accent-weak)', borderColor: 'var(--sr-accent-line)', color: 'var(--sr-fg)' },
     'a selected chip is tinted with the accent rather than inverted to solid'),
-  D('r-ctrl-tab', 'sheet', '.sr-tab', { borderRadius: 9 },
+  D('r-ctrl-tab', 'sheet', '.sr-tab', { borderRadius: 8 },
     'tabs join the control radius, so the sheet has the same corner language as the panel'),
   // ---- surfaces: the frosted family ------------------------------------------------------
   D('r-surface-sheet', 'sheet', '.sr-sheet', { background: 'color-mix(in srgb, var(--sr-card) 92%, transparent)' },
@@ -972,20 +975,23 @@ const DESIGN = Object.freeze([
   D('r-reduced-motion', 'a11y', '.sr-toast', { animationDuration: '.01ms' },
     'the reduced-motion block also shortens the toast, not only the sheet'),
   // ---- texture: the small things that make it look designed ------------------------------
-  D('r-divider-fade', 'sec', '.sr-sec', { borderImage: 'linear-gradient(90deg, color-mix(in srgb, var(--sr-line) 0%, transparent), var(--sr-line) 12%, var(--sr-line) 88%, color-mix(in srgb, var(--sr-line) 0%, transparent)) 1' },
-    'section rules fade out at both ends: a full-bleed hairline looks like a table edge'),
+  //
+  // The fading section rule is GONE. It was a `border-image` gradient that dissolved the hairline at both ends, on
+  // the reasoning that a full-bleed rule looks like a table edge. On a neutral palette the fix for that is a rule
+  // that stops short of the edges, not one that fades — and a gradient border is the kind of detail that reads as
+  // effort rather than as precision. The base `.sr-sec` keeps its plain 1px top border.
   D('r-avatar-ring', 'card', '.sr-avatar', { boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.35)' },
     'a 1px inner highlight on the tile, the same trick that makes a button feel physical'),
   D('r-avatar-letter-tight', 'card', '.sr-avatar', { letterSpacing: '-.02em' },
     'a single letter at 13px needs tightening or it sits off-centre in its tile'),
   D('r-pill-tabular', 'meta', '.sr-pill', { fontVariantNumeric: 'tabular-nums' },
     'counts in pills change while polling; proportional digits make the pill twitch'),
-  D('r-empty-quiet', 'sec', '.sr-empty', { color: 'var(--sr-fg3)', fontSize: 12 },
+  D('r-empty-quiet', 'sec', '.sr-empty', { color: 'var(--sr-fg3)', fontSize: 11 },
     'an empty state is informational text, not a heading'),
   D('r-hint-quiet', 'sec', '.sr-hint', { color: 'var(--sr-fg3)' },
     'hints recede: they are read once and then never again'),
-  D('r-kbd-look', 'meta', '.sr-kbd', { borderRadius: 5, borderBottomWidth: 2 },
-    'key caps get a heavier bottom edge, which is what makes them look like caps'),
+  D('r-kbd-look', 'meta', '.sr-kbd', { borderRadius: 6, borderBottomWidth: 1 },
+    'key caps: the heavier bottom edge is gone with the other thick borders — a 1px bottom plus the sunken fill and the 6px radius is what makes a cap read as a cap at this size'),
   D('r-badge-dot', 'hero', '.sr-badge', { gap: 6 },
     'the badge dot needs separating from its label or it reads as a bullet'),
   D('r-turn-rule', 'time', '.sr-turn', { borderTopColor: 'color-mix(in srgb, var(--sr-line) 50%, transparent)' },
@@ -998,13 +1004,15 @@ const DESIGN = Object.freeze([
     'the leading icon in the guide block is optically aligned to the first text line'),
   D('r-title-balance', 'frame', '.sr-title', { textWrap: 'balance' },
     'a wrapped title breaks evenly instead of leaving one word on the second line'),
-  D('r-gray-warm-shadow', 'card', '{root}', {
-    '--sr-e1': '0 1px 1px rgba(28,25,23,.04), 0 2px 4px -2px rgba(28,25,23,.07)',
-    '--sr-e2': '0 2px 4px -1px rgba(28,25,23,.06), 0 8px 20px -8px rgba(28,25,23,.12)',
-    '--sr-e3': '0 4px 8px -2px rgba(28,25,23,.08), 0 24px 48px -16px rgba(28,25,23,.22)',
-  }, 'shadows carry the warm ink hue: a pure-black shadow on a warm surface reads as grey dust'),
+  // The warm-ink shadow override that used to sit here is GONE, not merely neutralised.
+  //
+  // It re-declared --sr-e1/2/3 with a warm hue on top of the neutral scale, on the reasoning that a black shadow
+  // on a warm surface reads as grey dust. The palette is neutral now, so a hue here would be the only tinted thing
+  // in the sheet — and the flattening pass collapsed each elevation to one layer, so the override had nothing left
+  // to say. Deleting it is the honest move: a record with empty props generates no CSS and only invites the
+  // question of why it is there.
   D('r-ring-warm', 'card', '{root}', { '--sr-ring': 'inset 0 0 0 1px rgba(255,255,255,.6)' },
-    'the inner highlight is warm white, matching the ink change'),
+    'the inner highlight is white, matching the card surface it separates'),
   // ---- scrollbars, placeholders, selection: the surfaces nobody designs ------------------
   // The panel scrolls constantly and every one of these was browser default until now, which is
   // the single clearest tell that a UI was assembled rather than designed.
@@ -1037,7 +1045,7 @@ const DESIGN = Object.freeze([
   // ---- panel frame ----------------------------------------------------------------------
   D('r-root-overflow-anchor', 'frame', '.sr-root', { overflowAnchor: 'none' },
     'nothing may re-anchor the scroll position: the list re-renders on a 5s timer'),
-  D('r-root-radius', 'frame', '.sr-root', { borderRadius: 16 },
+  D('r-root-radius', 'frame', '.sr-root', { borderRadius: 8 },
     'the panel frame takes the largest radius in the system; the nested cards stay below it'),
   D('r-root-ring', 'frame', '.sr-root', { boxShadow: 'var(--sr-ring), var(--sr-e1)' },
     'a single inner highlight plus the smallest shadow: the panel is a surface, not a floating card'),
@@ -1054,7 +1062,7 @@ const DESIGN = Object.freeze([
   // ---- content rhythm -------------------------------------------------------------------
   D('r-hero-pad', 'hero', '.sr-hero', { padding: '14px 16px' },
     'the hero uses the card padding so all four surfaces share one inset'),
-  D('r-hero-radius', 'hero', '.sr-hero', { borderRadius: 14 },
+  D('r-hero-radius', 'hero', '.sr-hero', { borderRadius: 8 },
     'and the card radius, for the same reason'),
   D('r-stat-pad', 'stat', '.sr-stat', { padding: '10px 12px' },
     'the stat cards are tighter than content cards: they hold a number and a label, nothing else'),
@@ -1072,7 +1080,7 @@ const DESIGN = Object.freeze([
     'provenance is machine text, so it is set in the mono face at one step down'),
   D('r-slug-mono', 'card', '.sr-skill-slug', { fontFamily: 'var(--sr-mono)' },
     'the slug is an identifier too, and it matches the source line'),
-  D('r-avatar-font', 'card', '.sr-avatar', { fontSize: 13, fontWeight: 620 },
+  D('r-avatar-font', 'card', '.sr-avatar', { fontSize: 12, fontWeight: 620 },
     'one letter at 13px/620: at 12px it looked like a broken glyph rather than an initial'),
   D('r-turn-pad', 'time', '.sr-turn-h', { padding: '6px 8px' },
     'turn headers are a scan list, so they are tighter than content rows'),
@@ -1082,11 +1090,11 @@ const DESIGN = Object.freeze([
     'and so is every skill name shown in the per-turn list'),
   D('r-toast-gap', 'toast', '.sr-toast', { gap: 10 },
     '10px between a toast icon and its message, matching the card row rhythm'),
-  D('r-toast-radius', 'toast', '.sr-toast', { borderRadius: 12 },
+  D('r-toast-radius', 'toast', '.sr-toast', { borderRadius: 8 },
     'toasts take the control radius: they are transient, not containers'),
   D('r-toast-pad', 'toast', '.sr-toast', { padding: '10px 12px' },
     'and the stat-card padding, so a toast and a counter feel like the same family'),
-  D('r-sheet-radius', 'sheet', '.sr-sheet', { borderRadius: 20 },
+  D('r-sheet-radius', 'sheet', '.sr-sheet', { borderRadius: 8 },
     'the dialog is the largest floating object, so it takes the largest radius after the panel'),
   D('r-sheet-pad', 'sheet', '.sr-sheet-head', { padding: '14px 16px' },
     'the sheet header shares the panel header inset, so the two read as the same chrome'),
@@ -1100,7 +1108,7 @@ const DESIGN = Object.freeze([
     'the switch uses the system ease, not the browser default, which overshoots'),
   D('r-switch-knob-shadow', 'btn', '.sr-switch-knob', { boxShadow: '0 1px 2px rgba(28,25,23,.3)' },
     'the knob needs a shadow to read as a knob rather than a dot'),
-  D('r-badge-radius', 'hero', '.sr-badge', { borderRadius: 999 },
+  D('r-badge-radius', 'hero', '.sr-badge', { borderRadius: 6 },
     'the status badge is a pill, matching the chips that filter the same list'),
   D('r-caret-rotate', 'sec', '.sr-sec-caret', { transition: 'transform var(--sr-speed) var(--sr-ease)' },
     'the disclosure caret rotates on the system ease, like the switch'),
@@ -1190,9 +1198,9 @@ const DESIGN = Object.freeze([
     'the sparkline drops under the summary rather than compressing it'),
   D('r-bp-spark-tablet', 'hero', '.sr-spark', { width: '100%', height: 34 },
     'and takes the full width, which is what makes a wrapped hero look deliberate'),
-  D('r-bp-card-pad-phone', 'card', '.sr-skill', { padding: 12 },
-    'on a phone the card padding comes in a step so more content survives per screen'),
-  D('r-bp-name-phone', 'card', '.sr-skill-name', { fontSize: 13 },
+  D('r-bp-card-pad-phone', 'card', '.sr-skill', { padding: 10 },
+    'on a phone the card padding comes in a step so more content survives per screen. 10 against the base 12 — this was 12 against a base of 14 until the compactness pass moved the base, and a breakpoint whose value equals the base emits a rule identical to it, which the sheet then contains OUTSIDE its media query. The guard caught exactly that'),
+  D('r-bp-name-phone', 'card', '.sr-skill-name', { fontSize: 14 },
     'and the name steps down one notch, because the column is now the phone width'),
   D('r-bp-actions-phone', 'card', '.sr-card-foot .sr-row-actions', { columnGap: 6 },
     'the action row tightens: five controls at desktop spacing overflow a phone card'),
@@ -1204,7 +1212,7 @@ const DESIGN = Object.freeze([
     'a phone dialog is full-bleed: a floating card on a 390px screen wastes the edges'),
   D('r-bp-sheet-pad-phone', 'sheet', '.sr-sheet-body', { paddingInline: 14 },
     'and its inner padding comes in with the screen, keeping the text measure sane'),
-  D('r-bp-tabs-phone', 'sheet', '.sr-tab', { fontSize: 11, padding: '0 calc(var(--sr-u) * 2)' },
+  D('r-bp-tabs-phone', 'sheet', '.sr-tab', { fontSize: 13, padding: '0 calc(var(--sr-u) * 2)' },
     'three install-mode tabs have to fit 390px without wrapping the labels'),
   D('r-bp-grid-wide', 'frame', '.sr-grid', { minWidth: 0 },
     'explicit: the grid may be narrower than its content minimum, because overflowing the column is worse than a cramped card'),
@@ -1247,8 +1255,8 @@ const DESIGN = Object.freeze([
     'and press inward, which is the only feedback a 20px dot can give'),
   D('r-state-focus-swatch', 'a11y', '.sr-swatch:focus-visible', { outline: '2px solid var(--sr-fg)', outlineOffset: 2 },
     'the swatch focus ring is INK not accent: on a coloured dot an accent ring is invisible'),
-  D('r-state-focus-avatar', 'a11y', '.sr-avatar-btn:focus-visible', { outline: '2px solid var(--sr-accent)', outlineOffset: 2, borderRadius: 9 },
-    'the avatar wrapper takes the app focus ring'),
+  D('r-state-focus-avatar', 'a11y', '.sr-avatar-btn:focus-visible', { outline: '2px solid var(--sr-accent)', outlineOffset: 2, borderRadius: 8 },
+    'the avatar wrapper takes the app focus ring, at the control radius so the ring follows the corner it rings'),
   D('r-state-hover-none-touch', 'frame', '.sr-skill', { WebkitTapHighlightColor: 'transparent' },
     'and the mobile tap flash is suppressed on cards too, not only on buttons'),
 
@@ -1273,7 +1281,7 @@ const DESIGN = Object.freeze([
   D('r-strip-bar-float', 'frame', '.sr-strip-shell--open .sr-strip-row', {
     padding: 'calc(var(--sr-u) * 1.5) calc(var(--sr-u) * 2)',
     border: '1px solid var(--sr-line)',
-    borderRadius: 12,
+    borderRadius: 8,
     background: 'color-mix(in srgb, var(--sr-card) 72%, transparent)',
     backdropFilter: 'saturate(1.7) blur(14px)',
     WebkitBackdropFilter: 'saturate(1.7) blur(14px)',
@@ -1282,7 +1290,7 @@ const DESIGN = Object.freeze([
   }, 'the bar becomes its own frosted float, so it stays visibly separate from the report below'),
   D('r-strip-panel-float', 'frame', '.sr-strip-panel', {
     border: '1px solid var(--sr-line)',
-    borderRadius: 14,
+    borderRadius: 8,
     background: 'var(--sr-card)',
     boxShadow: 'var(--sr-e3)',
     overflow: 'hidden',
@@ -1334,15 +1342,15 @@ const DESIGN = Object.freeze([
   D('r-strip-brand', 'frame', '.sr-strip-brand', { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none' },
     'the dot and the count are one unit, so the dot reads as belonging to the number'),
   D('r-strip-count', 'stat', '.sr-strip-count', {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 620,
     fontVariantNumeric: 'tabular-nums',
     padding: '1px 7px',
-    borderRadius: 999,
+    borderRadius: 6,
     background: 'var(--sr-sunken)',
     color: 'var(--sr-fg2)',
     flex: 'none',
-  }, 'the install count in a quiet pill where a static label used to be — it is a fact, so it is styled like one'),
+  }, 'the install count in a quiet chip where a static label used to be — it is a fact, so it is styled like one. Radius 6, the micro-label step'),
   D('r-strip-count-hover', 'stat', '.sr-strip:hover .sr-strip-count', { background: 'var(--sr-fill)', color: 'var(--sr-fg)' },
     'and it responds with the bar, so the whole control moves as one surface'),
   // ---- the brand mark, centred on the ROW ---------------------------------------------------
@@ -1470,19 +1478,19 @@ const DESIGN = Object.freeze([
     'the footer gets a rule AND a step down in surface, because it is outside the form'),
   D('r-field-label-weight', 'sheet', '.sr-label', { fontWeight: 560 },
     'a field label is a label: just above body weight, below a heading'),
-  D('r-field-help-size', 'sheet', '.sr-help', { fontSize: 10.5, lineHeight: 1.5, color: 'var(--sr-fg3)' },
+  D('r-field-help-size', 'sheet', '.sr-help', { fontSize: 11, lineHeight: 1.5, color: 'var(--sr-fg3)' },
     'help text under a field is the smallest thing in the sheet, and it should be'),
   D('r-field-help-align', 'sheet', '.sr-help', { textAlign: 'left' },
     'left-aligned, because a centred helper under a left-aligned field reads as unrelated'),
   D('r-input-pad', 'sheet', '.sr-input', { padding: '9px 12px' },
     'a 9/12 inset: enough for a caret to breathe, tight enough to look like a field'),
-  D('r-input-mono-size', 'sheet', '.sr-input--mono', { fontSize: 12, letterSpacing: '-.01em' },
+  D('r-input-mono-size', 'sheet', '.sr-input--mono', { fontSize: 13, letterSpacing: '-.01em' },
     'mono runs visually wider, so it steps down a fraction and tightens'),
   D('r-input-invalid', 'sheet', '.sr-input[aria-invalid="true"]', { borderColor: 'var(--sr-danger)' },
     'an invalid field says so on its own edge, not only in the message below it'),
   D('r-textarea-min', 'sheet', '.sr-textarea', { minHeight: 150 },
     'a SKILL.md paste needs to show roughly ten lines, or the user cannot check what they pasted'),
-  D('r-textarea-mono', 'sheet', '.sr-textarea', { fontFamily: 'var(--sr-mono)', fontSize: 11.5, lineHeight: 1.6 },
+  D('r-textarea-mono', 'sheet', '.sr-textarea', { fontFamily: 'var(--sr-mono)', fontSize: 13, lineHeight: 1.6 },
     'markdown in a proportional face hides frontmatter mistakes'),
   D('r-check-hit', 'sheet', '.sr-check', { minHeight: 26 },
     'a checkbox row is a target, so the whole row is clickable, not just the 16px box'),
@@ -1492,11 +1500,11 @@ const DESIGN = Object.freeze([
     'the tab row gets a rule that the selected indicator sits ON, which is what makes it read as a tab'),
   D('r-seg-gap', 'sheet', '.sr-seg', { gap: 6 },
     'segmented controls tighten to 6px so the group reads as one control'),
-  D('r-seg-radius', 'sheet', '.sr-seg', { borderRadius: 10 },
+  D('r-seg-radius', 'sheet', '.sr-seg', { borderRadius: 8 },
     'and the group takes one radius around its members'),
   D('r-preview-rule', 'sheet', '.sr-preview', { border: '1px solid var(--sr-line)' },
     'the install preview is outlined rather than filled: it is a preview, not a result'),
-  D('r-preview-meta-size', 'sheet', '.sr-preview-meta', { fontSize: 10.5, color: 'var(--sr-fg3)' },
+  D('r-preview-meta-size', 'sheet', '.sr-preview-meta', { fontSize: 13, color: 'var(--sr-fg3)' },
     'the file count and type are metadata, so they recede behind the name and description'),
   D('r-preview-name-mono', 'sheet', '.sr-preview-name', { fontFamily: 'var(--sr-mono)' },
     'the previewed name is the slug that will land on disk, so it is shown as one'),
@@ -1506,12 +1514,12 @@ const DESIGN = Object.freeze([
     'and its instruction is a label, at the same weight as a field label'),
   D('r-note-pad', 'sheet', '.sr-note', { padding: '9px 11px' },
     'notes are 9/11 rather than the card 14: they are inline asides, not cards'),
-  D('r-note-hint-size', 'sheet', '.sr-note-hint', { fontSize: 10.5 },
+  D('r-note-hint-size', 'sheet', '.sr-note-hint', { fontSize: 11 },
     'the second line of a note is the actionable part, so it steps down but stays legible'),
   D('r-warn-rule', 'sheet', '.sr-note--warn', { borderLeftWidth: 3 },
     'warnings carry the same 3px rule the toasts use, so "attention" looks the same everywhere'),
   // ---- loading and empty states ----------------------------------------------------------
-  D('r-skel-radius', 'frame', '.sr-skel', { borderRadius: 10 },
+  D('r-skel-radius', 'frame', '.sr-skel', { borderRadius: 8 },
     'the skeleton takes the control radius: it is standing in for cards and rows'),
   D('r-skel-track', 'frame', '.sr-skel', { background: 'linear-gradient(90deg, var(--sr-sunken), var(--sr-fill), var(--sr-sunken))', backgroundSize: '220% 100%' },
     'the shimmer needs a track WIDER than the element, or the sweep is a hard edge'),
@@ -1521,20 +1529,20 @@ const DESIGN = Object.freeze([
     'and body lines are 11px, matching the text they stand in for'),
   D('r-empty-pad', 'sec', '.sr-empty', { padding: '18px 16px' },
     'an empty state gets room, because it is the only thing on screen when it appears'),
-  D('r-empty-rule', 'sec', '.sr-empty', { border: '1px dashed var(--sr-line)', borderRadius: 12 },
+  D('r-empty-rule', 'sec', '.sr-empty', { border: '1px dashed var(--sr-line)', borderRadius: 8 },
     'dashed, joining the drop zone and the guide: all three say "nothing here yet"'),
   D('r-guide-pad', 'sec', '.sr-guide', { padding: '14px 16px', gap: 10 },
     'the first-run guide matches the card inset and the row gap, so it belongs to the same system'),
   D('r-guide-icon-size', 'sec', '.sr-guide .sr-ic', { width: 16, height: 16 },
     'the leading icon is 16px: at 18 it outranked the sentence it introduces'),
-  D('r-guide-text-size', 'sec', '.sr-guide-text', { fontSize: 12, lineHeight: 1.6 },
+  D('r-guide-text-size', 'sec', '.sr-guide-text', { fontSize: 13, lineHeight: 1.6 },
     'the guide is the one paragraph a new user reads, so it gets the loosest leading'),
   // ---- panel chrome ----------------------------------------------------------------------
   D('r-sec-head-pad', 'sec', '.sr-sec-h', { padding: '10px 16px' },
     'section headers share the 16px inset with the header and the body, so the left edge is one line'),
-  D('r-sec-title-size', 'sec', '.sr-sec-t', { fontSize: 11.5, fontWeight: 620 },
+  D('r-sec-title-size', 'sec', '.sr-sec-t', { fontSize: 12, fontWeight: 620 },
     'a section title is the third level, between the panel title and a card name'),
-  D('r-sec-count-quiet', 'sec', '.sr-sec-h .sr-count', { fontSize: 10.5, color: 'var(--sr-fg3)' },
+  D('r-sec-count-quiet', 'sec', '.sr-sec-h .sr-count', { fontSize: 11, color: 'var(--sr-fg3)' },
     'the count beside a section title is metadata, so it does not compete with the title'),
   D('r-sec-caret-size', 'sec', '.sr-sec-caret .sr-ic', { width: 12, height: 12 },
     'a 12px caret: big enough to aim at inside a 44px row, small enough not to dominate'),
@@ -1548,17 +1556,17 @@ const DESIGN = Object.freeze([
     'filter chips sit 6px apart, tight enough to read as a set'),
   D('r-chips-wrap', 'sec', '.sr-chips', { flexWrap: 'wrap', rowGap: 6 },
     'and they wrap, because the tag list is as long as the user made it'),
-  D('r-sort-size', 'sec', '.sr-sort button', { fontSize: 10.5 },
+  D('r-sort-size', 'sec', '.sr-sort button', { fontSize: 12 },
     'the sort control is a micro-label, matching the section count'),
   D('r-group-count-pill', 'card', '.sr-group-head .sr-pill', { fontVariantNumeric: 'tabular-nums' },
     'group counts change as skills are toggled, so they hold their width'),
-  D('r-group-title-size', 'card', '.sr-group-title', { fontSize: 11, letterSpacing: '.02em' },
+  D('r-group-title-size', 'card', '.sr-group-title', { fontSize: 12, letterSpacing: '.02em' },
     'the group heading is a micro-caps label: the tracking keeps it legible at 11px'),
-  D('r-group-note-size', 'card', '.sr-group-note', { fontSize: 10.5 },
+  D('r-group-note-size', 'card', '.sr-group-note', { fontSize: 12 },
     'and its explanation is one step below the heading it explains'),
-  D('r-hero-badge-mono', 'hero', '.sr-badge', { fontFamily: 'var(--sr-mono)', fontSize: 10.5 },
+  D('r-hero-badge-mono', 'hero', '.sr-badge', { fontFamily: 'var(--sr-mono)', fontSize: 11 },
     'the hero badges name skills, and a skill name is an identifier'),
-  D('r-hero-empty-size', 'hero', '.sr-hero-empty', { fontSize: 12.5, lineHeight: 1.5 },
+  D('r-hero-empty-size', 'hero', '.sr-hero-empty', { fontSize: 12, lineHeight: 1.5 },
     'the first-run sentence in the hero matches body size rather than the meta size around it'),
   D('r-share-name-mono', 'stat', '.sr-share-name', { fontFamily: 'var(--sr-mono)' },
     'the per-skill bar list names skills, so they align in the mono face'),
@@ -1623,7 +1631,7 @@ const DESIGN = Object.freeze([
     'a three-column row: time, what happened, and the age. A grid rather than flex because the monospace time column must not shift between rows'),
   D('r-turn-time-width', 'time', '.sr-turn-t', { minWidth: 46, fontVariantNumeric: 'tabular-nums' },
     'the time column is fixed and tabular, so consecutive turns line up down the page'),
-  D('r-turn-time-mono', 'time', '.sr-turn-t', { fontFamily: 'var(--sr-mono)', fontSize: 10.5 },
+  D('r-turn-time-mono', 'time', '.sr-turn-t', { fontFamily: 'var(--sr-mono)', fontSize: 12 },
     'and set in mono at the meta size, because it is a figure rather than prose'),
   D('r-turn-time-colour', 'time', '.sr-turn-t', { color: 'var(--sr-fg3)' },
     'the timestamp recedes: it is an index, not the content'),
@@ -1633,7 +1641,7 @@ const DESIGN = Object.freeze([
     'a hairline between turns, lighter than a section rule: turns are the finest division here'),
   D('r-turn-pad-y', 'time', '.sr-turn', { paddingBlock: 7 },
     '7px above and below each turn: enough to separate, tight enough to scan a long list'),
-  D('r-call-chip', 'time', '.sr-call', { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '1px 7px', borderRadius: 999 },
+  D('r-call-chip', 'time', '.sr-call', { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '1px 7px', borderRadius: 8 },
     'a called skill is a small pill, so several fit one line without wrapping'),
   D('r-call-chip-auto', 'time', '.sr-call--auto', { background: 'var(--sr-accent-weak)', color: 'var(--sr-fg)' },
     'an automatic call is accent-tinted: it is the case the user is usually looking for'),
@@ -1645,7 +1653,7 @@ const DESIGN = Object.freeze([
     'mono runs wide at 11px, so the chip name tightens a fraction to fit more per line'),
   D('r-skill-table-head', 'stat', '.sr-per-head', { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 10, padding: '6px 0' },
     'the per-skill table has a header row, so the columns are named rather than inferred'),
-  D('r-skill-table-head-size', 'stat', '.sr-per-head', { fontSize: 10, letterSpacing: '.045em', textTransform: 'uppercase', color: 'var(--sr-fg3)' },
+  D('r-skill-table-head-size', 'stat', '.sr-per-head', { fontSize: 12, letterSpacing: '.045em', textTransform: 'uppercase', color: 'var(--sr-fg3)' },
     'a micro-caps header: the one place uppercase earns its keep, because it labels numbers'),
   D('r-skill-table-row', 'stat', '.sr-per-row', { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 10, alignItems: 'center', padding: '5px 0' },
     'body rows share the header grid exactly, so the columns cannot drift apart'),
@@ -1660,7 +1668,7 @@ const DESIGN = Object.freeze([
   // ---- the footer ------------------------------------------------------------------------
   D('r-foot-grid', 'frame', '.sr-foot', { display: 'flex', alignItems: 'center', gap: 10 },
     'the footer is one row of small facts, evenly spaced'),
-  D('r-foot-size', 'frame', '.sr-foot', { fontSize: 10.5 },
+  D('r-foot-size', 'frame', '.sr-foot', { fontSize: 11 },
     'footer text is the smallest tier: it is reference information, not content'),
   D('r-foot-version-mono', 'frame', '.sr-foot-v', { fontFamily: 'var(--sr-mono)', fontVariantNumeric: 'tabular-nums' },
     'the version and the fetched-at stamp are both figures, so both are mono and tabular'),
@@ -1686,7 +1694,7 @@ const DESIGN = Object.freeze([
     'a named optical correction: mono faces set about 4% larger than sans at the same nominal size'),
   D('r-list-marker', 'type', '.sr-guide-list', { paddingInlineStart: 18 },
     'list markers get 18px, which is what keeps a two-line item aligned under its own text'),
-  D('r-code-inline', 'type', '.sr-code', { fontFamily: 'var(--sr-mono)', fontSize: '.94em', padding: '1px 4px', borderRadius: 5, background: 'var(--sr-sunken)' },
+  D('r-code-inline', 'type', '.sr-code', { fontFamily: 'var(--sr-mono)', fontSize: '.94em', padding: '1px 4px', borderRadius: 6, background: 'var(--sr-sunken)' },
     'inline code steps DOWN to .94em, because mono at the same nominal size looks larger'),
   D('r-time-now', 'time', '.sr-age--now', { color: 'var(--sr-ok)' },
     'the age column turns green under a minute, which is the one moment the reader cares about it'),
@@ -1702,13 +1710,13 @@ const DESIGN = Object.freeze([
     'the share rows are 4px apart: they are a ranked list, so density is the point'),
   D('r-hist-row-gap', 'time', '.sr-hist-row', { gap: 8 },
     'history rows take the toast gap, so the two transient lists look related'),
-  D('r-sheet-tab-count', 'sheet', '.sr-tab .sr-count', { fontSize: 10, opacity: 0.8 },
+  D('r-sheet-tab-count', 'sheet', '.sr-tab .sr-count', { fontSize: 11, opacity: 0.8 },
     'a count inside a tab steps down and dims, because the tab label is the target'),
-  D('r-opt-size', 'sheet', '.sr-opt', { fontSize: 10, fontWeight: 400, textTransform: 'none' },
+  D('r-opt-size', 'sheet', '.sr-opt', { fontSize: 12, fontWeight: 400, textTransform: 'none' },
     'the 可选 marker is a quiet suffix: no case change, no weight, no colour of its own'),
-  D('r-path-mono', 'sheet', '.sr-path', { fontFamily: 'var(--sr-mono)', fontSize: 10.5 },
+  D('r-path-mono', 'sheet', '.sr-path', { fontFamily: 'var(--sr-mono)', fontSize: 12 },
     'any path the sheet shows is mono at the meta size'),
-  D('r-counter-unit', 'meta', '.sr-unit', { fontSize: 10, color: 'var(--sr-fg3)' },
+  D('r-counter-unit', 'meta', '.sr-unit', { fontSize: 12, color: 'var(--sr-fg3)' },
     'units like 次 and 个 step down from their number, so the figure stays the subject'),
   D('r-hint-kbd-inline', 'sec', '.sr-hint .sr-kbd', { marginInline: 2 },
     'a key cap inside a sentence needs 2px either side, or it touches the words'),
@@ -1726,16 +1734,16 @@ const DESIGN = Object.freeze([
     'one pixel between table rows: the grid alignment already separates them, so a gap would only add height'),
   D('r-recent-gap', 'time', '.sr-recent-list', { rowGap: 2 },
     'the recent list gets 2px, one step more than the table, because its rows are prose rather than figures'),
-  D('r-capability-note', 'sheet', '.sr-cap-note', { fontSize: 10.5, lineHeight: 1.5, color: 'var(--sr-fg3)' },
+  D('r-capability-note', 'sheet', '.sr-cap-note', { fontSize: 12, lineHeight: 1.5, color: 'var(--sr-fg3)' },
     'the read-only explanation is a footnote, so it is set as one'),
 
-  D('r-bp-chip-compact-tablet', 'stat', '.sr-statcard--inline', { paddingInline: 5, gap: 4, borderRadius: 7 },
+  D('r-bp-chip-compact-tablet', 'stat', '.sr-statcard--inline', { paddingInline: 5, gap: 4, borderRadius: 6 },
     'the counter chips go compact below 900px: computed from the chip geometry that is 44px across four of them, which is what buys the summary a readable width instead of shrinking the numbers themselves'),
-  D('r-bp-chip-label-tablet', 'stat', '.sr-stat-l', { fontSize: 9.5 },
+  D('r-bp-chip-label-tablet', 'stat', '.sr-stat-l', { fontSize: 12 },
     'and the chip label steps to 9.5px, the smallest size that still holds CJK shapes'),
-  D('r-bp-chip-value-tablet', 'stat', '.sr-stat-v', { fontSize: 13 },
+  D('r-bp-chip-value-tablet', 'stat', '.sr-stat-v', { fontSize: 12 },
     'the value steps with its label rather than staying large over small caps'),
-  D('r-bp-strip-count-tablet', 'stat', '.sr-strip-count', { paddingInline: 5, fontSize: 10.5 },
+  D('r-bp-strip-count-tablet', 'stat', '.sr-strip-count', { paddingInline: 5, fontSize: 12 },
     'the install count chip tightens too, so the bar has one compact rhythm rather than two'),
   D('r-bp-mark-tablet', 'frame', '.sr-strip-logo', { width: 18, height: 18 },
     'and the brand mark steps down to 18px, freeing 4px and matching the smaller chips around it'),
@@ -1746,60 +1754,35 @@ const DESIGN = Object.freeze([
    * OVAL rather than a rounded rectangle, and the tag/category chips replaced by colour blocks.
    */
   //
-  // ROUNDER CONTROLS. The system had three radii (card 14 / control 9 / pill 999); the control step is
-  // the one that made buttons read as "方正", so it moves to a near-pill. Buttons and inputs keep a
-  // shared value on purpose — a field and a button in one row must have the same corner — while the
-  // containers (cards, the panel, the sheet) stay where they are, because a radius is relative to the
-  // size of the box it rounds and a 14px card next to a 999px button would look like two systems.
-  D('r-round-control', 'btn', '.sr-btn', { borderRadius: 999 },
-    'controls become pills: at a 28px height, a 9px radius is a rectangle and a pill is a button'),
-  D('r-round-input', 'sheet', '.sr-input', { borderRadius: 999 },
-    'inputs follow the controls, so a field and a button in one row still share a corner'),
-  D('r-round-textarea', 'sheet', '.sr-textarea', { borderRadius: 16 },
-    'a textarea is not a single line, so it takes a large radius rather than a pill — a 999px radius on a 150px-tall box is a stadium, not a field'),
-  D('r-round-chip', 'sec', '.sr-chip', { borderRadius: 999 },
-    'chips were already pills; named here so the whole control family is in one group'),
-  D('r-round-tab', 'sheet', '.sr-tab', { borderRadius: 999 },
-    'tabs join the pill family'),
-  D('r-round-seg', 'sheet', '.sr-seg', { borderRadius: 999 },
-    'the segmented control takes a pill outer radius, with its inner members one step in'),
-  D('r-round-seg-inner', 'sheet', '.sr-seg button', { borderRadius: 999 },
-    'and the members are pills too, so the group reads as one capsule'),
-  D('r-round-btn-sm', 'btn', '.sr-btn--sm', { borderRadius: 999 },
-    'the small step was 8px, which was the squarest corner in the system; it is now the same pill'),
-  D('r-round-btn-icon', 'btn', '.sr-btn--icon', { borderRadius: 999 },
-    'icon buttons are circles, which is what a single glyph in a square box wants to be'),
-  D('r-round-avatar-btn', 'card', '.sr-avatar-btn', { borderRadius: 999 },
-    'the avatar wrapper becomes a circle, matching the round icon buttons in the bar'),
-  D('r-round-avatar', 'card', '.sr-avatar', { borderRadius: 999 },
-    'and the tile itself is rounder than the 9px it was: it is the control the user clicks for colour'),
-  // The segmented control's THUMB is a shape inside the group, not a button, but at 8px against a 22px
-  // tall track it was the squarest corner left on screen. It needs its own record rather than inheriting
-  // from `.sr-seg`: the older `seg-thumb` record sets 8 at the same specificity and wins on source order.
-  D('r-round-seg-thumb', 'meta', '.sr-seg-ind', { borderRadius: 999 },
-    'the selected tab\'s thumb becomes a capsule, matching the group it slides inside'),
+  // THE PILL FAMILY IS GONE, replaced by the one radius.
+  //
+  // It started as a real request ("还有很多按钮没有变成椭圆的是为什么") and the buttons honoured it; the rest of the
+  // family followed on the reasoning that a field and a button in one row must share a corner. That reasoning is
+  // still right — it is the VALUE that was wrong, and this pass sets it to 8 for all of them at once. Deleting the
+  // records rather than setting each to 8 is deliberate: ~20 records that exist only to say "8" would leave the
+  // next reader hunting for the rule, and the rule is now the base declarations above.
+  //
+  // What remains below is what is round by NATURE, not by style.
+  D('r-round-seg-thumb', 'meta', '.sr-seg-ind', { borderRadius: 6 },
+    'the selected tab\'s thumb is ONE STEP IN from its 8px track, which is what makes a segmented control read as inset rather than pasted on'),
   D('r-round-swatch', 'card', '.sr-swatch', { borderRadius: 999 },
-    'colour swatches are circles'),
-  D('r-round-toast', 'toast', '.sr-toast', { borderRadius: 16 },
-    'toasts take 16 rather than 12: they are single-message surfaces and read as cards'),
-  D('r-round-statcard', 'stat', '.sr-statcard--inline', { borderRadius: 999 },
-    'the counter chips on the bar become ovals, which is the user\'s request applied to the numbers'),
-  D('r-round-pill', 'meta', '.sr-pill', { borderRadius: 999 },
-    'count pills are ovals'),
-  D('r-round-badge', 'hero', '.sr-badge', { borderRadius: 999 },
-    'and so are hero badges'),
-  D('r-round-hero', 'hero', '.sr-hero', { borderRadius: 18 },
-    'the hero steps up with the controls, staying below the panel frame'),
-  D('r-round-stat', 'stat', '.sr-stat', { borderRadius: 16 },
-    'the stat cards step up with it'),
-  D('r-round-input-inner', 'sheet', '.sr-input--mono', { borderRadius: 999 },
-    'the mono variant matches its base'),
+    'colour swatches stay CIRCLES. A radius would turn a colour picker into a row of small squares, and a circle is what a colour reads as'),
+  D('r-round-avatar-btn', 'card', '.sr-avatar-btn', { borderRadius: 8 },
+    'the avatar wrapper follows the tile it wraps rather than being rounder than it'),
+  D('r-round-hero', 'hero', '.sr-hero', { borderRadius: 8 },
+    'the hero takes the one radius, like every other surface'),
+  D('r-round-stat', 'stat', '.sr-stat', { borderRadius: 8 },
+    'the stat cards take it too'),
+  D('r-round-toast', 'toast', '.sr-toast', { borderRadius: 8 },
+    'toasts are cards with a message in them, so they take the card radius'),
+  D('r-round-textarea', 'sheet', '.sr-textarea', { borderRadius: 8 },
+    'a textarea is a field, and every field is 8'),
   //
   // THE INSTALL COUNT AS AN OVAL. It was a rounded rectangle at radius 999 already, but only 20px tall
   // against a wide label, which is what made it read as a box rather than a lozenge: the fix is height
   // and horizontal padding, so the curve has room to be seen.
   D('r-count-oval', 'stat', '.sr-strip-count', {
-    borderRadius: 999,
+    borderRadius: 6,
     paddingInline: 10,
     minHeight: 20,
     lineHeight: '18px',
@@ -1840,7 +1823,7 @@ const DESIGN = Object.freeze([
     flex: 'none',
     boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.16)',
   }, 'the dot carries the colour, with a hairline inside so a pale swatch is still visible on white'),
-  D('r-cf-n', 'sec', '.sr-cf-n', { fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--sr-fg3)' },
+  D('r-cf-n', 'sec', '.sr-cf-n', { fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--sr-fg3)' },
     'the count steps down and dims: the colour is the subject of this control'),
   D('r-cf-hover', 'sec', '.sr-cf:hover:not(:disabled)', { background: 'var(--sr-fill)', color: 'var(--sr-fg)' },
     'and it responds like every other chip'),
@@ -1884,9 +1867,9 @@ const DESIGN = Object.freeze([
     'a group header is a row: label, count, and the sentence that explains the state'),
   D('group-gap', 'card', '.sr-group', { marginTop: 'calc(var(--sr-u) * 2)' },
     'the two groups are separate lists and need air between them'),
-  D('group-title', 'card', '.sr-group-title', { fontSize: 11, fontWeight: 700, letterSpacing: 'var(--sr-track-loose)', textTransform: 'uppercase', color: 'var(--sr-fg2)' },
+  D('group-title', 'card', '.sr-group-title', { fontSize: 12, fontWeight: 700, letterSpacing: 'var(--sr-track-loose)', textTransform: 'uppercase', color: 'var(--sr-fg2)' },
     'the group heading is the one thing that tells the user what the model can load'),
-  D('group-note', 'card', '.sr-group-note', { fontSize: 10.5, color: 'var(--sr-fg3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  D('group-note', 'card', '.sr-group-note', { fontSize: 12, color: 'var(--sr-fg3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
     'the note explains the state and may truncate on a narrow panel'),
   D('off-card', 'card', '.sr-skill--off', { background: 'var(--sr-raised)', borderStyle: 'dashed', boxShadow: 'none' },
     'a parked card is DASHED and flat: the same object in a different state, not a deleted one'),
@@ -1920,17 +1903,17 @@ const DESIGN = Object.freeze([
     'the turn count sits just after the counters, so the two read as one group'),
   D('statcard-inline', 'stat', '.sr-statcard--inline', { display: 'inline-flex', flexDirection: 'row-reverse', alignItems: 'baseline', gap: 'calc(var(--sr-u) * 1.25)', padding: 'calc(var(--sr-u) * .75) calc(var(--sr-u) * 2)', borderRadius: 8, background: 'var(--sr-sunken)', border: '1px solid transparent' },
     'one counter as a chip: label and value on one line, so four of them fit the bar'),
-  D('statcard-inline-num', 'stat', '.sr-statcard--inline .sr-stat-v', { fontSize: 15, fontWeight: 700, letterSpacing: 'var(--sr-track-tight)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
+  D('statcard-inline-num', 'stat', '.sr-statcard--inline .sr-stat-v', { fontSize: 12, fontWeight: 700, letterSpacing: 'var(--sr-track-tight)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
     '15px is the largest that still fits four chips across the strip'),
-  D('statcard-inline-label', 'stat', '.sr-statcard--inline .sr-stat-l', { fontSize: 10.5, letterSpacing: '.03em', textTransform: 'uppercase', fontWeight: 550, color: 'var(--sr-fg3)' },
+  D('statcard-inline-label', 'stat', '.sr-statcard--inline .sr-stat-l', { fontSize: 12, letterSpacing: '.03em', textTransform: 'uppercase', fontWeight: 550, color: 'var(--sr-fg3)' },
     'the same micro-caps treatment as the full-size cards, so the two read as one system'),
   // The bar is one 18px line; a chip with card padding would set the bar's height and
   // visibly thicken it when the strip expands.
   D('statcard-bar', 'stat', '.sr-statcard--bar', { padding: 'calc(var(--sr-u) * .25) calc(var(--sr-u) * 1.5)', borderRadius: 6, gap: 'calc(var(--sr-u))' },
     'the bar variant is smaller again, so four chips fit an 18px line without thickening it'),
-  D('statcard-bar-num', 'stat', '.sr-statcard--bar .sr-stat-v', { fontSize: 12.5, fontWeight: 700 },
+  D('statcard-bar-num', 'stat', '.sr-statcard--bar .sr-stat-v', { fontSize: 12, fontWeight: 700 },
     'the number steps down with the chip and stays the largest thing in it'),
-  D('statcard-bar-label', 'stat', '.sr-statcard--bar .sr-stat-l', { fontSize: 10, letterSpacing: '.02em' },
+  D('statcard-bar-label', 'stat', '.sr-statcard--bar .sr-stat-l', { fontSize: 12, letterSpacing: '.02em' },
     'and the label follows, keeping the pair readable at bar scale'),
 
   /* the claim row: its own row, at the card width ----------------------------- */
@@ -1938,7 +1921,7 @@ const DESIGN = Object.freeze([
     'the card action column: buttons right-aligned, any revealed row BELOW them at full width'),
   D('claim-row', 'card', '.sr-claim-row', { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 'calc(var(--sr-u) * 1.5)', width: '100%', marginTop: 'calc(var(--sr-u) * .5)', paddingTop: 'calc(var(--sr-u) * 2)', borderTop: '1px solid var(--sr-line)' },
     'the revealed claim field spans the CARD, which is why it is no longer a child of the button row'),
-  D('claim-inner', 'card', '.sr-claim-row .sr-claim', { padding: 0, background: 'none', borderRadius: 0, borderTop: 0, marginTop: 0 },
+  D('claim-inner', 'card', '.sr-claim-row .sr-claim', { padding: 0, background: 'none', borderRadius: 8, borderTop: 0, marginTop: 0 },
     'one frame, not two: the row owns the rule and the padding'),
   D('claim-help', 'card', '.sr-claim-row .sr-help', { textAlign: 'left' },
     'the helper line sits under the field it describes'),
@@ -2006,7 +1989,7 @@ function descendantSelector(list, roots) {
 function designDeclarations(record) {
   const camel = (key) => key.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)
   // A number is a LENGTH unless the property is named as unitless — see the long note in polish.js.
-  // The old version only appended `px` below 100, so `borderRadius: 999` emitted the invalid
+  // The old version only appended `px` below 100, so `borderRadius: 8` emitted the invalid
   // `border-radius:999`, the browser discarded it, and every pill in the sheet was silently square
   // while the stylesheet read as correct.
   const value = (key, v) => (typeof v === 'number' && !UNITLESS_KEYS.has(key) ? `${v}px` : String(v))
@@ -2115,48 +2098,57 @@ function designResponsiveCSS(roots) {
  * covering both is the only defensible choice.
  */
 function designDarkCSS(roots) {
-  // WARM DARK, matching the warm light palette.
+  // NEUTRAL DARK, rebuilt with the light palette rather than left behind.
   //
-  // The previous dark scale was blue-grey (#0b0c0e / #a6abb6) while the light one became warm this
-  // pass, so the two themes stopped looking like the same product — and the suite verified the dark
-  // block was EMITTED without ever computing its contrast, so nothing would have caught an
-  // unreadable dark theme either. Both gaps are closed together: these values were SOLVED rather
-  // than picked and now have contrast assertions of their own.
+  // The light pass moved to a neutral grey canvas and a single blue, so the old warm dark scale (#100e0c /
+  // #f2efe9, with a periwinkle accent) would have been a different product. These values were SOLVED with the
+  // same luminance maths `test/ui-polish.mjs` uses, not picked:
   //
-  // Measured worst case per ink (see test/ui-polish.mjs, which recomputes these):
-  //   --sr-fg  #f2efe9  14.46:1 on the raised step
-  //   --sr-fg2 #b3ada4   7.45:1
-  //   --sr-fg3 #8f8981   4.79:1  (the value that constrains the scale)
-  //   accent #8b8bf0 5.57:1 as text, and #14110d on it gives 6.32:1 for a filled button —
-  //   white on that accent would be 2.98:1, which is why the dark accent's ink is INK, not white.
+  //   --sr-fg   #f5f5f7  12.80:1 on the card
+  //   --sr-fg2  #a1a1a6   5.42:1
+  //   --sr-fg3  #98989d   4.85:1  (the value that constrains the scale — it sits on the card, not on the darkest step)
+  //   accent    #5c9bff   5.04:1 as text on the card
+  //
+  // TWO VALUES ARE COUNTER-INTUITIVE, and both were caught by computing rather than by looking:
+  //
+  //   * --sr-fg3 had to be RAISED from #8e8e93, which measured 4.27:1 on the card — under AA on the surface most
+  //     of the small print actually sits on.
+  //   * --sr-accent-ink is INK, not white. White on this accent is 2.77:1, so a filled primary button in dark
+  //     mode carries dark text on the bright blue — which is also what macOS and Windows do. A dark theme that
+  //     reuses the light theme's white-on-accent is unreadable, and nothing but the maths shows it.
   const overrides = {
-    '--sr-canvas': '#100e0c',
-    '--sr-card': '#191714',
-    '--sr-raised': '#211e1a',
-    '--sr-sunken': '#12100e',
-    '--sr-fill': 'rgba(255,251,245,.06)',
-    '--sr-fill2': 'rgba(255,251,245,.035)',
-    '--sr-line': 'color-mix(in srgb, #fffbf5 12%, transparent)',
-    '--sr-line2': 'color-mix(in srgb, #fffbf5 22%, transparent)',
-    '--sr-fg': '#f2efe9',
-    '--sr-fg2': '#b3ada4',
-    '--sr-fg3': '#8f8981',
-    '--sr-accent': '#8b8bf0',
-    '--sr-accent-ink': '#14110d',
-    '--sr-accent-weak': 'color-mix(in srgb, var(--sr-accent) 20%, transparent)',
-    '--sr-accent-line': 'color-mix(in srgb, var(--sr-accent) 46%, transparent)',
-    '--sr-danger': '#f0917f',
-    '--sr-danger-weak': 'color-mix(in srgb, var(--sr-danger) 18%, transparent)',
-    '--sr-ok': '#6cc98a',
-    '--sr-ok-weak': 'color-mix(in srgb, var(--sr-ok) 18%, transparent)',
-    '--sr-warn': '#e0b45f',
-    '--sr-warn-weak': 'color-mix(in srgb, var(--sr-warn) 20%, transparent)',
-    '--sr-scrim': 'rgba(10,8,6,.66)',
-    '--sr-e1': '0 1px 1px rgba(0,0,0,.38), 0 2px 4px -2px rgba(0,0,0,.44)',
-    '--sr-e2': '0 2px 4px -1px rgba(0,0,0,.44), 0 8px 16px -8px rgba(0,0,0,.6)',
-    '--sr-e3': '0 4px 8px -2px rgba(0,0,0,.5), 0 24px 48px -16px rgba(0,0,0,.74)',
-    '--sr-ring': 'inset 0 0 0 1px rgba(255,251,245,.06)',
-    '--sr-glow': '0 1px 2px color-mix(in srgb, var(--sr-accent) 45%, transparent)',
+    '--sr-canvas': '#1c1c1e',
+    '--sr-card': '#2c2c2e',
+    '--sr-raised': '#3a3a3c',
+    '--sr-sunken': '#121214',
+    '--sr-fill': 'rgba(255,255,255,.065)',
+    '--sr-fill2': 'rgba(255,255,255,.038)',
+    '--sr-line': 'rgba(255,255,255,.11)',
+    '--sr-line2': 'rgba(255,255,255,.19)',
+    '--sr-fg': '#f5f5f7',
+    '--sr-fg2': '#a1a1a6',
+    '--sr-fg3': '#98989d',
+    '--sr-accent': '#5c9bff',
+    '--sr-accent-ink': '#0b1220',
+    '--sr-accent-weak': 'color-mix(in srgb, var(--sr-accent) 18%, transparent)',
+    '--sr-accent-line': 'color-mix(in srgb, var(--sr-accent) 44%, transparent)',
+    '--sr-display': '#5c9bff',
+    '--sr-danger': '#ff6961',
+    '--sr-danger-weak': 'color-mix(in srgb, var(--sr-danger) 16%, transparent)',
+    '--sr-ok': '#5fc98a',
+    '--sr-ok-weak': 'color-mix(in srgb, var(--sr-ok) 16%, transparent)',
+    '--sr-warn': '#e3b341',
+    '--sr-warn-weak': 'color-mix(in srgb, var(--sr-warn) 18%, transparent)',
+    '--sr-scrim': 'rgba(0,0,0,.58)',
+    // ONE shadow each, and a shallow one. The old values stacked two or three layers to build "elevation"; a
+    // modern dark surface separates by LIGHTNESS (the four steps above) and uses shadow only to lift a floating
+    // element off the page. Stacked dark blurs on a dark canvas read as dirt, which is the thing the brief calls
+    // 老旧粗糙感.
+    '--sr-e1': '0 1px 2px rgba(0,0,0,.30)',
+    '--sr-e2': '0 2px 6px -1px rgba(0,0,0,.38)',
+    '--sr-e3': '0 8px 24px -8px rgba(0,0,0,.50)',
+    '--sr-ring': 'inset 0 0 0 1px rgba(255,255,255,.055)',
+    '--sr-glow': 'none',
   }
   const decls = Object.entries(overrides).map(([key, value]) => `${key}:${value}`).join(';')
   const block = `${roots.join(',')}{${decls}}`

@@ -479,21 +479,37 @@ console.log('\n[9b] the composer strip: persistent counters, an install count, a
     'a user who picks Dark in the app while the OS is light must still get the dark mark')
 }
 // A palette swap is the easiest way to break accessibility silently, so the scale in use is asserted
-// rather than assumed. This check has now tracked four palettes — cool neutral, warm stone, Bondi Blue
-// and the Vapor Chrome card — and each time the VALUE changed while the reason for asserting it did not:
-// a reference card's own tones are DISPLAY weights, and the accent has to be solved to clear AA.
-ok('the palette is the Vapor Chrome scale from the reference card',
-  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#f6f7fe' &&
-    String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display']) === '#818cf8',
-  `${String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas'])} / ${String(designRecords.find((r) => r.id === 'color-display')?.props['--sr-display'])}`)
-// The card's own Bondi Blue is a DISPLAY weight: 3.3:1 as text on white. It is kept for fills and
-// graphics, and the ACCENT must be a deeper value that clears AA both ways — asserted here so a future
-// change cannot quietly promote the display tone into body text.
-ok('the display tone is kept separate from the text-safe accent',
-  String(designRecords.find((r) => r.id === 'color-accent').props['--sr-accent']) !== '#0f97a8',
-  'the accent must not be the untinted card value')
-ok('...and the frosted wash that gives the blur something to work on is present',
-  String(designRecords.find((r) => r.id === 'wash-backdrop')?.props?.backgroundImage ?? '').includes('radial-gradient'))
+// rather than assumed. This check has now tracked FIVE palettes — cool neutral, warm stone, Bondi Blue, the
+// Vapor Chrome card, and the neutral tool palette — and each time the VALUE changed while the reason for
+// asserting it did not: the named values come from the brief, and everything that carries text has to be
+// solved to clear AA on the surface it actually sits on.
+ok('the palette is the neutral tool scale from the brief',
+  String(designRecords.find((r) => r.id === 'color-canvas').props['--sr-canvas']) === '#f5f5f7' &&
+    String(designRecords.find((r) => r.id === 'color-accent').props['--sr-accent']) === '#2563eb' &&
+    String(designRecords.find((r) => r.id === 'color-fg').props['--sr-fg']) === '#1d1d1f' &&
+    String(designRecords.find((r) => r.id === 'color-line').props['--sr-line']) === '#e5e7eb',
+  `${String(designRecords.find((r) => r.id === 'color-canvas')?.props['--sr-canvas'])} / ${String(designRecords.find((r) => r.id === 'color-accent')?.props['--sr-accent'])}`)
+// ONE accent, and nothing else in the system may be a hue of its own. The brief is explicit ("全局仅使用一种主色"),
+// and the previous palettes each carried display tones beside the accent — a periwinkle #818cf8, an aqua, an ice,
+// a lilac — which is exactly what this check now forbids rather than merely reports.
+{
+  const accent = String(designRecords.find((r) => r.id === 'color-accent').props['--sr-accent'])
+  const display = String(designRecords.find((r) => r.id === 'color-display').props['--sr-display'])
+  ok('...and the display tone is the accent itself, not a second hue',
+    display === accent, `accent=${accent} display=${display}`)
+  const removed = ['color-display-aqua', 'color-display-ice', 'color-display-lilac']
+  ok('...so the extra display hues are gone from the sheet',
+    removed.every((id) => designRecords.find((r) => r.id === id) === undefined),
+    removed.filter((id) => designRecords.find((r) => r.id === id) !== undefined).join(', '))
+}
+// The frosted wash is REMOVED, deliberately, and this asserts the removal rather than tolerating it.
+//
+// Three low-opacity radial gradients sat behind the header so the blur had something to smear. That is decoration,
+// and the brief removes it: a translucent header blurs the CONTENT scrolling under it, which is what glass is for.
+// Asserted so a later pass cannot quietly reintroduce a coloured haze.
+ok('...and the decorative frosted wash is gone',
+  String(designRecords.find((r) => r.id === 'wash-backdrop')?.props?.backgroundImage ?? '') === 'none' &&
+    String(designRecords.find((r) => r.id === 'wash-root')?.props?.backgroundImage ?? '') === 'none')
 
 /* ---- motion: every name resolves, and every breakpoint record is inside a query ---------- */
 
@@ -702,19 +718,35 @@ ok('...and the steps increase monotonically',
     const sizes = [...ratio.matchAll(/(\d+(?:\.\d+)?)px/gu)].map((m) => Number(m[1]))
     return sizes.length === 5 && sizes.every((size, i) => i === 0 || size > sizes[i - 1])
   })(), ratio)
-ok('every elevation is a TWO-layer shadow, which is what reads as depth rather than dirt',
+// FLATTENED, at the owner's request: "去除浓重的黑阴影". This asserted a TWO-layer shadow per elevation on the
+// reasoning that stacked low-alpha blurs read as depth rather than dirt. That reasoning holds for a tinted palette
+// and fails on a neutral one, where two overlapping blurs produce a visible halo — which is what 老旧粗糙感 means
+// in practice. One shallow layer per step is now the rule, and the assertion is inverted so a later pass cannot
+// quietly re-stack them.
+ok('every elevation is a SINGLE-layer shadow, which is what keeps a neutral panel flat',
   ['depth-raise', 'depth-hover', 'depth-overlay'].every((id) => {
     const value = String(Object.values(designRecords.find((r) => r.id === id).props)[0])
-    return (value.match(/rgba\(/gu) ?? []).length >= 2
-  }), '')
+    return (value.match(/rgba\(/gu) ?? []).length === 1
+  }), 'more than one layer re-introduces the stacked halo the flattening pass removed')
+// The accent button's coloured glow is gone for the same reason, and it is asserted rather than merely deleted:
+// a tinted halo under a primary action is the clearest single tell of an older interface.
+ok('...and the accent casts no coloured glow',
+  String(Object.values(designRecords.find((r) => r.id === 'depth-accent-glow').props)[0]) === 'none', '')
 ok('the surface ramp has four distinct steps, so a panel can sit ON a page',
   new Set([tokenOf('color-canvas'), tokenOf('color-card'), tokenOf('color-raised'), tokenOf('color-sunken')]).size === 4, '')
 ok('the accent is used for exactly the primary, selection and attention roles',
   designRecords.filter((r) => JSON.stringify(r.props).includes('var(--sr-accent)')).length >= 8 &&
   designRecords.filter((r) => JSON.stringify(r.props).includes('var(--sr-danger)')).length <= 10,
   'the accent must not leak into every component')
-ok('hairlines are derived from the ink colour rather than hardcoded grey',
-  ['color-line', 'color-line2'].every((id) => String(Object.values(designRecords.find((r) => r.id === id).props)[0]).includes('color-mix')), '')
+// The hairline is a FLAT value now, in the exact hex the brief names, and the assertion is inverted.
+//
+// It used to be `color-mix` of the ink at 12%, on the reasoning that a hairline should follow the text colour. On a
+// tinted palette that kept the rule in the same family as the ink; on a neutral one it made the border darker over
+// the sunken step and barely visible over white, so one value could not be 1px-pale everywhere. A flat #e5e7eb can,
+// and "统一替换为 1px 极淡边框" is the request.
+ok('the hairline is the flat 1px value the brief names, not a mix of the ink',
+  tokenOf('color-line') === '#e5e7eb' && tokenOf('color-line2') !== tokenOf('color-line'),
+  `${tokenOf('color-line')} / ${tokenOf('color-line2')}`)
 const generated = design.designCSS(ROOTS)
 ok('no design rule needed !important', !generated.includes('!important'))
 
