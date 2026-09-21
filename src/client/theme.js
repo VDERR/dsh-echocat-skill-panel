@@ -326,7 +326,16 @@ ${SURFACES_FOCUS}{outline:2px solid var(--sr-accent);outline-offset:2px;border-r
  */
 .sr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:calc(var(--sr-sp)*3)}
 .sr-skill{display:flex;align-items:center;gap:calc(var(--sr-sp)*2.5);padding:calc(var(--sr-sp)*2) calc(var(--sr-sp)*2.25) calc(var(--sr-sp)*2) calc(var(--sr-sp)*3);border:1px solid var(--sr-line);border-radius:var(--sr-r);background:var(--sr-raised);text-align:left;transition:background var(--sr-speed),border-color var(--sr-speed),transform var(--sr-speed)}
-.sr-skill:hover{background:var(--sr-fill);border-color:var(--sr-line2);transform:translateY(-1px)}
+/* HOVER CARRIES NO TRANSFORM HERE, and that is the fix for a bug that made the hover scale invisible.
+   This hardcoded rule used to end with transform:translateY(-1px). The design pass then added a hover SCALE on the
+   same selector, and because this sheet is emitted BEFORE the generated passes, every one of those later rules won —
+   so the card lifted by one pixel and never grew, and the effect the owner asked for appeared to be missing entirely.
+   It was, in the browser, even though both the record and the generated CSS contained scale(1.02).
+
+   The trap is that this file holds a hand-written stylesheet for the same elements the two generated passes style, so
+   a property declared here is silently overridable and the override is invisible from either side. The lift is gone
+   from this rule; the design pass owns the card's hover transform. */
+.sr-skill:hover{background:var(--sr-fill);border-color:var(--sr-line2)}
 .sr-avatar{flex:none;width:26px;height:26px;border-radius:var(--sr-r-sm);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--sr-card);text-transform:uppercase;letter-spacing:0}
 .sr-skill-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(var(--sr-sp)*.5)}
 /* .sr-skill-top is gone on purpose: it was the row that put the name and the actions side

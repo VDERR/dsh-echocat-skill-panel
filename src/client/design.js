@@ -342,8 +342,12 @@ const DESIGN = Object.freeze([
     'a visible edge, since the fill matches the panel'),
   D('card-shadow', 'card', '.sr-skill', { boxShadow: 'var(--sr-e1)' },
     'the same elevation as a stat cell and a button: one system, three components'),
-  D('card-hover', 'card', '.sr-skill:hover', { background: 'var(--sr-card)', borderColor: 'var(--sr-line2)', boxShadow: 'var(--sr-e2)', transform: 'translateY(-1px)' },
-    'hover raises rather than tints, which is what makes a grid feel alive'),
+  // NO `transform` HERE. This rule used to carry `transform: translateY(-1px)` as a hover lift, and the hover scale
+  // declared later in the same pass was SILENTLY OVERRIDDEN by it — same selector, same specificity, later wins — so
+  // the card appeared to have no hover effect at all. Two rules cannot both own `transform`, and the scale is the one
+  // the owner asked for.
+  D('card-hover', 'card', '.sr-skill:hover', { background: 'var(--sr-card)', borderColor: 'var(--sr-line2)', boxShadow: 'var(--sr-e2)' },
+    'hover raises rather than tints, which is what makes a grid feel alive — the RISE is the shadow now, not a transform, because the transform belongs to the hover scale'),
   D('card-avatar-size', 'card', '.sr-avatar', { width: 30, height: 30, borderRadius: 8, fontSize: 12, fontWeight: 650 },
     'a 30px tile with a 13px initial: the old 26px tile made every card look like a table row'),
   D('card-avatar-ring', 'card', '.sr-avatar', { boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.28), var(--sr-e1)' },

@@ -1208,6 +1208,29 @@ console.log('\n[16] install affordances follow the capability')
   ok('[29] ...with the transition declared at the base, so it animates BOTH ways',
     /\.sr-skill\{[^}]*transition:[^}]*transform/u.test(sheet),
     'a transition inside a :hover rule does not run when the pointer leaves')
+  /**
+   * AND NOTHING ELSE MAY CLAIM THE CARD'S HOVER TRANSFORM.
+   *
+   * THIS is the assertion the first version was missing, and its absence is why the effect shipped DEAD: every rule
+   * above was present and every one passed, while a hardcoded `transform:translateY(-1px)` in the HAND-WRITTEN part of
+   * the stylesheet — a third file, `theme.js`, emitted before both generated passes — overrode them all by cascade
+   * order. The browser saw a one-pixel lift and no scale whatsoever.
+   *
+   * The lesson is about what "the rule exists" proves. It proves the rule exists. It does not prove the rule WINS, and
+   * a property two rules both claim is decided by source order, which no single-pass check can see.
+   */
+  const hoverTransformOwners = sheet
+    .split('}')
+    .map((rule) => rule.split('{'))
+    .filter(([sel, body]) => typeof sel === 'string' && typeof body === 'string')
+    .filter(([sel]) => sel.split(',').some((one) => one.trim().endsWith('.sr-skill:hover')))
+    .filter(([, body]) => body.includes('transform'))
+  ok('[29] exactly ONE rule owns the card hover transform, so nothing overrides the scale',
+    hoverTransformOwners.length === 1,
+    JSON.stringify(hoverTransformOwners.map(([sel, body]) => sel.trim().slice(0, 44) + ' => ' + body.trim().slice(0, 56))))
+  ok('[29] ...and it is the scale, not a leftover lift',
+    hoverTransformOwners.every(([, body]) => body.includes('scale(1.02)') && !body.includes('translateY')),
+    JSON.stringify(hoverTransformOwners.map(([, body]) => body.trim().slice(0, 70))))
 
   // The count, bottom-left, showing a real number for a skill that has been called.
   const rendered = textOf(tree)
