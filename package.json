@@ -1,6 +1,6 @@
 {
   "name": "echocat-skill-panel",
-  "version": "4.4.0",
+  "version": "4.4.1",
   "description": "Per-turn skill audit for DeepSeek Harness, plus an in-app skill manager: a native notification and a resident panel showing which skills each turn invoked, an install sheet that adds, replaces and removes skills without leaving the app, and per-skill provenance so an installed skill can be checked for and pulled up to its author's latest revision.",
   "type": "module",
   "main": "src/index.js",
@@ -35,7 +35,7 @@
     "安装说明.md",
     "安装.ps1",
     "安装-3.0.ps1",
-    "RELEASE_NOTES_4.4.0.md",
+    "RELEASE_NOTES_4.4.1.md",
     "tools/verify-liquid-preview.mjs",
     "tools/verify-background-preview.mjs"
   ],
