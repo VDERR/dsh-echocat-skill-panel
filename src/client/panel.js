@@ -85,6 +85,8 @@
 //      the sheet's own status area — and only where the seat can reach the draft
 
 const React = require('react')
+const { BackgroundButton } = require('./background-panel.js')
+const { useLiquidSurface, useLiquidContent } = require('./liquid.js')
 const { Icon } = require('./icons.js')
 const logo = require('./logo.js')
 // Requiring the theme also injects it — the side effect is the point.
@@ -1725,6 +1727,8 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
   // Item 45: `main` is unmounted whenever the user returns to the conversation, so
   // the reading position has to survive outside the component.
   const { rootRef, onScroll } = useScrollMemory(scrollKey, onScrollTrack)
+  useLiquidSurface(rootRef, !compact)
+  useLiquidContent(rootRef, phase)
 
   const openInstall = React.useCallback(() => setSheetOpen(true), [])
   const closeInstall = React.useCallback(() => setSheetOpen(false), [])
@@ -1740,7 +1744,7 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
   if (phase === 'loading' && state?.data === null && snapshot === undefined) {
     return h(
       'div',
-      { className: 'sr-root' },
+      { className: 'sr-root', ref: rootRef },
       h(
         'header',
         { className: 'sr-head' },
@@ -1756,12 +1760,13 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
   const header = h(
     'header',
     { className: scrolled ? 'sr-head sr-head--scrolled' : 'sr-head' },
-    h(Icon, { name: 'layers', size: 14 }),
+    h(LogoMark),
     h('span', { className: 'sr-title' }, title),
     h(
       'div',
       { className: 'sr-head-tools' },
       h(StatusLine, { phase, error, fetchedAt: state?.fetchedAt, now }),
+      !compact ? h(BackgroundButton) : null,
       installable
         ? h(
             'button',
@@ -1934,7 +1939,7 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
 function LogoMark() {
   return h(
     'span',
-    { className: 'sr-strip-logo', 'aria-hidden': 'true' },
+    { className: 'sr-strip-logo', 'aria-hidden': 'true', style: { '--sr-logo-mask': `url("${logo.LOGO_BY_THEME.light}")` } },
     h('img', { className: 'sr-logo sr-logo--light', src: logo.LOGO_BY_THEME.light, alt: '', draggable: 'false' }),
     h('img', { className: 'sr-logo sr-logo--dark', src: logo.LOGO_BY_THEME.dark, alt: '', draggable: 'false' }),
   )
@@ -1972,6 +1977,8 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
   // `initialOpen` is an INITIAL state, not a controlled prop: the strip owns this toggle,
   // and nothing outside it should be able to pin it open or shut. It exists so
   // `tools/preview.mjs` can screenshot the expanded form without simulating a click.
+  const liquidRef = React.useRef(null)
+  useLiquidSurface(liquidRef)
   const [open, setOpen] = React.useState(initialOpen === true)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const s = (state?.data ?? null) ?? EMPTY
@@ -2107,6 +2114,7 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
       h(
         'span',
         { className: 'sr-strip-actions', key: 'actions' },
+        h(BackgroundButton),
         api.canInstall(capability)
           ? h(
               'button',
@@ -2155,7 +2163,7 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
 
   // `--open` lets CSS join the bar row and the report into ONE block: no gap, and
   // a single hairline between them instead of two separate rounded boxes.
-  return h('div', { className: open ? 'sr-strip-shell sr-strip-shell--open' : 'sr-strip-shell' }, ...shell)
+  return h('div', { className: open ? 'sr-strip-shell sr-strip-shell--open' : 'sr-strip-shell', ref: liquidRef }, ...shell)
 }
 
 module.exports = {

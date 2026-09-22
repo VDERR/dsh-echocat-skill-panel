@@ -14,6 +14,7 @@
 // what lets the bundle test render a specific state without a reconciler.
 
 const React = require('react')
+const { useLiquidSurface } = require('./liquid.js')
 const { Icon } = require('./icons.js')
 const api = require('./api.js')
 const {
@@ -665,6 +666,7 @@ function InstallSheet(props) {
   const url = typeof urlState === 'string' ? urlState : ''
   const repo = typeof repoState === 'string' ? repoState : ''
   const sheetRef = React.useRef(null)
+  useLiquidSurface(sheetRef, open === true)
   const fileRef = React.useRef(null)
 
   const requestClose = React.useCallback(() => {
@@ -1341,4 +1343,4 @@ function InstallSheet(props) {
   )
 }
 
-module.exports = { InstallSheet, SkillRowActions, StatusRail, LiveRail, copyText, fixSlugFrom, MODE_LABEL, MODE_ICON }
+module.exports = { portal, InstallSheet, SkillRowActions, StatusRail, LiveRail, copyText, fixSlugFrom, MODE_LABEL, MODE_ICON }

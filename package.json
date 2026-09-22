@@ -1,6 +1,6 @@
 {
   "name": "echocat-skill-panel",
-  "version": "4.2.0",
+  "version": "4.4.0",
   "description": "Per-turn skill audit for DeepSeek Harness, plus an in-app skill manager: a native notification and a resident panel showing which skills each turn invoked, an install sheet that adds, replaces and removes skills without leaving the app, and per-skill provenance so an installed skill can be checked for and pulled up to its author's latest revision.",
   "type": "module",
   "main": "src/index.js",
@@ -32,11 +32,16 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "安装说明.md"
+    "安装说明.md",
+    "安装.ps1",
+    "安装-3.0.ps1",
+    "RELEASE_NOTES_4.4.0.md",
+    "tools/verify-liquid-preview.mjs",
+    "tools/verify-background-preview.mjs"
   ],
   "scripts": {
     "build": "node tools/build-client.mjs",
-    "test": "node tools/check-template-literals.mjs && node tools/check-css-units.mjs && node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/release.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs && node test/ui-polish.mjs && node tools/check-portal-assertions.mjs"
+    "test": "node tools/check-template-literals.mjs && node tools/check-css-units.mjs && node test/units.mjs && node test/smoke.mjs && node test/install.mjs && node test/http.mjs && node test/install-route.mjs && node test/release.mjs && node test/scope.mjs && node test/client-bundle.mjs && node test/client-css.mjs && node test/ui-polish.mjs && node tools/check-portal-assertions.mjs && node test/background-settings.mjs"
   },
   "keywords": [
     "dsh",

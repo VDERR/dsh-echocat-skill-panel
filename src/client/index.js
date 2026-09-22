@@ -154,4 +154,5 @@ module.exports = {
   __install: require('./install.js'),
   __icons: require('./icons.js'),
   __theme: require('./theme.js'),
+  __background: require('./background-store.js'),
 }

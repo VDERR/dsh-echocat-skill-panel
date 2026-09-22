@@ -187,7 +187,7 @@ const NON_STYLE_CLASSES = new Set([
   // Keyframe names, not classes. `sr-toast-in` is the animation this module applies;
   // it is defined in an `@keyframes` block, which is not a class rule.
   'sr-toast-in', 'sr-spin', 'sr-shimmer', 'sr-pulse', 'sr-fade-in', 'sr-fade-out',
-  'sr-sheet-in', 'sr-sheet-out', 'sr-tab-in',
+  'sr-sheet-in', 'sr-sheet-out', 'sr-tab-in', 'sr-liquid-reveal',
   // `id` / `aria-controls` / `aria-labelledby` values, not classes: the tab panel and
   // the tabs are addressed by id so the ARIA relationship works without a lookup.
   'sr-panel', 'sr-tab',

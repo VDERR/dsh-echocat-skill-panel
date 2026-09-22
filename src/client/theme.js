@@ -26,7 +26,7 @@ const TAG_ID = 'echocat-skill-panel/panel.css'
  * module table, resolved against the host's frozen platform table. So this copy is a
  * necessity — and therefore the one that silently goes stale. Bump it with the others.
  */
-const VERSION = '4.2.0'
+const VERSION = '4.4.0'
 
 /**
  * Every element that can be the ROOT of one of this plugin's surfaces: the centre
@@ -80,6 +80,8 @@ const SURFACES_FOCUS = SURFACE_ROOTS.map((root) => `${root} :focus-visible`).joi
  * end, because it only redefines tokens inside `prefers-color-scheme: dark` and has to
  * beat the earlier dark block, which it cannot do from a lower position.
  */
+const { LIQUID_CSS } = require('./liquid-style.js')
+const { BACKGROUND_CSS } = require('./background-style.js')
 const polish = require('./polish.js')
 const design = require('./design.js')
 const { POLISH, polishCounts } = polish
@@ -624,6 +626,8 @@ ${DESIGN_RESPONSIVE_CSS}
 /* The design pass's dark palette, LAST because it redefines tokens the earlier dark
    block also declares and has to win over it. */
 ${DESIGN_DARK_CSS}
+${LIQUID_CSS}
+${BACKGROUND_CSS}
 /* end of stylesheet: the build script checks that this marker survives, because a stray
    backtick in any comment above closes the template literal early and silently truncates
    the sheet — the artifact still parses, so nothing else catches it. */

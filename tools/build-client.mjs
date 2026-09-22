@@ -34,6 +34,10 @@ const manifest = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8'))
  * string, or the factory falls through to the platform table and throws.
  */
 const MODULES = [
+  { id: './background-store.js', file: 'src/client/background-store.js' },
+  { id: './background-style.js', file: 'src/client/background-style.js' },
+  { id: './liquid-style.js', file: 'src/client/liquid-style.js' },
+  { id: './liquid.js', file: 'src/client/liquid.js' },
   { id: './theme.js', file: 'src/client/theme.js' },
   { id: './polish.js', file: 'src/client/polish.js' },
   { id: './design.js', file: 'src/client/design.js' },
@@ -44,6 +48,7 @@ const MODULES = [
   { id: './source.js', file: 'src/client/source.js' },
   { id: './api.js', file: 'src/client/api.js' },
   { id: './install.js', file: 'src/client/install.js' },
+  { id: './background-panel.js', file: 'src/client/background-panel.js' },
   { id: './panel.js', file: 'src/client/panel.js' },
 ]
 

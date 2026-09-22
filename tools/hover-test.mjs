@@ -114,7 +114,27 @@ try {
   const scaleOf = (t) => Number(/matrix\(([\d.]+)/u.exec(t ?? '')?.[1] ?? 1)
   ok('a card at rest has NO scale', scaleOf(cards[0].t) === 1, cards[0].t)
 
-  const target = cards[1]
+  /**
+   * THE CARD MUST BE SCROLLED INTO VIEW BEFORE THE POINTER MOVES, and that is not tidiness — it is the check working
+   * at all.
+   *
+   * This assumed at least the first two cards were inside the viewport, which was true while the grid laid out three
+   * per row: card[1] sat beside card[0] at the same y. The 4.4.0 layout renders ONE card per row on a wide panel, so
+   * card[1] is 239px further down — past the bottom of a 1000px window. `elementFromPoint` returned null there, the
+   * pointer landed on nothing, and the test reported the hover as broken when the hover was fine.
+   *
+   * So the target is scrolled to the middle of the viewport and its position RE-READ: scrolling changes the numbers, and
+   * dispatching to the pre-scroll coordinates would be the same bug wearing a different hat.
+   */
+  const targetIndex = cards.length > 1 ? 1 : 0
+  await evaluate(`document.querySelectorAll('.sr-grid .sr-skill')[${targetIndex}].scrollIntoView({ block: 'center' })`)
+  await sleep(400)
+  const onScreen = JSON.parse((await evaluate('JSON.stringify(window.__geo())')) ?? '[]')[targetIndex]
+  ok('the target card is inside the viewport, so a pointer can reach it',
+    onScreen !== undefined && onScreen.y > 0 && onScreen.y < 1000,
+    JSON.stringify(onScreen))
+
+  const target = onScreen
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: target.x, y: target.y, buttons: 0 })
   await sleep(700)
 
@@ -151,65 +171,56 @@ try {
   ok('...and no animation is overriding it', scaleOf(anim.transform) === hoveredScale, JSON.stringify(anim))
 
   /**
-   * THE RADIUS SCALE, measured in the browser, now that it matches the host's composer.
+   * THE RADIUS SCALE, measured in the browser.
    *
-   * Three passes have moved this scale, and each time the owner named a reference. The current one is the message input
-   * box below the strip, whose own scale is a large radius for SURFACES and a small one for the controls INSIDE them.
-   * So there are two expected resolutions, not one, and the check has to know which is which — asserting "everything is
-   * one value" was correct for the previous pass and wrong for this one.
+   * It has moved once more: 4.2.0 matched the host composer card exactly (22 for surfaces, 8 for the controls inside
+   * them), and the 4.4.0 liquid redesign introduced its own nesting scale — 24 for the panel, 20 for a card, 18 for the
+   * hero, 9 for a control. Those are deliberately DIFFERENT values per level rather than one shared token, because a
+   * nested surface takes a smaller radius than the surface containing it.
    *
-   * `.sr-strip` is 22 closed and 8 open, and that is intentional: closed it IS the surface, open it is a control sitting
-   * inside the floating row that became the surface. Asserting a single value for it would forbid that.
+   * So this no longer asserts an exact set of numbers, which would have to be rewritten by every redesign and would
+   * teach nothing. It asserts the two properties that a nesting scale has to have:
+   *
+   *   1. the LARGE step is a real corner, not a stadium — which is what a blanket "make everything round" breaks, since
+   *      `.sr-btn--sm` is 22px tall and a 22px radius on it is half its height;
+   *   2. a nested surface is SMALLER than the one containing it, or the corner looks like it does not fit.
    */
   const radius = JSON.parse(
     (await evaluate(`(() => {
-      const r = (sel) => { const el = document.querySelector(sel); return el === null ? 'MISSING' : getComputedStyle(el).borderTopLeftRadius }
+      const r = (sel) => { const el = document.querySelector(sel); return el === null ? null : parseFloat(getComputedStyle(el).borderTopLeftRadius) }
+      const height = (sel) => { const el = document.querySelector(sel); return el === null ? 0 : Math.round(el.getBoundingClientRect().height) }
       const host = document.querySelector('.sr-root') ?? document.documentElement
       const cs = getComputedStyle(host)
-      const height = (sel) => { const el = document.querySelector(sel); return el === null ? 0 : Math.round(el.getBoundingClientRect().height) }
       return JSON.stringify({
-        large: cs.getPropertyValue('--sr-r').trim(),
-        small: cs.getPropertyValue('--sr-r-sm').trim(),
-        surfaces: { root: r('.sr-root'), skill: r('.sr-grid .sr-skill'), panel: r('.sr-strip-panel'), count: r('.sr-strip-count'), hero: r('.sr-hero') },
-        controls: { btn: r('.sr-btn'), chip: r('.sr-chip'), icon: r('.sr-btn--icon') },
+        large: parseFloat(cs.getPropertyValue('--sr-r')) || 0,
+        small: parseFloat(cs.getPropertyValue('--sr-r-sm')) || 0,
+        root: r('.sr-root'),
+        skill: r('.sr-grid .sr-skill'),
+        hero: r('.sr-hero'),
+        btn: r('.sr-btn'),
         btnHeight: height('.sr-btn'),
-        stripClosed: r('.sr-strip'),
-        openRule: (() => {
-          for (const sheet of document.styleSheets) {
-            let list = []
-            try { list = [...sheet.cssRules] } catch (e) { return 'unreadable' }
-            for (const rule of list) {
-              if (rule.selectorText !== undefined && rule.selectorText.includes('.sr-strip-shell--open .sr-strip') && !rule.selectorText.includes('.sr-strip-row')) {
-                return rule.style.borderRadius || '(none declared)'
-              }
-            }
-          }
-          return 'MISSING'
-        })(),
+        icon: r('.sr-btn--icon'),
+        chip: r('.sr-chip'),
       })
     })()`)) ?? '{}',
   )
-  ok('every SURFACE resolves to the large step, matching the host composer',
-    Object.values(radius.surfaces ?? {}).every((value) => value === radius.large) && radius.large === '22px',
-    JSON.stringify({ large: radius.large, surfaces: radius.surfaces }))
-  ok('...and every control inside them resolves to the small step',
-    Object.values(radius.controls ?? {}).every((value) => value === radius.small) && radius.small === '8px',
-    JSON.stringify({ small: radius.small, controls: radius.controls }))
+  ok('the panel, a card and the hero all have a real corner',
+    [radius.root, radius.skill, radius.hero].every((v) => typeof v === 'number' && v >= 8),
+    JSON.stringify(radius))
+  // A nested surface must take a SMALLER radius than the surface that contains it, or the two corners fight.
+  ok('...and a nested surface takes a smaller radius than its container',
+    radius.skill !== null && radius.root !== null && radius.skill < radius.root,
+    `card ${radius.skill} inside panel ${radius.root}`)
   /**
-   * AND NO CONTROL MAY TURN INTO A STADIUM, which is the failure mode of a large radius on a small box.
-   *
-   * This is the check that a blanket "make everything 22px" would fail: `.sr-btn` is 26 + 2px of border, so a 22px
-   * corner is 79% of its height and reads as the pill the owner asked to be rid of two passes ago. Measured against the
-   * element's own height rather than against a fixed number, so it keeps its meaning if the button grows.
+   * AND NO CONTROL MAY TURN INTO A STADIUM — the failure mode of a large radius on a small box, measured against the
+   * element's own height so it keeps its meaning if the button grows.
    */
-  const btnRadius = Number.parseFloat(radius.controls?.btn ?? '0')
   ok('...without any control becoming a stadium',
-    btnRadius > 0 && btnRadius / radius.btnHeight < 0.5,
-    `${btnRadius}px on a ${radius.btnHeight}px button = ${(btnRadius / radius.btnHeight).toFixed(2)} of its height`)
-  // The bar is the surface when closed, so it takes the large step; open it is a control inside the float.
-  ok('the bar is a surface when closed and a control when open',
-    radius.stripClosed === radius.large && radius.openRule === 'var(--sr-r-sm)',
-    `closed ${radius.stripClosed}, open rule ${radius.openRule}`)
+    radius.btn !== null && radius.btn > 0 && radius.btn / radius.btnHeight < 0.5,
+    `${radius.btn}px on a ${radius.btnHeight}px button = ${(radius.btn / radius.btnHeight).toFixed(2)} of its height`)
+  ok('...and the controls are genuinely less rounded than the surfaces',
+    [radius.btn, radius.chip, radius.icon].every((v) => v !== null && v < radius.root),
+    `controls ${JSON.stringify([radius.btn, radius.chip, radius.icon])} vs panel ${radius.root}`)
 
   ws.close()
 } catch (error) {

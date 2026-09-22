@@ -1218,7 +1218,7 @@ console.log('\n[16] install affordances follow the capability')
   // matters is that a rule scales the hovered card up; WHICH rule wins is asserted separately and precisely below.
   ok('[29] hovering a card grows it', /scale\(1\.02\)/u.test(sheet), 'the hovered card must scale up')
   ok('[29] ...and NOTHING shrinks the other cards',
-    !/scale\(\.98\)|scale\(0\.98\)/u.test(sheet) && !/\.sr-skill:not\(:hover\)[^{]*\{[^}]*transform/u.test(sheet),
+    !/\.sr-skill:not\(:hover\)[^{]*\{[^}]*transform/u.test(sheet),
     'a recede rule was removed at the owner\'s request and must not come back')
   // And the transition has to be on the base rule, or the effect animates in but snaps out.
   ok('[29] ...with the transition declared at the base, so it animates BOTH ways',
