@@ -106,7 +106,7 @@ console.log('\n[3] the checker answers from both sources, and prefers the newer'
   ok('the release notes come along', answer.notes === 'notes here')
   ok('the release page URL comes along', answer.htmlUrl.includes('/releases/tag/'))
   ok('both endpoints were asked exactly once each', fetchImpl.calls.length === 2, fetchImpl.calls.join(', '))
-  ok('the npm endpoint is the dist-tag URL', fetchImpl.calls.some((url) => url === NPM_LATEST_URL('echocat-skill-panel')))
+  ok('the npm endpoint is the dist-tag URL', fetchImpl.calls.some((url) => url === NPM_LATEST_URL('dsh-echocat-skill-panel')))
   ok('a user-agent is sent', true)
 }
 

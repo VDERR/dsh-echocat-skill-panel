@@ -1,5 +1,14 @@
 // Isolated, local-only appearance store. No host routes or skill configuration.
 const React = require('react')
+/**
+ * KEEPS THE PRE-RENAME NAME ON PURPOSE — do not "fix" it to match the package.
+ *
+ * This database holds the user's background settings AND the image they picked, stored as a blob locally because images are
+ * never uploaded. Renaming the database does not move that data: it stays under the old name and the store opens a new,
+ * empty one. The user experiences it as their background and their uploaded image silently disappearing, with no error.
+ *
+ * A rename, if it ever has to happen, is a MIGRATION: read the old database, copy it, leave the old one in place.
+ */
 const DB_NAME = 'echocat-skill-panel-appearance-v1'
 const FILE_LIMIT = 8 * 1024 * 1024
 const IMAGE_LIMIT = 1500 * 1024

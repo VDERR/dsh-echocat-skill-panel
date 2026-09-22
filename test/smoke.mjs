@@ -1,4 +1,4 @@
-// Offline smoke test for echocat-skill-panel.
+// Offline smoke test for dsh-echocat-skill-panel.
 //
 // Deliberately runs the plugin against the REAL `@deepseek-ai/cordis` Context
 // and REAL `Service` instances — the previous harness stubbed the whole context,
@@ -77,7 +77,7 @@ ctx.logger = { info: () => {}, warn: (message) => warns.push(String(message)) }
 
 console.log('\n[1] exports and the API that used to be wrong')
 ok('name / apply / inject / Config exported',
-  plugin.name === 'echocat-skill-panel'
+  plugin.name === 'dsh-echocat-skill-panel'
   && typeof plugin.apply === 'function'
   && Array.isArray(plugin.inject)
   && plugin.inject.includes('sessions')

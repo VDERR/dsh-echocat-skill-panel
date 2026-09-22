@@ -1,4 +1,4 @@
-// echocat-skill-panel — browser half (client plugin).
+// dsh-echocat-skill-panel — browser half (client plugin).
 //
 // AUTHORING NOTE: bundle source, not a Node module — see src/client/panel.js.
 //
@@ -100,7 +100,7 @@ function contribute(ctx, slot, options, component) {
     try {
       return ctx.slots.register(options, component)
     } catch (error) {
-      console.error(`[echocat-skill-panel] could not register into "${slot}":`, error)
+      console.error(`[dsh-echocat-skill-panel] could not register into "${slot}":`, error)
       return undefined
     }
   })

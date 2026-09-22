@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Install (or roll back) echocat-skill-panel in the live DSH Desktop Beta profile.
+  Install (or roll back) dsh-echocat-skill-panel in the live DSH Desktop Beta profile.
 
 .DESCRIPTION
   Upgrading this plugin means changing its *name* as well as its contents, because
@@ -9,7 +9,7 @@
   does four things atomically:
 
     1. backs up the profile manifest before it touches anything,
-    2. mirrors the plugin into <profile>\vendor\echocat-skill-panel,
+    2. mirrors the plugin into <profile>\vendor\dsh-echocat-skill-panel,
     3. removes the previous name everywhere it appears (an entry in
        `dsh.profile.bundles` whose directory no longer exists aborts profile
        assembly — the app will not start),
@@ -33,18 +33,23 @@ param(
   # Previous package names to purge; the app cannot start while one of these is
   # listed in `bundles` but absent from disk.
   #
-  # `echocat-skill-panel-3.0` is the one that matters for anyone upgrading from
-  # 4.0.x: the package was RENAMED to drop the version from its name, so the old
-  # vendor directory, the old junction and the old `bundles` entry all have to go
-  # in the same run that installs the new name. Leaving any one of them behind
-  # stops the profile from assembling.
-  [string[]]$OldNames = @('echocat-skill-panel-3.0', 'echocat-skill-panel-2.0', 'EchoCat-skill-Panel-2.0', 'dsh-skill-report'),
+  # THESE KEEP THEIR HISTORICAL SPELLING. The package has been renamed before — the version
+  # was once part of the name, and 5.0 prefixed `dsh-`. This list records what was ACTUALLY
+  # published, so the entries must be the literal old package names. A rename pass that
+  # rewrites them to match the current name turns every entry into a directory that never
+  # existed: it purges nothing while looking like it works.
+  #
+  # `echocat-skill-panel` is the one that matters for anyone upgrading from 4.x — it is the
+  # name the plugin shipped under until 5.0, so its vendor directory, its junction and its
+  # `bundles` entry all have to go in the SAME run that installs the new name. Leaving any
+  # one of them behind stops the profile from assembling.
+  [string[]]$OldNames = @('echocat-skill-panel', 'echocat-skill-panel-3.0', 'echocat-skill-panel-2.0', 'EchoCat-skill-Panel-2.0', 'dsh-skill-report'),
   [switch]$SkipInstall,
   [switch]$Rollback
 )
 
 $ErrorActionPreference = 'Stop'
-$NewName = 'echocat-skill-panel'
+$NewName = 'dsh-echocat-skill-panel'
 $VendorDir = Join-Path $ProfileDir "vendor\$NewName"
 $Junction = Join-Path $ProfileDir "node_modules\$NewName"
 $BackupRoot = Join-Path $ProfileDir '.echocat-backups'

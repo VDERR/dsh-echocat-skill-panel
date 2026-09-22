@@ -369,7 +369,7 @@ function clearRelease() {
 }
 
 /** The release page from the last payload, with a compiled-in fallback. */
-const FALLBACK_RELEASES = 'https://github.com/VDERR/echocat-skill-panel/releases'
+const FALLBACK_RELEASES = 'https://github.com/VDERR/dsh-echocat-skill-panel/releases'
 function releaseUrl(fallback = FALLBACK_RELEASES) {
   const fromResult = releaseStore.result?.releases ?? releaseStore.result?.htmlUrl
   if (typeof fromResult === 'string' && fromResult !== '') return fromResult

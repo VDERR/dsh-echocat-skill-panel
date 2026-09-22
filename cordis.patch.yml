@@ -1,4 +1,4 @@
-# echocat-skill-panel bundle patch: mounts the plugin into the host profile.
+# dsh-echocat-skill-panel bundle patch: mounts the plugin into the host profile.
 - insert:
     - id: skill-report
-      name: 'echocat-skill-panel'
+      name: 'dsh-echocat-skill-panel'

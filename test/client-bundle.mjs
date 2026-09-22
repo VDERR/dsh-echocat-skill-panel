@@ -25,7 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = join(here, '..')
 const APP = process.env.DSH_APP_ROOT ?? 'C:\\Users\\Administrator\\AppData\\Local\\Programs\\DSH Desktop Beta\\resources\\app'
 
-const PKG = 'echocat-skill-panel'
+const PKG = 'dsh-echocat-skill-panel'
 
 let pass = 0
 let fail = 0
@@ -396,9 +396,9 @@ globalThis.fetch = async (url, init) => {
     calls.push({ target, body: init?.body, headers: init?.headers })
     return json({
       current: '4.0.0',
-      name: 'echocat-skill-panel',
-      repo: 'https://github.com/VDERR/echocat-skill-panel',
-      releases: 'https://github.com/VDERR/echocat-skill-panel/releases',
+      name: 'dsh-echocat-skill-panel',
+      repo: 'https://github.com/VDERR/dsh-echocat-skill-panel',
+      releases: 'https://github.com/VDERR/dsh-echocat-skill-panel/releases',
       checkable: true,
       checked: true,
       latest: '4.0.0',
@@ -662,16 +662,16 @@ console.log('\n[9] installed skills and one-click reference')
 
 console.log('\n[10] package identity')
 {
-  ok('the loader id is echocat-skill-panel', captured.id === PKG)
+  ok('the loader id is dsh-echocat-skill-panel', captured.id === PKG)
   ok('no 2.0 package name survives in the bundle', !source.includes('EchoCat-skill-Panel-2.0'))
-  ok('the CSS tag carries the 3.0 plugin id literally', source.includes("tag.dataset.plugin = 'echocat-skill-panel'"))
+  ok('the CSS tag carries the 3.0 plugin id literally', source.includes("tag.dataset.plugin = 'dsh-echocat-skill-panel'"))
   ok('the CSS dedupe selector is keyed on TAG_ID', source.includes('style[data-plugin-css="${TAG_ID}"]'))
   ok('theme.PLUGIN_ID is the package name', exports.__theme.PLUGIN_ID === PKG, String(exports.__theme.PLUGIN_ID))
   ok('theme.TAG_ID is the package id plus /panel.css', exports.__theme.TAG_ID === `${PKG}/panel.css`, String(exports.__theme.TAG_ID))
   ok('the injected stylesheet is non-trivial', exports.__theme.CSS.length > 8000, String(exports.__theme.CSS.length))
   ok('the section key is namespaced to 3.0', source.includes('echocat-skill-panel/sections'))
   ok('the prefs key is namespaced to 3.0', source.includes('echocat-skill-panel/prefs'))
-  ok('the console prefix uses the new id', source.includes('[echocat-skill-panel]'))
+  ok('the console prefix uses the new id', source.includes('[dsh-echocat-skill-panel]'))
   ok('the panel version matches package.json', exports.__ui.VERSION === manifest.version, `${exports.__ui.VERSION} vs ${manifest.version}`)
   ok('the write endpoint is under the authenticated /api prefix', exports.__api.SKILLS_PATH === '/api/skill-report/skills', exports.__api.SKILLS_PATH)
   ok('the read endpoint was not renamed', exports.__source.DEFAULT_PATH === '/api/skill-report/state', exports.__source.DEFAULT_PATH)
@@ -1551,8 +1551,8 @@ await (async () => {
     // and reads its data from the store — passing it a `snapshot` prop feeds nothing and every card
     // disappears, which is how the first attempt at this test failed.
     const paletteCatalog = [
-      { name: 'gpt-image', descriptionZh: '图像生成', modelInvocable: true, provenance: { known: true, kind: 'repo', url: 'https://github.com/VDERR/echocat-skill-panel' } },
-      { name: 'marked-one', descriptionZh: '已标记的', modelInvocable: true, provenance: { known: true, kind: 'repo', url: 'https://github.com/VDERR/echocat-skill-panel', color: 'amber' } },
+      { name: 'gpt-image', descriptionZh: '图像生成', modelInvocable: true, provenance: { known: true, kind: 'repo', url: 'https://github.com/VDERR/dsh-echocat-skill-panel' } },
+      { name: 'marked-one', descriptionZh: '已标记的', modelInvocable: true, provenance: { known: true, kind: 'repo', url: 'https://github.com/VDERR/dsh-echocat-skill-panel', color: 'amber' } },
     ]
     const paletteSnapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: paletteCatalog, disabledSkills: [] }
     clearToasts()
@@ -2531,9 +2531,9 @@ await (async () => {
     {
       const RELEASE = {
         current: '4.0.0',
-        name: 'echocat-skill-panel',
-        repo: 'https://github.com/VDERR/echocat-skill-panel',
-        releases: 'https://github.com/VDERR/echocat-skill-panel/releases',
+        name: 'dsh-echocat-skill-panel',
+        repo: 'https://github.com/VDERR/dsh-echocat-skill-panel',
+        releases: 'https://github.com/VDERR/dsh-echocat-skill-panel/releases',
         checkable: true,
       }
       const snapshot = { ...HOST_SNAPSHOT, capability: CAP_FULL, skills: HOST_SKILLS, disabledSkills: [], release: RELEASE }

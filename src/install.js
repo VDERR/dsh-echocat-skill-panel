@@ -1348,7 +1348,7 @@ export function createInstaller({
     try {
       response = await doFetch(url.href, {
         redirect: 'follow',
-        headers: { accept: 'application/zip, application/octet-stream, text/markdown, text/plain, */*', 'user-agent': 'echocat-skill-panel' },
+        headers: { accept: 'application/zip, application/octet-stream, text/markdown, text/plain, */*', 'user-agent': 'dsh-echocat-skill-panel' },
         signal:
           typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
             ? AbortSignal.timeout(limits.fetchMs)

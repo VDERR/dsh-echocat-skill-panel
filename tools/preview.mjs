@@ -163,7 +163,7 @@ function serialize(node) {
 
 /* ------------------------------------------------------------------- the fixture -- */
 
-const REPO = 'https://github.com/VDERR/echocat-skill-panel.git'
+const REPO = 'https://github.com/VDERR/dsh-echocat-skill-panel.git'
 
 /** A catalogue with every card state the design has to survive. */
 const SKILLS = [
@@ -191,7 +191,7 @@ const CALLS = [
 ]
 
 const SNAPSHOT = {
-  plugin: 'echocat-skill-panel',
+  plugin: 'dsh-echocat-skill-panel',
   version: '4.0.0',
   generatedAt: Date.now(),
   pending: [],
@@ -220,9 +220,9 @@ const SNAPSHOT = {
   // The plugin's own release state, as the host serves it on the polled payload.
   release: {
     current: '4.0.0',
-    name: 'echocat-skill-panel',
-    repo: 'https://github.com/VDERR/echocat-skill-panel',
-    releases: 'https://github.com/VDERR/echocat-skill-panel/releases',
+    name: 'dsh-echocat-skill-panel',
+    repo: 'https://github.com/VDERR/dsh-echocat-skill-panel',
+    releases: 'https://github.com/VDERR/dsh-echocat-skill-panel/releases',
     checkable: true,
     // A page-load state: nothing checked yet, which is what most users see first.
     cached: null,
@@ -359,9 +359,9 @@ function buildPage(state, exports) {
   const body = h('div', { className: 'stage' }, sections)
   const html = [
     '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">',
-    '<title>echocat-skill-panel preview</title>',
+    '<title>dsh-echocat-skill-panel preview</title>',
     `<style>${HOST_TOKENS}</style>`,
-    '<style data-plugin-css="echocat-skill-panel/panel.css">',
+    '<style data-plugin-css="dsh-echocat-skill-panel/panel.css">',
     exports.__theme.CSS,
     '</style>',
     '</head><body>',

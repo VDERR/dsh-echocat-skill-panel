@@ -240,6 +240,17 @@ function countMap(perSkill) {
 
 /* ------------------------------ persisted prefs ------------------------------ */
 
+/**
+ * THE STORAGE NAMESPACE IS DELIBERATELY NOT THE PACKAGE NAME, and this is the one place a rename can destroy something.
+ *
+ * The package was renamed `echocat-skill-panel` -> `dsh-echocat-skill-panel`. These keys kept the OLD prefix on purpose:
+ * they are a storage SCHEMA, not an identity. Changing them orphans what is already written — the user's expanded
+ * sections, their filters and sort order, and the surface scroll offsets all stay in the browser under the old prefix and
+ * the new code can never read them again. Nothing errors; the settings simply come back as defaults.
+ *
+ * If these ever do need to move, MIGRATE rather than rename: read the old key, write the new one, keep reading the old one
+ * for a release or two.
+ */
 const OPEN_KEY = 'echocat-skill-panel/sections'
 const PREF_KEY = 'echocat-skill-panel/prefs'
 

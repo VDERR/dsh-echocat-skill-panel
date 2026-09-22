@@ -1,8 +1,8 @@
-# echocat-skill-panel
+# dsh-echocat-skill-panel
 
-> 4.4.2 液态银蓝版：新增丰富的本机背景自定义，保留连续表面、卡片层级和原业务流程。详见 [4.4.1 更新说明](RELEASE_NOTES_4.4.2.md)。
+> 5.0.0 改名版：包名与仓库名改为 `dsh-echocat-skill-panel`，功能与 4.4 完全一致。详见 [5.0.0 更新说明](RELEASE_NOTES_5.0.0.md)。
 
-**v4.4.2** · DSH Desktop Beta 的 cordis 插件：统计每轮对话用到了哪些 skill，并让你**在应用里直接装卸、更新它们**。
+**v5.0.0** · DSH Desktop Beta 的 cordis 插件：统计每轮对话用到了哪些 skill，并让你**在应用里直接装卸、更新它们**。
 
 判定不依赖模型自觉 —— 插件从会话事件流推导本轮调了哪些 skill（模型自动、你手动 `/name`、或一个都没用），模型忘了说也照样报。
 
@@ -86,16 +86,16 @@ https://github.com/owner/repo/tree/main/skills/my-skill
 **GitHub 源码**（推荐，拿到的是完整包）：
 
 ```powershell
-git clone https://github.com/VDERR/echocat-skill-panel.git
-cd echocat-skill-panel
+git clone https://github.com/VDERR/dsh-echocat-skill-panel.git
+cd dsh-echocat-skill-panel
 & ".\安装-3.0.ps1"      # 备份清单 → 镜像 → 清旧包名 → 建联接 → 改 manifest → pnpm install
 ```
 
 **npm**（已发布到 npm，包名相同）：
 
 ```powershell
-dsh plugin --profile web add echocat-skill-panel     # 走 dsh 的插件安装
-npm install echocat-skill-panel                      # 或直接装进 profile 目录
+dsh plugin --profile web add dsh-echocat-skill-panel     # 走 dsh 的插件安装
+npm install dsh-echocat-skill-panel                      # 或直接装进 profile 目录
 ```
 
 > 两个 `peerDependencies`（`@deepseek-ai/dsh-llm`、`@deepseek-ai/schemastery`）标了 `optional`：由 DSH 运行时提供，npm 不会自己去下载一份来顶替宿主的那份。

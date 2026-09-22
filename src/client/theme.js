@@ -14,10 +14,10 @@
 //   * motion is short (<=.18s) and always optional under prefers-reduced-motion
 
 /** Package id; also the CSS tag's `data-plugin` value and the dedupe key prefix. */
-const PLUGIN_ID = 'echocat-skill-panel'
+const PLUGIN_ID = 'dsh-echocat-skill-panel'
 
 /** `data-plugin-css` value — the selector that makes re-injection idempotent. */
-const TAG_ID = 'echocat-skill-panel/panel.css'
+const TAG_ID = 'dsh-echocat-skill-panel/panel.css'
 
 /**
  * Mirrors `package.json`, and `test/release.mjs` asserts all three copies agree.
@@ -26,7 +26,7 @@ const TAG_ID = 'echocat-skill-panel/panel.css'
  * module table, resolved against the host's frozen platform table. So this copy is a
  * necessity — and therefore the one that silently goes stale. Bump it with the others.
  */
-const VERSION = '4.4.2'
+const VERSION = '5.0.0'
 
 /**
  * Every element that can be the ROOT of one of this plugin's surfaces: the centre
@@ -646,7 +646,7 @@ const DESIGN_CLASSES = [...new Set(DESIGN.map((record) => (/\.(sr-[a-z0-9-]+)/u.
 // bundle test both grep for in the built artifact.
 if (typeof document !== 'undefined' && document.querySelector(`style[data-plugin-css="${TAG_ID}"]`) === null) {
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'echocat-skill-panel'
+  tag.dataset.plugin = 'dsh-echocat-skill-panel'
   tag.dataset.pluginCss = TAG_ID
   tag.textContent = CSS
   document.head.appendChild(tag)
