@@ -1,4 +1,4 @@
-# EchoCat Skill Panel 4.4.0 — 背景自定义
+# EchoCat Skill Panel 4.4.2 — 背景自定义
 
 ## 新增功能
 
