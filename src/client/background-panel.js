@@ -2,9 +2,11 @@ const React = require('react')
 const { Icon } = require('./icons.js')
 const { portal } = require('./install.js')
 const { useLiquidSurface } = require('./liquid.js')
+const { LogoMark } = require('./logo-mark.js')
 const bg = require('./background-store.js')
 const h = React.createElement
 const MODES=[['liquid','液态'],['gradient','柔和渐变'],['solid','纯色'],['image','本地图片']]
+const LOGOS=[['show','显示'],['hide','隐藏']]
 const focusable='button:not([disabled]),input:not([disabled]):not([type="file"]),select:not([disabled]),[tabindex="0"]'
 
 function Range({name,label,min,max,unit='%',value,disabled=false}){
@@ -26,8 +28,15 @@ function Color({name,label,value}){
 function Sample(){
  const ref=React.useRef(null)
  useLiquidSurface(ref)
+ /**
+  * THE MARK IS IN THE PREVIEW ON PURPOSE.
+  *
+  * The switch below it controls the strip's EchoCat mark, and without a copy here flipping the switch would change nothing
+  * on screen — the strip is behind this dialog. It carries `aria-hidden` already (it is a mark, not a control), so the
+  * live preview stays decorative while still being the thing the switch visibly affects.
+  */
  return h('div',{className:'sr-root sr-bg-sample',ref,'aria-label':'背景实时预览'},
-  h('div',{className:'sr-bg-sample-title'},'EchoCat',h('span',null,'背景实时预览')),
+  h('div',{className:'sr-bg-sample-title'},h(LogoMark),'EchoCat',h('span',null,'背景实时预览')),
   h('div',{className:'sr-skill'},h('strong',null,'清晰的内容，喜欢的背景'),h('p',null,'在这里看颜色、光泽和文字对比。外面的技能面板也会同步变化。'),h('button',{className:'sr-btn sr-btn--primary',type:'button'},'示例按钮')))
 }
 function BackgroundDialog({owner,state,trigger}){
@@ -67,6 +76,15 @@ function BackgroundDialog({owner,state,trigger}){
      h('fieldset',{disabled:state.busy},
       section('背景样式',h('div',{className:'sr-bg-modes',role:'group','aria-label':'背景模式'},MODES.map(([mode,label])=>h('button',{key:mode,type:'button',className:'sr-btn','aria-pressed':p.mode===mode,onClick:()=>bg.patch({mode})},label))),
        h('label',{className:'sr-bg-select'},h('span',null,'面板明暗'),h('select',{'aria-label':'面板明暗',value:p.theme,onChange:e=>bg.patch({theme:e.target.value})},h('option',{value:'auto'},'跟随客户端'),h('option',{value:'light'},'浅色'),h('option',{value:'dark'},'深色')))),
+      /**
+       * THE MARK IS PART OF THE APPEARANCE, so its switch belongs here rather than in a general settings pane.
+       *
+       * It reuses `.sr-bg-modes` + `.sr-btn` with `aria-pressed`, which is exactly how the background-mode switch above is
+       * built — same control, same visual language, no new component and no new class. The hint states that hiding keeps the
+       * space, because that is the one thing about this switch a user cannot guess from looking at it.
+       */
+      section('横栏图标',h('div',{className:'sr-bg-modes',role:'group','aria-label':'横栏图标'},LOGOS.map(([logo,label])=>h('button',{key:logo,type:'button',className:'sr-btn','aria-pressed':p.logo===logo,onClick:()=>bg.patch({logo})},label))),
+       h('p',{className:'sr-bg-help'},'隐藏后图标位置仍会保留，横栏的计数不会因此移位。')),
       image?section('你的本地图片',
        state.imageUrl?h('div',{className:'sr-bg-image'},h('img',{src:state.imageUrl,alt:'当前本地背景缩略图'}),h('span',null,state.image.name)):h('p',{className:'sr-bg-help'},'选择照片、纹理或插画作为面板背景。'),
        h('input',{ref:fileRef,type:'file',accept:'image/jpeg,image/png,image/webp','aria-label':'选择背景图片',className:'sr-bg-file',onChange:e=>{const file=e.target.files?.[0];e.target.value='';if(file)void bg.chooseImage(file,owner)}}),

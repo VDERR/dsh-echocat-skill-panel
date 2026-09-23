@@ -690,6 +690,22 @@ console.log('\n[10] package identity')
     ok('the stylesheet is responsive (item 40)', css.includes('max-width:560px'))
     ok('the stylesheet themes selection and caret (item 41)', css.includes('::selection') && css.includes('caret-color'))
     /**
+     * THE LOGO SWITCH, ASSERTED AS "HIDDEN BUT STILL IN FLOW".
+     *
+     * `.sr-strip-logo` is the fixed 22px MIDDLE COLUMN between two equal flanks, and that column is what centres the strip's
+     * summary. Hiding it with `display:none` collapses the column and shifts the summary sideways every time the switch is
+     * flipped — so the assertion is not merely that the mark can be hidden, but that hiding it does NOT take it out of flow.
+     *
+     * Written as an explicit negative on `display` rather than only a positive on `visibility`, because that is the mistake
+     * this is here to catch: the obvious way to hide something is the one that breaks the layout.
+     */
+    ok('the logo switch hides the strip mark', /\[data-sr-logo="hide"\][^{]*\.sr-strip-logo\{visibility:hidden\}/u.test(css))
+    ok('...without removing it from the layout, which would shift the centred summary',
+      !/\[data-sr-logo="hide"\][^{]*\.sr-strip-logo\{[^}]*display:none/u.test(css),
+      'display:none collapses the fixed middle column')
+    // The switch only exists if something sets the attribute on the roots the selector is scoped to.
+    ok('...and the attribute is set on the surface roots', source.includes("setAttribute('data-sr-logo'"))
+    /**
      * THE SCALE, AT THE BASE OF THE CASCADE, MATCHING THE HOST'S COMPOSER.
      *
      * This has now pinned three different scales, and each change came from the owner naming a reference: the original

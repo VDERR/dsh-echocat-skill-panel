@@ -202,6 +202,15 @@ function mountLiquid(root) {
     dark = explicit ? Number(value === 'dark' || (!value && explicit.classList.contains('dark'))) : Number(Boolean(scheme?.matches))
     if (settings.theme !== 'auto') dark = Number(settings.theme === 'dark')
     root.setAttribute('data-sr-theme', dark ? 'dark' : 'light')
+    /*
+     * The mark's visibility travels the same way the theme does: an attribute on the surface root, resolved by CSS.
+     *
+     * The alternative — hiding the element from JavaScript — would mean holding a live reference to a node inside another
+     * module's render tree, and it would stop working the moment React re-rendered it. It is set here rather than in
+     * `appearance()` so that it also applies on the very first paint and whenever the host theme flips, since `theme()` is
+     * what runs in both of those cases.
+     */
+    root.setAttribute('data-sr-logo', settings.logo === 'hide' ? 'hide' : 'show')
     root.style.setProperty('--sr-text-halo', dark ? 'rgba(10,18,30,.94)' : 'rgba(255,255,255,.94)')
     const veil = settings.veil / 100
     shade.style.backgroundColor = dark ? 'rgba(13,23,37,' + veil + ')' : 'rgba(249,251,255,' + veil + ')'

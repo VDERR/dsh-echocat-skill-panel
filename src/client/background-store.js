@@ -12,7 +12,7 @@ const React = require('react')
 const DB_NAME = 'echocat-skill-panel-appearance-v1'
 const FILE_LIMIT = 8 * 1024 * 1024
 const IMAGE_LIMIT = 1500 * 1024
-const DEFAULTS = Object.freeze({mode:'liquid',theme:'auto',primary:'#e3edf5',secondary:'#a4cddd',highlight:'#e9def8',brightness:100,saturation:90,contrast:100,shine:55,speed:45,amplitude:45,softness:3,veil:18,animate:true,pointer:true,angle:125,fit:'cover',positionX:50,positionY:50})
+const DEFAULTS = Object.freeze({mode:'liquid',theme:'auto',logo:'show',primary:'#e3edf5',secondary:'#a4cddd',highlight:'#e9def8',brightness:100,saturation:90,contrast:100,shine:55,speed:45,amplitude:45,softness:3,veil:18,animate:true,pointer:true,angle:125,fit:'cover',positionX:50,positionY:50})
 const PRESETS = [
  {id:'silver',name:'柔雾银蓝',note:'细腻、轻盈的缓慢反射',settings:{...DEFAULTS}},
  {id:'pearl',name:'珍珠白',note:'清爽的柔和静态渐变',settings:{...DEFAULTS,mode:'gradient',primary:'#f5f2ec',secondary:'#dfe8ed',highlight:'#ffffff',saturation:60,veil:20}},
@@ -28,7 +28,7 @@ function normalize(value={}) {
  for(const key of ['primary','secondary','highlight'])if(/^#[\da-f]{6}$/iu.test(value[key]||''))next[key]=value[key].toLowerCase()
  for(const [key,[min,max]] of Object.entries(ranges))if(Number.isFinite(value[key]))next[key]=Math.min(max,Math.max(min,value[key]))
  for(const key of ['animate','pointer'])if(typeof value[key]==='boolean')next[key]=value[key]
- for(const [key,values] of Object.entries({mode:['liquid','gradient','solid','image'],theme:['auto','light','dark'],fit:['cover','contain','stretch']}))if(values.includes(value[key]))next[key]=value[key]
+ for(const [key,values] of Object.entries({mode:['liquid','gradient','solid','image'],theme:['auto','light','dark'],fit:['cover','contain','stretch'],logo:['show','hide']}))if(values.includes(value[key]))next[key]=value[key]
  return next
 }
 let saved={settings:{...DEFAULTS},image:null}

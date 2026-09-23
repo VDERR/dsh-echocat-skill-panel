@@ -138,6 +138,15 @@ const LIQUID_CSS = `
 :is(.sr-root,.sr-strip-shell)[data-sr-theme="light"] .sr-logo--dark{display:none}
 :is(.sr-root,.sr-strip-shell)[data-sr-theme="dark"] .sr-logo--light{display:none}
 :is(.sr-root,.sr-strip-shell)[data-sr-theme="dark"] .sr-logo--dark{display:block}
+/*
+ * The EchoCat mark is optional, and HIDDEN MEANS "hidden but still occupying its slot".
+ *
+ * .sr-strip-logo is flex:0 0 22px — the fixed middle column between two equal flanks, which is what centres the summary
+ * rather than nudging it. display:none would collapse that column and shift the summary sideways as the switch is flipped,
+ * so the bar would visibly jerk every time. visibility:hidden keeps the geometry and removes the mark, which is what
+ * "hide the logo" means to someone toggling it.
+ */
+:is(.sr-root,.sr-strip-shell)[data-sr-logo="hide"] .sr-strip-logo{visibility:hidden}
 :is(.sr-root,.sr-strip-shell,.sr-backdrop,.sr-rail) :is(.sr-btn,.sr-tab,.sr-seg-btn,.sr-filter-chip,.sr-section-toggle){
  border-radius:9px;
  background-color:var(--sr-control);

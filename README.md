@@ -1,8 +1,8 @@
 # dsh-echocat-skill-panel
 
-> 5.0.0 改名版：包名与仓库名改为 `dsh-echocat-skill-panel`，功能与 4.4 完全一致。详见 [5.0.0 更新说明](RELEASE_NOTES_5.0.0.md)。
+> 5.1.0 版本：包名与仓库名改为 `dsh-echocat-skill-panel`，功能与 4.4 完全一致。详见 [5.0.0 更新说明](RELEASE_NOTES_5.1.0.md)。
 
-**v5.0.0** · DSH Desktop Beta 的 cordis 插件：统计每轮对话用到了哪些 skill，并让你**在应用里直接装卸、更新它们**。
+**v5.1.0** · DSH Desktop Beta 的 cordis 插件：统计每轮对话用到了哪些 skill，并让你**在应用里直接装卸、更新它们**。
 
 判定不依赖模型自觉 —— 插件从会话事件流推导本轮调了哪些 skill（模型自动、你手动 `/name`、或一个都没用），模型忘了说也照样报。
 

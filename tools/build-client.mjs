@@ -45,6 +45,9 @@ const MODULES = [
   // Generated from the source art by tools/make-logo.py then tools/encode-logo.py. Listed here
   // because the bundler emits the table in this order and a module must precede its requires.
   { id: './logo.js', file: 'src/client/logo.js' },
+  // The mark itself, a leaf: it requires only logo.js, and BOTH panel.js and background-panel.js require it. Listed after
+  // logo.js for that reason and before both of them for the same one.
+  { id: './logo-mark.js', file: 'src/client/logo-mark.js' },
   { id: './source.js', file: 'src/client/source.js' },
   { id: './api.js', file: 'src/client/api.js' },
   { id: './install.js', file: 'src/client/install.js' },

@@ -88,7 +88,7 @@ const React = require('react')
 const { BackgroundButton } = require('./background-panel.js')
 const { useLiquidSurface, useLiquidContent } = require('./liquid.js')
 const { Icon } = require('./icons.js')
-const logo = require('./logo.js')
+const { LogoMark } = require('./logo-mark.js')
 // Requiring the theme also injects it — the side effect is the point.
 const { VERSION } = require('./theme.js')
 const api = require('./api.js')
@@ -1933,28 +1933,12 @@ function SkillReportPanel({ state, snapshot, onRefresh, onUse, onInstall, now, t
 /* ------------------------------ the brand mark ------------------------------ */
 
 /**
- * The EchoCat mark, centred in the composer strip.
+ * The mark now lives in `logo-mark.js` — see that file for why.
  *
- * TWO MARKS, ONE BRAND. The open-eye art belongs to the light theme and the closed-eye art to
- * dark — a brand decision, not a brightness one — so the choice is made by THEME and never by the
- * caller.
- *
- * WHY BOTH ARE ALWAYS IN THE DOM, with one hidden by CSS rather than chosen in JavaScript: reading
- * the active theme from JS means reading a class off `document.documentElement` or subscribing to
- * `prefers-color-scheme`, and the plugin's own stylesheet already answers that question for the
- * whole panel through the same two signals (`prefers-color-scheme` and an explicit theme class or
- * attribute). Selecting in CSS keeps the answer in one place instead of two that can disagree.
- *
- * `aria-hidden` and `pointer-events:none`: it is a mark, not a control.
+ * It moved when the background customisation dialog needed to render the same mark: the dialog carries the switch that hides
+ * it, and a switch with nothing on screen to affect is not a live preview. This module already requires
+ * `background-panel.js`, so requiring the mark back would have been a cycle.
  */
-function LogoMark() {
-  return h(
-    'span',
-    { className: 'sr-strip-logo', 'aria-hidden': 'true', style: { '--sr-logo-mask': `url("${logo.LOGO_BY_THEME.light}")` } },
-    h('img', { className: 'sr-logo sr-logo--light', src: logo.LOGO_BY_THEME.light, alt: '', draggable: 'false' }),
-    h('img', { className: 'sr-logo sr-logo--dark', src: logo.LOGO_BY_THEME.dark, alt: '', draggable: 'false' }),
-  )
-}
 
 /* ------------------------------ sidebar glyph ------------------------------ */
 
