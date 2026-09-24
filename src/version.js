@@ -13,4 +13,4 @@
  * (`package.json`, this file, `src/client/theme.js`) — the client copy was unchecked until
  * 4.0.1 and had already gone stale once by the time anyone looked.
  */
-export const VERSION = '5.1.0'
+export const VERSION = '5.1.1'

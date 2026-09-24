@@ -185,12 +185,30 @@ const LIQUID_CSS = `
 :is(.sr-root,.sr-backdrop) .sr-note--warn{background:var(--sr-warn-weak);color:var(--sr-warn);border-color:color-mix(in srgb,var(--sr-warn) 42%,transparent)}
 :is(.sr-root,.sr-backdrop) .sr-note--error{background:var(--sr-danger-weak);color:var(--sr-danger);border-color:color-mix(in srgb,var(--sr-danger) 42%,transparent)}
 .sr-root .sr-color-menu,.sr-root .sr-color-popover{background:var(--sr-menu);border-color:var(--sr-line2);backdrop-filter:none}
-@container (max-width:1000px){.sr-root .sr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/*
+ * NAMED, like the strip's own query below, and for the same reason: an unnamed @container resolves against the nearest
+ * ancestor container, and this stylesheet declares one on .sr-root too. The panel's grid must respond to the PANEL's
+ * width, not to whichever container the host happens to render above it.
+ */
+@container sr-panel (max-width:1000px){.sr-root .sr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @keyframes sr-liquid-reveal{from{transform:translateY(4px)}to{transform:translateY(0)}}
-@container (max-width:640px){
+/*
+ * THE STRIP'S NARROW LAYOUT IS QUERIED AGAINST THE STRIP ITSELF, BY NAME.
+ *
+ * It was @container (max-width:640px) with no name. An unnamed container query resolves against the NEAREST ANCESTOR
+ * container — and this stylesheet declares container-type: inline-size on .sr-root as well as on the shell. Since the
+ * strip is rendered inside the host's composer column and the centre panel owns a container of its own, "the nearest
+ * ancestor container" is not a stable thing to depend on: on a new session the rule was being decided by a container whose
+ * width is not the strip's, so the narrow layout applied to a strip that was nowhere near narrow — wrapping the four
+ * counters onto a second line, growing the bar's height, and leaving it clipped.
+ *
+ * Naming the query container makes the condition say what it means: THIS STRIP is narrower than 640px. It cannot be
+ * satisfied by an unrelated ancestor, whatever the host renders around the dock.
+ */
+@container sr-strip (max-width:640px){
  .sr-strip-shell .sr-strip{flex-wrap:wrap;gap:8px;padding:10px 12px}
- .sr-strip-shell .sr-strip-left{flex:1 1 65%;min-width:0}
- .sr-strip-shell .sr-strip-right{flex:1 1 100%;min-width:0;justify-content:space-between}
+ .sr-strip-shell .sr-strip-left{flex:1 1 0;min-width:0}
+ .sr-strip-shell .sr-strip-right{flex:1 1 0;min-width:0;justify-content:space-between}
  .sr-strip-shell .sr-strip-right{flex-wrap:wrap;row-gap:8px}
  .sr-strip-shell .sr-strip-stats{flex-wrap:wrap;gap:3px}
  .sr-strip-shell .sr-strip-logo{order:0;flex:0 0 24px}
@@ -208,7 +226,9 @@ const LIQUID_CSS = `
  .sr-root .sr-sec-head{flex-wrap:wrap;gap:4px}
  .sr-root .sr-skill{padding:16px}
 }
-.sr-strip-shell.sr-strip-shell,.sr-root.sr-root{container-type:inline-size}
+/* Named, so both the strip's own queries and the panel's can target the surface they mean. */
+.sr-strip-shell.sr-strip-shell{container-type:inline-size;container-name:sr-strip}
+.sr-root.sr-root{container-type:inline-size;container-name:sr-panel}
 @media (prefers-reduced-motion:reduce){
  :is(.sr-root,.sr-strip-shell,.sr-backdrop,.sr-rail) *,
  :is(.sr-root,.sr-strip-shell,.sr-backdrop,.sr-rail) *::before,

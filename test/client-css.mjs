@@ -428,5 +428,33 @@ ok('the guidance block is a row with a flexible body', /\.sr-guide\{[^}]*display
 ok('a success note has its own treatment', /\.sr-note--ok\{[^}]*var\(--sr-ok\)/u.test(RULES) && /\.sr-note--ok\{[^}]*var\(--sr-ok-weak\)/u.test(RULES))
 ok('the usage marker differs from a plain tag', /\.sr-tag--used\{[^}]*var\(--sr-accent-weak\)/u.test(RULES) && /\.sr-tag--used\{[^}]*var\(--sr-accent\)/u.test(RULES))
 
+console.log('\n[4k] container queries are NAMED, so a strip cannot be sized by an unrelated ancestor')
+/**
+ * THE BUG THIS EXISTS FOR: `@container (max-width:640px)` with no name.
+ *
+ * An unnamed container query resolves against the NEAREST ANCESTOR container. This stylesheet declares
+ * `container-type: inline-size` on BOTH `.sr-strip-shell` and `.sr-root`, and the strip is rendered inside the host's own
+ * composer column — so "the nearest ancestor container" is whatever the host happens to put above the dock, not the strip.
+ * On the owner's machine it resolved against a container that was not the strip, so the NARROW layout applied to a
+ * full-width strip: the four counters wrapped to a second line, the bar grew taller than its box, and the shell's
+ * `overflow:hidden` clipped it mid-label.
+ *
+ * Every existing test passed through that, because each rule is correct in isolation. What was missing is that a query must
+ * NAME the container it means. These assert the naming rather than re-testing the resulting sizes.
+ */
+const containerQueries = [...RULES.matchAll(/@container\s*([a-z-]*)\s*\(/gu)].map((m) => m[1])
+ok('the stylesheet uses container queries', containerQueries.length >= 2, `${containerQueries.length} found`)
+ok('...and EVERY one of them names its container',
+  containerQueries.length > 0 && containerQueries.every((name) => name !== ''),
+  JSON.stringify(containerQueries))
+// A named query only matches if some rule declares that name — otherwise it silently never applies.
+const declaredNames = [...RULES.matchAll(/container-name:\s*([a-z-]+)/gu)].map((m) => m[1])
+ok('...and every queried name is declared on an element',
+  [...new Set(containerQueries)].every((name) => declaredNames.includes(name)),
+  `queried ${JSON.stringify([...new Set(containerQueries)])} vs declared ${JSON.stringify(declaredNames)}`)
+// Targeted by NAME: the strip's breakpoint must ask about the strip, which is exactly the conflation that caused the report.
+ok('the strip\'s narrow layout queries the strip itself',
+  /@container sr-strip \(max-width:640px\)/u.test(RULES) && /container-name:sr-strip/u.test(RULES))
+
 console.log(`\nRESULT: ${pass}/${pass + fail} passed`)
 if (fail > 0) process.exit(1)

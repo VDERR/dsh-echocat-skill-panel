@@ -34,7 +34,12 @@ const BACKGROUND_CSS=`
 .sr-strip-shell .sr-strip-actions{flex:none;flex-wrap:wrap}
 .sr-strip-shell .sr-strip-actions .sr-bg-open{width:auto;min-width:104px;flex:none;height:28px}
 .sr-strip-shell .sr-strip-right{flex-wrap:wrap;row-gap:6px}
-@container(max-width:640px){
+/*
+ * NAMED sr-strip — the container the strip shell declares. Unnamed, this resolved against the nearest ancestor container
+ * instead, which is not the strip: the shell collapses its 「背景自定义」 button to the icon form only when the STRIP is
+ * narrow, so an unrelated narrow ancestor was hiding that button's label on a full-width strip.
+ */
+@container sr-strip (max-width:640px){
  .sr-strip-shell .sr-strip-actions .sr-bg-open{width:28px;min-width:28px;padding-inline:0;justify-content:center}
  .sr-strip-shell .sr-bg-open-label{display:none}
 }
