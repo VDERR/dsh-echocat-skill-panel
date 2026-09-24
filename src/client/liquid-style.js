@@ -192,6 +192,29 @@ const LIQUID_CSS = `
  */
 @container sr-panel (max-width:1000px){.sr-root .sr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @keyframes sr-liquid-reveal{from{transform:translateY(4px)}to{transform:translateY(0)}}
+.sr-strip-shell .sr-stat-l--short{display:none}
+/*
+ * The DSH composer caps this surface at 936px.  The strip used to keep desktop-sized counters and a 104px background
+ * button at that width, then solve the collision by wrapping the action group under the counters.  The dock seat is a
+ * single-line control, so that second row was clipped by the host on a new conversation.  Compact the fixed-width pieces
+ * before they collide; the summary remains the one flexible, ellipsised item.
+ */
+@container sr-strip (max-width:950px){
+ .sr-strip-shell .sr-strip{flex-wrap:nowrap;gap:8px;padding:10px 12px}
+ .sr-strip-shell .sr-strip-left,.sr-strip-shell .sr-strip-right{min-width:0}
+ .sr-strip-shell .sr-strip-right{flex-wrap:nowrap;column-gap:2px;row-gap:0}
+ .sr-strip-shell .sr-strip-stats{flex-wrap:nowrap;gap:1px}
+ .sr-strip-shell .sr-strip .sr-statcard--inline{padding-inline:2px;gap:2px}
+ .sr-strip-shell .sr-statcard--inline .sr-stat-l,.sr-strip-shell .sr-statcard--inline .sr-stat-v{font-size:10px}
+ .sr-strip-shell .sr-strip-stats .sr-stat-l--long{display:none}
+ .sr-strip-shell .sr-strip-stats .sr-stat-l--short{display:inline}
+ .sr-strip-shell .sr-strip-actions{flex-wrap:nowrap;gap:2px}
+ .sr-strip-shell .sr-strip-actions .sr-btn{width:24px;height:24px}
+}
+/* At the host's two smallest composer widths the values stay visible and the full labels move to each chip's tooltip. */
+@container sr-strip (max-width:720px){
+ .sr-strip-shell .sr-strip-stats .sr-stat-l{display:none}
+}
 /*
  * THE STRIP'S NARROW LAYOUT IS QUERIED AGAINST THE STRIP ITSELF, BY NAME.
  *
@@ -202,15 +225,14 @@ const LIQUID_CSS = `
  * width is not the strip's, so the narrow layout applied to a strip that was nowhere near narrow — wrapping the four
  * counters onto a second line, growing the bar's height, and leaving it clipped.
  *
- * Naming the query container makes the condition say what it means: THIS STRIP is narrower than 640px. It cannot be
- * satisfied by an unrelated ancestor, whatever the host renders around the dock.
+ * Naming the query container makes the condition say what it means: THIS STRIP is narrower than 640px. The narrow form now
+ * compacts without wrapping, so a host dock with a single-line height cannot crop a second row.
  */
 @container sr-strip (max-width:640px){
- .sr-strip-shell .sr-strip{flex-wrap:wrap;gap:8px;padding:10px 12px}
- .sr-strip-shell .sr-strip-left{flex:1 1 0;min-width:0}
- .sr-strip-shell .sr-strip-right{flex:1 1 0;min-width:0;justify-content:space-between}
- .sr-strip-shell .sr-strip-right{flex-wrap:wrap;row-gap:8px}
- .sr-strip-shell .sr-strip-stats{flex-wrap:wrap;gap:3px}
+ .sr-strip-shell .sr-strip{flex-wrap:nowrap;gap:6px;padding:8px 10px}
+ .sr-strip-shell .sr-strip-left,.sr-strip-shell .sr-strip-right{min-width:0}
+ .sr-strip-shell .sr-strip-right{flex-wrap:nowrap;row-gap:0}
+ .sr-strip-shell .sr-strip-stats{flex-wrap:nowrap;gap:2px}
  .sr-strip-shell .sr-strip-logo{order:0;flex:0 0 24px}
  .sr-root .sr-head{flex-wrap:wrap;gap:8px}
  .sr-root .sr-head-tools{margin-left:auto;flex-wrap:wrap}

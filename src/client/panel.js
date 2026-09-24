@@ -512,13 +512,18 @@ function useCountUp(target) {
  * `compact` steps the chip down again so four of them fit on the strip's own bar line.
  * The DOM order is the same in all three forms.
  */
-function Stat({ label, value, inline = false, compact = false }) {
+function Stat({ label, shortLabel, value, inline = false, compact = false }) {
   const shown = useCountUp(value)
   if (inline === true) {
     return h(
       'span',
-      { className: compact === true ? 'sr-statcard sr-statcard--inline sr-statcard--bar' : 'sr-statcard sr-statcard--inline' },
-      h('span', { className: 'sr-stat-l' }, label),
+      {
+        className: compact === true ? 'sr-statcard sr-statcard--inline sr-statcard--bar' : 'sr-statcard sr-statcard--inline',
+        'aria-label': `${label} ${shown}`,
+        title: `${label} ${shown}`,
+      },
+      h('span', { className: shortLabel === undefined ? 'sr-stat-l' : 'sr-stat-l sr-stat-l--long' }, label),
+      shortLabel === undefined ? null : h('span', { className: 'sr-stat-l sr-stat-l--short', 'aria-hidden': 'true' }, shortLabel),
       h('span', { className: 'sr-stat-v' }, String(shown)),
     )
   }
@@ -2081,10 +2086,10 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
         ? h(
             'span',
             { className: 'sr-strip-stats' },
-            h(Stat, { label: '回合', value: s.turns ?? 0, inline: true, compact: true }),
-            h(Stat, { label: '用到 skill', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
-            h(Stat, { label: '未用', value: s.turnsWithoutSkills ?? 0, inline: true, compact: true }),
-            h(Stat, { label: '调用次数', value: s.invocations ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '回合', shortLabel: '回合', value: s.turns ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '用到 skill', shortLabel: '用技', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '未用', shortLabel: '未用', value: s.turnsWithoutSkills ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '调用次数', shortLabel: '调用', value: s.invocations ?? 0, inline: true, compact: true }),
           )
         : null,
       // The turn count, shown ONLY when the counters are not.

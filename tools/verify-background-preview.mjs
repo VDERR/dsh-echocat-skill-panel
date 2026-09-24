@@ -48,7 +48,7 @@ try{
  const readUniform=(name,preview=false)=>page.locator(preview?'.sr-bg-sample .sr-liquid-field':'.preview-seat .sr-liquid-field').first().evaluate((c,name)=>{const gl=c.getContext('webgl');return gl.getUniform(gl.getParameter(gl.CURRENT_PROGRAM),gl.getUniformLocation(gl.getParameter(gl.CURRENT_PROGRAM),name))},name)
  const defaults=(await state()).settings
  const widths=await page.locator('.sr-strip-actions').evaluate(n=>{const bs=[...n.querySelectorAll('button')].map(b=>b.getBoundingClientRect());return {width:bs[0].width,overlap:bs.some((b,i)=>i&&b.left<bs[i-1].right-1)}})
- check('宽屏入口文字完整且与原按钮不重叠',widths.width>=104&&!widths.overlap,widths)
+ check('横栏入口在宿主宽度上收成图标且不与原按钮重叠',widths.width<=28&&!widths.overlap,widths)
  await page.locator('.sr-strip').click({position:{x:12,y:12}})
  check('横栏可收起',await page.locator('.sr-strip').getAttribute('aria-expanded')==='false')
  await button('背景自定义').focus();await page.keyboard.press('Enter')

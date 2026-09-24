@@ -33,14 +33,14 @@ const BACKGROUND_CSS=`
 .sr-strip-shell .sr-strip-panel .sr-head .sr-bg-open{display:none}
 .sr-strip-shell .sr-strip-actions{flex:none;flex-wrap:wrap}
 .sr-strip-shell .sr-strip-actions .sr-bg-open{width:auto;min-width:104px;flex:none;height:28px}
-.sr-strip-shell .sr-strip-right{flex-wrap:wrap;row-gap:6px}
+.sr-strip-shell .sr-strip-right{flex-wrap:nowrap;row-gap:0}
 /*
- * NAMED sr-strip — the container the strip shell declares. Unnamed, this resolved against the nearest ancestor container
- * instead, which is not the strip: the shell collapses its 「背景自定义」 button to the icon form only when the STRIP is
- * narrow, so an unrelated narrow ancestor was hiding that button's label on a full-width strip.
+ * NAMED sr-strip — the container the strip shell declares. The host caps the composer strip at 936px, so the 104px text
+ * button becomes its 26px icon form before the fixed counters and actions collide. Unnamed, this once resolved against an
+ * unrelated ancestor and made the decision from the wrong width.
  */
-@container sr-strip (max-width:640px){
- .sr-strip-shell .sr-strip-actions .sr-bg-open{width:28px;min-width:28px;padding-inline:0;justify-content:center}
+@container sr-strip (max-width:950px){
+ .sr-strip-shell .sr-strip-actions .sr-bg-open{width:26px;min-width:26px;height:26px;padding-inline:0;justify-content:center}
  .sr-strip-shell .sr-bg-open-label{display:none}
 }
 .sr-bg-backdrop.sr-backdrop{padding:24px;background:rgba(21,32,48,.30);z-index:10020}

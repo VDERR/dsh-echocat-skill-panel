@@ -456,5 +456,16 @@ ok('...and every queried name is declared on an element',
 ok('the strip\'s narrow layout queries the strip itself',
   /@container sr-strip \(max-width:640px\)/u.test(RULES) && /container-name:sr-strip/u.test(RULES))
 
+console.log('\n[4l] the composer strip compacts instead of adding a clipped second row')
+ok('the background action compacts before the host composer reaches its 936px cap',
+  /@container sr-strip \(max-width:950px\)\{[\s\S]*\.sr-bg-open\{[^}]*width:26px/u.test(RULES))
+ok('the strip and its right flank explicitly stay on one line',
+  /@container sr-strip \(max-width:950px\)\{[\s\S]*\.sr-strip\{[^}]*flex-wrap:nowrap/u.test(RULES) &&
+  /\.sr-strip-shell \.sr-strip-right\{flex-wrap:nowrap/u.test(RULES))
+ok('no responsive rule restores the clipped wrapping layout',
+  !/\.sr-strip(?:-right)?\{[^}]*flex-wrap:wrap/u.test(RULES))
+ok('the two minimum host widths may hide labels but keep the values',
+  /@container sr-strip \(max-width:720px\)\{[\s\S]*\.sr-stat-l\{display:none/u.test(RULES))
+
 console.log(`\nRESULT: ${pass}/${pass + fail} passed`)
 if (fail > 0) process.exit(1)
