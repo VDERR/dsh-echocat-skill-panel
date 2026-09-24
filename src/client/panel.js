@@ -2087,7 +2087,7 @@ function SkillReportStrip({ state, onRefresh, onUse, now, initialOpen = false })
             'span',
             { className: 'sr-strip-stats' },
             h(Stat, { label: '回合', shortLabel: '回合', value: s.turns ?? 0, inline: true, compact: true }),
-            h(Stat, { label: '用到 skill', shortLabel: '用技', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
+            h(Stat, { label: '用到 skill', shortLabel: '用到', value: s.turnsWithSkills ?? 0, inline: true, compact: true }),
             h(Stat, { label: '未用', shortLabel: '未用', value: s.turnsWithoutSkills ?? 0, inline: true, compact: true }),
             h(Stat, { label: '调用次数', shortLabel: '调用', value: s.invocations ?? 0, inline: true, compact: true }),
           )

@@ -31,15 +31,15 @@ const BACKGROUND_CSS=`
 .sr-background-layer{background-repeat:no-repeat}
 .sr-root .sr-bg-open,.sr-strip-shell .sr-bg-open{white-space:nowrap;gap:5px;padding-inline:9px}
 .sr-strip-shell .sr-strip-panel .sr-head .sr-bg-open{display:none}
-.sr-strip-shell .sr-strip-actions{flex:none;flex-wrap:wrap}
+.sr-strip-shell .sr-strip-actions{flex:none;flex-wrap:nowrap}
 .sr-strip-shell .sr-strip-actions .sr-bg-open{width:auto;min-width:104px;flex:none;height:28px}
 .sr-strip-shell .sr-strip-right{flex-wrap:nowrap;row-gap:0}
 /*
- * NAMED sr-strip — the container the strip shell declares. The host caps the composer strip at 936px, so the 104px text
- * button becomes its 26px icon form before the fixed counters and actions collide. Unnamed, this once resolved against an
- * unrelated ancestor and made the decision from the wrong width.
+ * NAMED sr-strip — the container the strip shell declares. A saved DSH conversation width can exceed the default 936px
+ * cap. The fixed counters plus the 104px text button need roughly 1240px before two equal flanks can hold them, so the
+ * button becomes its 26px icon form below that measured boundary. Unnamed, this once resolved against the wrong ancestor.
  */
-@container sr-strip (max-width:950px){
+@container sr-strip (max-width:1240px){
  .sr-strip-shell .sr-strip-actions .sr-bg-open{width:26px;min-width:26px;height:26px;padding-inline:0;justify-content:center}
  .sr-strip-shell .sr-bg-open-label{display:none}
 }

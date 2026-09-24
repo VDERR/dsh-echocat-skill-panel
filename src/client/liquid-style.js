@@ -40,7 +40,7 @@ const LIQUID_CSS = `
 .sr-strip-shell.sr-strip-shell{gap:0;border-radius:20px;overflow:hidden}
 .sr-liquid-field{position:absolute;top:0;left:0;z-index:-1;pointer-events:none;border-radius:inherit;opacity:.96;max-width:none}
 .sr-root.sr-root{padding:0;border-radius:24px}
-.sr-strip-shell.sr-strip-shell{padding:0;margin-inline:auto}
+.sr-strip-shell.sr-strip-shell{padding:0;margin-inline:auto;flex:0 0 auto;min-height:48px}
 .sr-root .sr-body{background:transparent;width:100%;max-width:1280px;margin-inline:auto;padding:20px 24px 24px;box-sizing:border-box}
 .sr-backdrop .sr-sheet-head,.sr-backdrop .sr-sheet-foot{
  background:var(--sr-glass);border-color:var(--sr-line);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
@@ -104,10 +104,10 @@ const LIQUID_CSS = `
 .sr-root .sr-row-actions .sr-btn{opacity:1}
 .sr-root .sr-skill--editing .sr-skill-main{min-height:0}
 .sr-strip-shell .sr-strip-row,.sr-strip-shell.sr-strip-shell--open .sr-strip-row{
- padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;
+ padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;flex:0 0 auto;min-height:46px;
 }
 .sr-strip-shell .sr-strip,.sr-strip-shell.sr-strip-shell--open .sr-strip{
- background:transparent;border:0;border-radius:0;box-shadow:none;
+ background:transparent;border:0;border-radius:0;box-shadow:none;box-sizing:border-box;min-height:46px;
  transition:background 200ms;
 }
 .sr-strip-shell .sr-strip{padding:12px 22px}
@@ -194,15 +194,14 @@ const LIQUID_CSS = `
 @keyframes sr-liquid-reveal{from{transform:translateY(4px)}to{transform:translateY(0)}}
 .sr-strip-shell .sr-stat-l--short{display:none}
 /*
- * The DSH composer caps this surface at 936px.  The strip used to keep desktop-sized counters and a 104px background
- * button at that width, then solve the collision by wrapping the action group under the counters.  The dock seat is a
- * single-line control, so that second row was clipped by the host on a new conversation.  Compact the fixed-width pieces
- * before they collide; the summary remains the one flexible, ellipsised item.
+ * DSH normally caps this surface at 936px, but a saved user width can make it wider. The full labels, 104px background
+ * button and two equal flanks need about 1240px before they stop colliding. Below that measured boundary the fixed-width
+ * pieces compact and the left flank yields width; the summary remains the one flexible, ellipsised item.
  */
-@container sr-strip (max-width:950px){
+@container sr-strip (max-width:1240px){
  .sr-strip-shell .sr-strip{flex-wrap:nowrap;gap:8px;padding:10px 12px}
- .sr-strip-shell .sr-strip-left,.sr-strip-shell .sr-strip-right{min-width:0}
- .sr-strip-shell .sr-strip-right{flex-wrap:nowrap;column-gap:2px;row-gap:0}
+ .sr-strip-shell .sr-strip-left{flex:1 1 auto;min-width:0;overflow:hidden}
+ .sr-strip-shell .sr-strip-right{flex:0 0 auto;min-width:0;flex-wrap:nowrap;column-gap:2px;row-gap:0}
  .sr-strip-shell .sr-strip-stats{flex-wrap:nowrap;gap:1px}
  .sr-strip-shell .sr-strip .sr-statcard--inline{padding-inline:2px;gap:2px}
  .sr-strip-shell .sr-statcard--inline .sr-stat-l,.sr-strip-shell .sr-statcard--inline .sr-stat-v{font-size:10px}
@@ -211,9 +210,11 @@ const LIQUID_CSS = `
  .sr-strip-shell .sr-strip-actions{flex-wrap:nowrap;gap:2px}
  .sr-strip-shell .sr-strip-actions .sr-btn{width:24px;height:24px}
 }
-/* At the host's two smallest composer widths the values stay visible and the full labels move to each chip's tooltip. */
+/* At the host's smallest composer widths the short labels stay visible. The decorative centre mark yields its slot instead. */
 @container sr-strip (max-width:720px){
- .sr-strip-shell .sr-strip-stats .sr-stat-l{display:none}
+ .sr-strip-shell .sr-strip-logo{display:none}
+ .sr-strip-shell .sr-strip-left{flex:1 1 0%}
+ .sr-strip-shell .sr-strip-right{flex:0 0 auto}
 }
 /*
  * THE STRIP'S NARROW LAYOUT IS QUERIED AGAINST THE STRIP ITSELF, BY NAME.

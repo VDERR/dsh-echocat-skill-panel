@@ -458,14 +458,23 @@ ok('the strip\'s narrow layout queries the strip itself',
 
 console.log('\n[4l] the composer strip compacts instead of adding a clipped second row')
 ok('the background action compacts before the host composer reaches its 936px cap',
-  /@container sr-strip \(max-width:950px\)\{[\s\S]*\.sr-bg-open\{[^}]*width:26px/u.test(RULES))
+  /@container sr-strip \(max-width:1240px\)\{[\s\S]*\.sr-bg-open\{[^}]*width:26px/u.test(RULES))
 ok('the strip and its right flank explicitly stay on one line',
-  /@container sr-strip \(max-width:950px\)\{[\s\S]*\.sr-strip\{[^}]*flex-wrap:nowrap/u.test(RULES) &&
+  /@container sr-strip \(max-width:1240px\)\{[\s\S]*\.sr-strip\{[^}]*flex-wrap:nowrap/u.test(RULES) &&
   /\.sr-strip-shell \.sr-strip-right\{flex-wrap:nowrap/u.test(RULES))
 ok('no responsive rule restores the clipped wrapping layout',
   !/\.sr-strip(?:-right)?\{[^}]*flex-wrap:wrap/u.test(RULES))
-ok('the two minimum host widths may hide labels but keep the values',
-  /@container sr-strip \(max-width:720px\)\{[\s\S]*\.sr-stat-l\{display:none/u.test(RULES))
+ok('the action group never wraps either',
+  /\.sr-strip-shell \.sr-strip-actions\{flex:none;flex-wrap:nowrap/u.test(RULES))
+ok('narrow counters keep a visible label instead of becoming unexplained numbers',
+  !/@container sr-strip \(max-width:720px\)\{[\s\S]*\.sr-stat-l\{display:none/u.test(RULES))
+ok('the narrow layout gives the counter side its natural width and yields the decorative logo',
+  /@container sr-strip \(max-width:720px\)\{[\s\S]*\.sr-strip-right\{flex:0 0 auto/u.test(RULES) &&
+  /@container sr-strip \(max-width:720px\)\{[\s\S]*\.sr-strip-logo\{display:none/u.test(RULES))
+ok('the dock surface, row and bar have a non-collapsible one-line height',
+  /\.sr-strip-shell\.sr-strip-shell\{[^}]*min-height:48px/u.test(RULES) &&
+  /\.sr-strip-shell \.sr-strip-row[^\{]*\{[^}]*min-height:46px/u.test(RULES) &&
+  /\.sr-strip-shell \.sr-strip[^\{]*\{[^}]*min-height:46px/u.test(RULES))
 
 console.log(`\nRESULT: ${pass}/${pass + fail} passed`)
 if (fail > 0) process.exit(1)
